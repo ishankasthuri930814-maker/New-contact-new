@@ -1,0 +1,6 @@
+{
+  "name": "ALL Police Contact",
+  "description": "Sri Lanka Police contact directory with search, direct call, and email functionality.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

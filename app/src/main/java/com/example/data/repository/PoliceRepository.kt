@@ -1,0 +1,488 @@
+package com.example.data.repository
+
+import android.content.Context
+import android.content.SharedPreferences
+import android.util.Log
+import com.example.data.model.ContactCategory
+import com.example.data.model.PoliceContact
+import com.example.data.remote.GoogleSheetsResponse
+import com.example.data.remote.PoliceApiService
+import com.squareup.moshi.Moshi
+import com.squareup.moshi.Types
+import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import okhttp3.OkHttpClient
+import okhttp3.logging.HttpLoggingInterceptor
+import retrofit2.Retrofit
+import retrofit2.converter.moshi.MoshiConverterFactory
+import java.io.File
+import java.util.concurrent.TimeUnit
+
+class PoliceRepository(private val context: Context) {
+
+    private val prefs: SharedPreferences =
+        context.getSharedPreferences("police_directory_prefs", Context.MODE_PRIVATE)
+
+    private val moshi = Moshi.Builder()
+        .addLast(KotlinJsonAdapterFactory())
+        .build()
+
+    private val apiService: PoliceApiService by lazy {
+        val loggingInterceptor = HttpLoggingInterceptor().apply {
+            level = HttpLoggingInterceptor.Level.BASIC
+        }
+
+        val okHttpClient = OkHttpClient.Builder()
+            .addInterceptor(loggingInterceptor)
+            .connectTimeout(30, TimeUnit.SECONDS)
+            .readTimeout(30, TimeUnit.SECONDS)
+            .build()
+
+        Retrofit.Builder()
+            .baseUrl("https://sheets.googleapis.com/")
+            .client(okHttpClient)
+            .addConverterFactory(MoshiConverterFactory.create(moshi))
+            .build()
+            .create(PoliceApiService::class.java)
+    }
+
+    suspend fun getPoliceContacts(forceRefresh: Boolean = false): Result<List<PoliceContact>> =
+        withContext(Dispatchers.IO) {
+            val favorites = getFavoritesSet()
+
+            // Try fetching live data from Google Sheets first
+            try {
+                val remoteContacts = fetchAndCacheRemote(favorites)
+                if (remoteContacts.isNotEmpty()) {
+                    return@withContext Result.success(remoteContacts)
+                }
+            } catch (e: Exception) {
+                Log.e("PoliceRepo", "Remote fetch failed, falling back to local cache", e)
+            }
+
+            // Fallback to local disk cache if remote fetch failed
+            val cached = loadFromLocalCache()
+            if (cached.isNotEmpty()) {
+                val updated = cached.map { it.copy(isFavorite = favorites.contains(it.id)) }
+                Result.success(updated)
+            } else {
+                val defaults = getDefaultEmergencyContacts().map {
+                    it.copy(isFavorite = favorites.contains(it.id))
+                }
+                Result.success(defaults)
+            }
+        }
+
+    private suspend fun fetchAndCacheRemote(favorites: Set<String>): List<PoliceContact> {
+        val allParsed = mutableListOf<PoliceContact>()
+
+        // Fetch from Primary Sheet
+        try {
+            val resp1 = apiService.getSheetValues(PoliceApiService.PRIMARY_SHEET_URL)
+            resp1.body()?.values?.let { rows1 ->
+                allParsed.addAll(parseSheetRows(rows1))
+            }
+        } catch (e: Exception) {
+            Log.e("PoliceRepo", "Primary sheet fetch failed", e)
+        }
+
+        // Fetch from Secondary Sheet
+        try {
+            val resp2 = apiService.getSheetValues(PoliceApiService.SECONDARY_SHEET_URL)
+            resp2.body()?.values?.let { rows2 ->
+                allParsed.addAll(parseSheetRows(rows2))
+            }
+        } catch (e: Exception) {
+            Log.e("PoliceRepo", "Secondary sheet fetch failed", e)
+        }
+
+        // Fallback if both failed
+        if (allParsed.isEmpty()) {
+            try {
+                val respFb = apiService.getSheetValues(PoliceApiService.FALLBACK_SHEET_URL)
+                respFb.body()?.values?.let { rowsFb ->
+                    allParsed.addAll(parseSheetRows(rowsFb))
+                }
+            } catch (e: Exception) {
+                Log.e("PoliceRepo", "Fallback fetch failed", e)
+            }
+        }
+
+        // Merge contacts from both sheets and emergency defaults
+        val mergedMap = mutableMapOf<String, PoliceContact>()
+
+        for (c in (getDefaultEmergencyContacts() + allParsed)) {
+            val key = c.stationOrDesignation.trim().lowercase().replace(Regex("[^a-z0-9]"), "")
+            if (key.isBlank()) continue
+
+            val existing = mergedMap[key]
+            if (existing == null) {
+                mergedMap[key] = c
+            } else {
+                mergedMap[key] = existing.copy(
+                    rank = existing.rank.ifBlank { c.rank },
+                    officerName = existing.officerName.ifBlank { c.officerName },
+                    generalPhone = existing.generalPhone.ifBlank { c.generalPhone },
+                    mobilePhone = existing.mobilePhone.ifBlank { c.mobilePhone },
+                    officePhone2 = existing.officePhone2.ifBlank { c.officePhone2 },
+                    officePhone3 = existing.officePhone3.ifBlank { c.officePhone3 },
+                    fax = existing.fax.ifBlank { c.fax },
+                    email = existing.email.ifBlank { c.email },
+                    oicTraffic = existing.oicTraffic.ifBlank { c.oicTraffic },
+                    oicCrime = existing.oicCrime.ifBlank { c.oicCrime },
+                    oicVice = existing.oicVice.ifBlank { c.oicVice },
+                    oicCommunityPolicing = existing.oicCommunityPolicing.ifBlank { c.oicCommunityPolicing },
+                    locationCoordinates = existing.locationCoordinates.ifBlank { c.locationCoordinates },
+                    locationAddress = existing.locationAddress.ifBlank { c.locationAddress }
+                )
+            }
+        }
+
+        val allContacts = mergedMap.values.toList()
+
+        // Save merged data to local disk cache
+        saveToLocalCache(allContacts)
+
+        return allContacts.map { it.copy(isFavorite = favorites.contains(it.id)) }
+    }
+
+    private fun parseSheetRows(rows: List<List<String>>): List<PoliceContact> {
+        if (rows.isEmpty()) return emptyList()
+
+        val contacts = mutableListOf<PoliceContact>()
+        val firstRow = rows[0].map { it.trim().lowercase().replace("\ufeff", "") }
+
+        val hasHeader = firstRow.any {
+            it.contains("designation") || it.contains("station") || it.contains("rank") || it.contains("office")
+        }
+
+        val startIndex = if (hasHeader) 1 else 0
+
+        // Helper to find column index by keywords
+        fun findColIdx(vararg keywords: String, defaultIdx: Int): Int {
+            if (!hasHeader) return defaultIdx
+            for (kw in keywords) {
+                for ((idx, headerName) in firstRow.withIndex()) {
+                    if (headerName.contains(kw)) return idx
+                }
+            }
+            return -1
+        }
+
+        val colDesig = findColIdx("designation", "station", defaultIdx = 0)
+        val colRank = findColIdx("rank", defaultIdx = 1)
+        val colName = findColIdx("name", defaultIdx = 2)
+        val colOffice1 = findColIdx("office_no", "general", "office", defaultIdx = 3)
+        val colOffice2 = findColIdx("office_no2", defaultIdx = -1)
+        val colMobile = findColIdx("mobile", defaultIdx = 4)
+        val colOffice3 = findColIdx("office_no3", defaultIdx = -1)
+        val colFax = findColIdx("fax", defaultIdx = -1)
+        val colEmail = findColIdx("email", defaultIdx = 5)
+        val colTraffic = findColIdx("traffic", defaultIdx = -1)
+        val colCrime = findColIdx("crime", defaultIdx = -1)
+        val colVice = findColIdx("vice", defaultIdx = -1)
+        val colComm = findColIdx("community", "policying", defaultIdx = -1)
+        val colCoords = findColIdx("let-lang", "coords", defaultIdx = -1)
+        val colAddr = findColIdx("adress", "address", defaultIdx = -1)
+
+        for (i in startIndex until rows.size) {
+            val row = rows[i]
+            if (row.isEmpty()) continue
+
+            fun getVal(idx: Int): String {
+                if (idx < 0 || idx >= row.size) return ""
+                return row[idx].trim().replace("\ufeff", "")
+            }
+
+            val stationOrDesignation = getVal(if (colDesig >= 0) colDesig else 0)
+            if (stationOrDesignation.isBlank()) continue
+
+            val rank = getVal(colRank)
+            val officerName = getVal(colName)
+            val generalPhone = getVal(colOffice1)
+            val officePhone2 = getVal(colOffice2)
+            val mobilePhone = getVal(colMobile)
+            val officePhone3 = getVal(colOffice3)
+            val fax = getVal(colFax)
+            val email = getVal(colEmail)
+            val oicTraffic = getVal(colTraffic)
+            val oicCrime = getVal(colCrime)
+            val oicVice = getVal(colVice)
+            val oicComm = getVal(colComm)
+            val locCoords = getVal(colCoords)
+            val locAddr = getVal(colAddr)
+
+            val category = when {
+                rank.contains("DIG", ignoreCase = true) || stationOrDesignation.contains("DIG", ignoreCase = true) -> ContactCategory.RANGES
+                rank.contains("SSP", ignoreCase = true) || rank.contains("SP", ignoreCase = true) || stationOrDesignation.contains("Division", ignoreCase = true) -> ContactCategory.DIVISIONS
+                stationOrDesignation.contains("Snr", ignoreCase = true) || stationOrDesignation.contains("Senior", ignoreCase = true) || rank.contains("IGP", ignoreCase = true) -> ContactCategory.SENIOR_OFFICERS
+                else -> ContactCategory.ALL
+            }
+
+            val id = "contact_${i}_${stationOrDesignation.hashCode()}"
+
+            contacts.add(
+                PoliceContact(
+                    id = id,
+                    stationOrDesignation = stationOrDesignation,
+                    rank = rank,
+                    officerName = officerName,
+                    generalPhone = generalPhone,
+                    mobilePhone = mobilePhone,
+                    officePhone2 = officePhone2,
+                    officePhone3 = officePhone3,
+                    fax = fax,
+                    email = email,
+                    oicTraffic = oicTraffic,
+                    oicCrime = oicCrime,
+                    oicVice = oicVice,
+                    oicCommunityPolicing = oicComm,
+                    locationCoordinates = locCoords,
+                    locationAddress = locAddr,
+                    category = category
+                )
+            )
+        }
+        return contacts
+    }
+
+    fun toggleFavorite(contactId: String): Boolean {
+        val favorites = getFavoritesSet().toMutableSet()
+        val isFavNow = if (favorites.contains(contactId)) {
+            favorites.remove(contactId)
+            false
+        } else {
+            favorites.add(contactId)
+            true
+        }
+        prefs.edit().putStringSet("favorites", favorites).apply()
+        return isFavNow
+    }
+
+    private fun getFavoritesSet(): Set<String> {
+        return prefs.getStringSet("favorites", emptySet()) ?: emptySet()
+    }
+
+    private fun saveToLocalCache(contacts: List<PoliceContact>) {
+        try {
+            val cacheFile = File(context.cacheDir, "police_contacts_cache.json")
+            val listType = Types.newParameterizedType(List::class.java, PoliceContact::class.java)
+            val adapter = moshi.adapter<List<PoliceContact>>(listType)
+            val json = adapter.toJson(contacts)
+            cacheFile.writeText(json)
+            prefs.edit().putLong("last_sync_time", System.currentTimeMillis()).apply()
+        } catch (e: Exception) {
+            Log.e("PoliceRepo", "Error saving cache", e)
+        }
+    }
+
+    private fun loadFromLocalCache(): List<PoliceContact> {
+        return try {
+            val cacheFile = File(context.cacheDir, "police_contacts_cache.json")
+            if (!cacheFile.exists()) return emptyList()
+            val json = cacheFile.readText()
+            val listType = Types.newParameterizedType(List::class.java, PoliceContact::class.java)
+            val adapter = moshi.adapter<List<PoliceContact>>(listType)
+            adapter.fromJson(json) ?: emptyList()
+        } catch (e: Exception) {
+            Log.e("PoliceRepo", "Error loading cache", e)
+            emptyList()
+        }
+    }
+
+    fun getLastSyncTimeString(): String {
+        val lastSync = prefs.getLong("last_sync_time", 0L)
+        if (lastSync == 0L) return "Not synced yet"
+        val diff = System.currentTimeMillis() - lastSync
+        val minutes = diff / (1000 * 60)
+        return when {
+            minutes < 1 -> "Just now"
+            minutes < 60 -> "$minutes mins ago"
+            else -> "${minutes / 60} hours ago"
+        }
+    }
+
+    private fun getDefaultEmergencyContacts(): List<PoliceContact> {
+        return listOf(
+            // Emergency Services
+            PoliceContact(
+                id = "em_119",
+                stationOrDesignation = "119 Emergency Police Hotline",
+                rank = "EMERGENCY HOTLINE",
+                officerName = "Police Emergency Service (24/7)",
+                generalPhone = "119",
+                mobilePhone = "119",
+                email = "telligp@police.gov.lk",
+                category = ContactCategory.EMERGENCY
+            ),
+            PoliceContact(
+                id = "em_1990",
+                stationOrDesignation = "1990 Suwa Seriya Ambulance",
+                rank = "AMBULANCE",
+                officerName = "Emergency Pre-Hospital Care Service",
+                generalPhone = "1990",
+                mobilePhone = "1990",
+                category = ContactCategory.EMERGENCY
+            ),
+            PoliceContact(
+                id = "em_110",
+                stationOrDesignation = "110 Fire & Rescue Brigade",
+                rank = "FIRE SERVICE",
+                officerName = "Fire & Ambulance Emergency Brigade",
+                generalPhone = "110",
+                officePhone2 = "011-2422222",
+                category = ContactCategory.EMERGENCY
+            ),
+            PoliceContact(
+                id = "em_118",
+                stationOrDesignation = "118 National Security Emergency",
+                rank = "HOTLINE",
+                officerName = "Ministry of Defense / Police",
+                generalPhone = "118",
+                mobilePhone = "118",
+                email = "info@police.gov.lk",
+                category = ContactCategory.EMERGENCY
+            ),
+            PoliceContact(
+                id = "em_bomb",
+                stationOrDesignation = "Bomb Disposal Squad (Army)",
+                rank = "ARMY SQUAD",
+                officerName = "Army Emergency Ordnance Squad",
+                generalPhone = "011-2434251",
+                category = ContactCategory.EMERGENCY
+            ),
+            PoliceContact(
+                id = "em_accident",
+                stationOrDesignation = "Accident Service (General Hospital)",
+                rank = "NATIONAL HOSPITAL",
+                officerName = "National Hospital Emergency Unit",
+                generalPhone = "011-2691111",
+                category = ContactCategory.EMERGENCY
+            ),
+            PoliceContact(
+                id = "em_stjohn",
+                stationOrDesignation = "St. Johns Ambulance Brigade",
+                rank = "AMBULANCE",
+                officerName = "St. Johns Emergency Service",
+                generalPhone = "011-2437744",
+                category = ContactCategory.EMERGENCY
+            ),
+            PoliceContact(
+                id = "em_redcross",
+                stationOrDesignation = "Sri Lanka Red Cross Society",
+                rank = "AMBULANCE",
+                officerName = "Red Cross Disaster & Ambulance",
+                generalPhone = "011-2691095",
+                category = ContactCategory.EMERGENCY
+            ),
+            PoliceContact(
+                id = "em_certis",
+                stationOrDesignation = "Certis Lanka Emergency Service",
+                rank = "SECURITY",
+                officerName = "Certis Emergency Response Unit",
+                generalPhone = "011-2585777",
+                category = ContactCategory.EMERGENCY
+            ),
+
+            // Short Codes (කෙටි සංකේත)
+            PoliceContact(id = "sc_115", stationOrDesignation = "Colombo Municipal Council Operational Unit", rank = "SHORT CODE", generalPhone = "115", category = ContactCategory.SHORT_CODES),
+            PoliceContact(id = "sc_116", stationOrDesignation = "Sri Lanka Air Force Emergency Service", rank = "SHORT CODE", generalPhone = "116", category = ContactCategory.SHORT_CODES),
+            PoliceContact(id = "sc_1212", stationOrDesignation = "1212 SLT Directory Assistance", rank = "SHORT CODE", officerName = "Directory Information Assistance", generalPhone = "1212", category = ContactCategory.SHORT_CODES),
+            PoliceContact(id = "sc_1344", stationOrDesignation = "Durdans Hospital Hotline", rank = "SHORT CODE", generalPhone = "1344", category = ContactCategory.SHORT_CODES),
+            PoliceContact(id = "sc_1717", stationOrDesignation = "Mobitel Helpline", rank = "SHORT CODE", generalPhone = "1717", category = ContactCategory.SHORT_CODES),
+            PoliceContact(id = "sc_1900", stationOrDesignation = "TRCSL - Telecommunications Regulatory Commission", rank = "SHORT CODE", generalPhone = "1900", category = ContactCategory.SHORT_CODES),
+            PoliceContact(id = "sc_1901", stationOrDesignation = "Power & Energy Ministry Complaints", rank = "SHORT CODE", generalPhone = "1901", category = ContactCategory.SHORT_CODES),
+            PoliceContact(id = "sc_1908", stationOrDesignation = "Presidential Secretariat Office", rank = "SHORT CODE", generalPhone = "1908", category = ContactCategory.SHORT_CODES),
+            PoliceContact(id = "sc_1910", stationOrDesignation = "LECO Power Supply Breakdowns", rank = "SHORT CODE", generalPhone = "1910", category = ContactCategory.SHORT_CODES),
+            PoliceContact(id = "sc_1912", stationOrDesignation = "Tourism Ministry Hotline", rank = "SHORT CODE", generalPhone = "1912", category = ContactCategory.SHORT_CODES),
+            PoliceContact(id = "sc_1917", stationOrDesignation = "Ministry of Megapolis & Western Development", rank = "SHORT CODE", generalPhone = "1917", category = ContactCategory.SHORT_CODES),
+            PoliceContact(id = "sc_1919", stationOrDesignation = "1919 Government Information Centre", rank = "SHORT CODE", officerName = "Public Info Helpline", generalPhone = "1919", category = ContactCategory.SHORT_CODES),
+            PoliceContact(id = "sc_1929", stationOrDesignation = "Child Help Line", rank = "SHORT CODE", officerName = "Min of Child Development & Women Empowerment", generalPhone = "1929", category = ContactCategory.SHORT_CODES),
+            PoliceContact(id = "sc_1939", stationOrDesignation = "National Water Supply & Drainage Board", rank = "SHORT CODE", generalPhone = "1939", category = ContactCategory.SHORT_CODES),
+            PoliceContact(id = "sc_1944", stationOrDesignation = "Inland Revenue Department", rank = "SHORT CODE", generalPhone = "1944", category = ContactCategory.SHORT_CODES),
+            PoliceContact(id = "sc_1948", stationOrDesignation = "National Authority on Tobacco & Alcohol", rank = "SHORT CODE", generalPhone = "1948", category = ContactCategory.SHORT_CODES),
+            PoliceContact(id = "sc_1954", stationOrDesignation = "Bribery Commission (CIABOC)", rank = "SHORT CODE", generalPhone = "1954", category = ContactCategory.SHORT_CODES),
+            PoliceContact(id = "sc_1955", stationOrDesignation = "National Transport Commission (NTC)", rank = "SHORT CODE", generalPhone = "1955", category = ContactCategory.SHORT_CODES),
+            PoliceContact(id = "sc_1969", stationOrDesignation = "Southern Highway Emergency Hotline", rank = "SHORT CODE", generalPhone = "1969", category = ContactCategory.SHORT_CODES),
+            PoliceContact(id = "sc_1973", stationOrDesignation = "SriLankan Airlines Flight Info", rank = "SHORT CODE", generalPhone = "1973", category = ContactCategory.SHORT_CODES),
+            PoliceContact(id = "sc_1984", stationOrDesignation = "National Dangerous Drugs Control Board", rank = "SHORT CODE", generalPhone = "1984", category = ContactCategory.SHORT_CODES),
+            PoliceContact(id = "sc_1987", stationOrDesignation = "Ceylon Electricity Board (CEB Breakdowns)", rank = "SHORT CODE", generalPhone = "1987", category = ContactCategory.SHORT_CODES),
+            PoliceContact(id = "sc_1989", stationOrDesignation = "Sri Lanka Bureau of Foreign Employment (SLBFE)", rank = "SHORT CODE", generalPhone = "1989", category = ContactCategory.SHORT_CODES),
+            PoliceContact(id = "sc_1991", stationOrDesignation = "Ministry of Environment & Natural Resources", rank = "SHORT CODE", generalPhone = "1991", category = ContactCategory.SHORT_CODES),
+            PoliceContact(id = "sc_1996", stationOrDesignation = "Human Rights Commission of Sri Lanka", rank = "SHORT CODE", generalPhone = "1996", category = ContactCategory.SHORT_CODES),
+
+            // Hospitals (රෝහල්)
+            PoliceContact(id = "hosp_col", stationOrDesignation = "Colombo General National Hospital", rank = "GOVT HOSPITAL", generalPhone = "011-2691111", category = ContactCategory.HOSPITALS),
+            PoliceContact(id = "hosp_sjh", stationOrDesignation = "Sri Jayewardenepura General Hospital", rank = "GOVT HOSPITAL", generalPhone = "011-2778610", category = ContactCategory.HOSPITALS),
+            PoliceContact(id = "hosp_apeksha", stationOrDesignation = "Apeksha Hospital Maharagama (Cancer Hospital)", rank = "GOVT HOSPITAL", generalPhone = "011-2842052", category = ContactCategory.HOSPITALS),
+            PoliceContact(id = "hosp_castle", stationOrDesignation = "Castle Street Hospital for Women", rank = "GOVT HOSPITAL", generalPhone = "011-2696231", category = ContactCategory.HOSPITALS),
+            PoliceContact(id = "hosp_welisara", stationOrDesignation = "Chest Hospital Welisara Ragama", rank = "GOVT HOSPITAL", generalPhone = "011-2958271", category = ContactCategory.HOSPITALS),
+            PoliceContact(id = "hosp_ragama", stationOrDesignation = "Ragama Teaching Hospital", rank = "GOVT HOSPITAL", generalPhone = "011-2959261", category = ContactCategory.HOSPITALS),
+            PoliceContact(id = "hosp_kalubowila", stationOrDesignation = "Kalubowila Colombo South Teaching Hospital", rank = "GOVT HOSPITAL", generalPhone = "011-2763261", category = ContactCategory.HOSPITALS),
+            PoliceContact(id = "hosp_dental", stationOrDesignation = "Dental Institute Colombo", rank = "GOVT HOSPITAL", generalPhone = "011-2677618", category = ContactCategory.HOSPITALS),
+            PoliceContact(id = "hosp_desoysa", stationOrDesignation = "De Soysa Maternity Hospital for Women", rank = "GOVT HOSPITAL", generalPhone = "011-2696224", category = ContactCategory.HOSPITALS),
+            PoliceContact(id = "hosp_eye", stationOrDesignation = "National Eye Hospital Colombo", rank = "GOVT HOSPITAL", generalPhone = "011-2693911", category = ContactCategory.HOSPITALS),
+            PoliceContact(id = "hosp_gampaha", stationOrDesignation = "Gampaha General Hospital", rank = "GOVT HOSPITAL", generalPhone = "033-2222261", category = ContactCategory.HOSPITALS),
+            PoliceContact(id = "hosp_kalutara", stationOrDesignation = "Kalutara General Hospital", rank = "GOVT HOSPITAL", generalPhone = "034-2222261", category = ContactCategory.HOSPITALS),
+            PoliceContact(id = "hosp_lrh", stationOrDesignation = "Lady Ridgeway Hospital for Children (LRH)", rank = "GOVT HOSPITAL", generalPhone = "011-2693711", category = ContactCategory.HOSPITALS),
+            PoliceContact(id = "hosp_angoda", stationOrDesignation = "National Institute of Mental Health Angoda", rank = "GOVT HOSPITAL", generalPhone = "011-2578234", category = ContactCategory.HOSPITALS),
+            PoliceContact(id = "hosp_negombo", stationOrDesignation = "Negombo Base Hospital", rank = "GOVT HOSPITAL", generalPhone = "031-2222261", category = ContactCategory.HOSPITALS),
+            PoliceContact(id = "hosp_mulleriyawa", stationOrDesignation = "Mulleriyawa Teaching Hospital", rank = "GOVT HOSPITAL", generalPhone = "011-2578226", category = ContactCategory.HOSPITALS),
+            PoliceContact(id = "hosp_batticaloa", stationOrDesignation = "Batticaloa Teaching Hospital", rank = "GOVT HOSPITAL", generalPhone = "065-2222261", category = ContactCategory.HOSPITALS),
+            PoliceContact(id = "hosp_peradeniya", stationOrDesignation = "Peradeniya Teaching Hospital", rank = "GOVT HOSPITAL", generalPhone = "081-2388001", category = ContactCategory.HOSPITALS),
+            PoliceContact(id = "hosp_anuradhapura", stationOrDesignation = "Anuradhapura Teaching Hospital", rank = "GOVT HOSPITAL", generalPhone = "025-2222261", category = ContactCategory.HOSPITALS),
+            PoliceContact(id = "hosp_kandy", stationOrDesignation = "Kandy Teaching Hospital", rank = "GOVT HOSPITAL", generalPhone = "081-2233337", category = ContactCategory.HOSPITALS),
+            PoliceContact(id = "hosp_kurunegala", stationOrDesignation = "Kurunegala Teaching Hospital", rank = "GOVT HOSPITAL", generalPhone = "037-2233909", category = ContactCategory.HOSPITALS),
+            PoliceContact(id = "hosp_karapitiya", stationOrDesignation = "Karapitiya Teaching Hospital Galle", rank = "GOVT HOSPITAL", generalPhone = "091-2232267", category = ContactCategory.HOSPITALS),
+            PoliceContact(id = "hosp_mahamodara", stationOrDesignation = "Mahamodara Teaching Hospital", rank = "GOVT HOSPITAL", generalPhone = "091-2222261", category = ContactCategory.HOSPITALS),
+            PoliceContact(id = "hosp_jaffna", stationOrDesignation = "Jaffna Teaching Hospital", rank = "GOVT HOSPITAL", generalPhone = "021-2222261", category = ContactCategory.HOSPITALS),
+            PoliceContact(id = "hosp_mri", stationOrDesignation = "Medical Research Institute (MRI)", rank = "GOVT INSTITUTE", generalPhone = "011-2693533", category = ContactCategory.HOSPITALS),
+            PoliceContact(id = "hosp_neville", stationOrDesignation = "Dr. Neville Fernando Teaching Hospital", rank = "TEACHING HOSP", generalPhone = "011-2407600", category = ContactCategory.HOSPITALS),
+            PoliceContact(id = "hosp_nawaloka", stationOrDesignation = "Nawaloka Hospital", rank = "PVT HOSPITAL", generalPhone = "011-2544444", category = ContactCategory.HOSPITALS),
+            PoliceContact(id = "hosp_asiri", stationOrDesignation = "Asiri Hospital PLC", rank = "PVT HOSPITAL", generalPhone = "011-4523300", category = ContactCategory.HOSPITALS),
+            PoliceContact(id = "hosp_asiri_surg", stationOrDesignation = "Asiri Surgical Hospital PLC", rank = "PVT HOSPITAL", generalPhone = "011-4524400", category = ContactCategory.HOSPITALS),
+            PoliceContact(id = "hosp_central", stationOrDesignation = "Central Hospital (Pvt) Ltd", rank = "PVT HOSPITAL", generalPhone = "011-4665500", category = ContactCategory.HOSPITALS),
+            PoliceContact(id = "hosp_lanka", stationOrDesignation = "Lanka Hospitals", rank = "PVT HOSPITAL", generalPhone = "011-5530000", category = ContactCategory.HOSPITALS),
+            PoliceContact(id = "hosp_oasis", stationOrDesignation = "Oasis Hospital", rank = "PVT HOSPITAL", generalPhone = "011-4514770", category = ContactCategory.HOSPITALS),
+            PoliceContact(id = "hosp_park", stationOrDesignation = "Park Hospital", rank = "PVT HOSPITAL", generalPhone = "011-2590200", category = ContactCategory.HOSPITALS),
+            PoliceContact(id = "hosp_durdans", stationOrDesignation = "Durdans Hospital", rank = "PVT HOSPITAL", generalPhone = "011-5410000", officePhone2 = "1344", category = ContactCategory.HOSPITALS),
+            PoliceContact(id = "hosp_hemas", stationOrDesignation = "Hemas Hospital", rank = "PVT HOSPITAL", generalPhone = "011-7888888", category = ContactCategory.HOSPITALS),
+
+            // Govt Services & Depts (රජයේ සේවා)
+            PoliceContact(id = "govt_leco", stationOrDesignation = "LECO (Power Breakdowns & Info)", rank = "GOVT DEPT", generalPhone = "011-2371625", officePhone2 = "1910", category = ContactCategory.GOVT_SERVICES),
+            PoliceContact(id = "govt_gem", stationOrDesignation = "National Gem & Jewellery Authority", rank = "GOVT DEPT", generalPhone = "011-2325364", category = ContactCategory.GOVT_SERVICES),
+            PoliceContact(id = "govt_boi", stationOrDesignation = "Board of Investment of Sri Lanka (BOI)", rank = "GOVT DEPT", generalPhone = "011-2434403", category = ContactCategory.GOVT_SERVICES),
+            PoliceContact(id = "govt_library", stationOrDesignation = "National Library & Documentation Services Board", rank = "GOVT DEPT", generalPhone = "011-2698847", category = ContactCategory.GOVT_SERVICES),
+            PoliceContact(id = "govt_nlb", stationOrDesignation = "National Lotteries Board", rank = "GOVT DEPT", generalPhone = "011-2470662", category = ContactCategory.GOVT_SERVICES),
+            PoliceContact(id = "govt_edb", stationOrDesignation = "Sri Lanka Export Development Board (EDB)", rank = "GOVT DEPT", generalPhone = "011-2300705", category = ContactCategory.GOVT_SERVICES),
+            PoliceContact(id = "govt_trcsl", stationOrDesignation = "Telecommunications Regulatory Commission (TRCSL)", rank = "GOVT DEPT", generalPhone = "011-2689345", officePhone2 = "1900", category = ContactCategory.GOVT_SERVICES),
+            PoliceContact(id = "govt_cbsl", stationOrDesignation = "Central Bank of Sri Lanka (CBSL)", rank = "GOVT DEPT", generalPhone = "011-2477000", category = ContactCategory.GOVT_SERVICES),
+            PoliceContact(id = "govt_hrc", stationOrDesignation = "Human Rights Commission of Sri Lanka", rank = "GOVT DEPT", generalPhone = "011-2505575", category = ContactCategory.GOVT_SERVICES),
+            PoliceContact(id = "govt_botanic", stationOrDesignation = "National Botanic Gardens Peradeniya", rank = "GOVT DEPT", generalPhone = "081-2388654", category = ContactCategory.GOVT_SERVICES),
+            PoliceContact(id = "govt_museums", stationOrDesignation = "National Museums Department", rank = "GOVT DEPT", generalPhone = "011-2694767", category = ContactCategory.GOVT_SERVICES),
+            PoliceContact(id = "govt_zoo", stationOrDesignation = "National Zoological Gardens Dehiwala", rank = "GOVT DEPT", generalPhone = "011-2712752", category = ContactCategory.GOVT_SERVICES),
+            PoliceContact(id = "govt_postal", stationOrDesignation = "Postal Department Sri Lanka", rank = "GOVT DEPT", generalPhone = "011-2328301", category = ContactCategory.GOVT_SERVICES),
+            PoliceContact(id = "govt_telecom_min", stationOrDesignation = "Ministry of Telecommunication & Digital Infrastructure", rank = "MINISTRY", generalPhone = "011-2577777", category = ContactCategory.GOVT_SERVICES),
+            PoliceContact(id = "govt_fin_min", stationOrDesignation = "Ministry of Finance", rank = "MINISTRY", generalPhone = "011-2513459", category = ContactCategory.GOVT_SERVICES),
+            PoliceContact(id = "govt_wildlife", stationOrDesignation = "Department of Wildlife Conservation", rank = "GOVT DEPT", generalPhone = "011-2888585", category = ContactCategory.GOVT_SERVICES),
+            PoliceContact(id = "govt_army", stationOrDesignation = "Army Headquarters Sri Lanka", rank = "DEFENSE", generalPhone = "011-2432682", category = ContactCategory.GOVT_SERVICES),
+            PoliceContact(id = "govt_airforce", stationOrDesignation = "Air Force Headquarters Sri Lanka", rank = "DEFENSE", generalPhone = "011-2441044", category = ContactCategory.GOVT_SERVICES),
+            PoliceContact(id = "govt_navy", stationOrDesignation = "Navy Headquarters Sri Lanka", rank = "DEFENSE", generalPhone = "011-2445368", category = ContactCategory.GOVT_SERVICES),
+            PoliceContact(id = "govt_nic", stationOrDesignation = "Department for Registration of Persons (NIC)", rank = "GOVT DEPT", generalPhone = "011-2862217", category = ContactCategory.GOVT_SERVICES),
+            PoliceContact(id = "govt_immigration", stationOrDesignation = "Department of Immigration & Emigration (Passports)", rank = "GOVT DEPT", generalPhone = "011-5329000", category = ContactCategory.GOVT_SERVICES),
+            PoliceContact(id = "govt_customs", stationOrDesignation = "Sri Lanka Customs Department", rank = "GOVT DEPT", generalPhone = "011-2470945", category = ContactCategory.GOVT_SERVICES),
+
+            // Travel & Transport (ගමන් බිමන්)
+            PoliceContact(id = "trv_bia", stationOrDesignation = "Bandaranaike International Airport (Katunayake BIA)", rank = "AIRPORT", generalPhone = "011-2264444", officePhone2 = "011-2252861", category = ContactCategory.TRAVEL),
+            PoliceContact(id = "trv_mria", stationOrDesignation = "Mattala Rajapaksa International Airport (MRIA)", rank = "AIRPORT", generalPhone = "047-2031000", category = ContactCategory.TRAVEL),
+            PoliceContact(id = "trv_flight_info", stationOrDesignation = "Flight Information (All Airlines)", rank = "AIRPORT INFO", generalPhone = "011-2263047", category = ContactCategory.TRAVEL),
+            PoliceContact(id = "trv_srilankan", stationOrDesignation = "SriLankan Airlines General Hotline", rank = "AIRLINE", generalPhone = "019-7335555", officePhone2 = "011-7800300", category = ContactCategory.TRAVEL),
+            PoliceContact(id = "trv_bus_pettah", stationOrDesignation = "Central Bus Stand Pettah (SLTB)", rank = "BUS STAND", generalPhone = "011-2328081", category = ContactCategory.TRAVEL),
+            PoliceContact(id = "trv_pvt_bus", stationOrDesignation = "Private Bus Stand Pettah", rank = "BUS STAND", generalPhone = "011-2333222", category = ContactCategory.TRAVEL),
+            PoliceContact(id = "trv_fort_rail", stationOrDesignation = "Fort Railway Station Information", rank = "RAILWAY", generalPhone = "011-2434215", category = ContactCategory.TRAVEL),
+            PoliceContact(id = "trv_tourism", stationOrDesignation = "Sri Lanka Tourism Information Centre", rank = "TOURISM", generalPhone = "011-2437059", category = ContactCategory.TRAVEL),
+            PoliceContact(id = "trv_caa", stationOrDesignation = "Civil Aviation Authority of Sri Lanka", rank = "AVIATION", generalPhone = "011-2358800", category = ContactCategory.TRAVEL)
+        )
+    }
+}
