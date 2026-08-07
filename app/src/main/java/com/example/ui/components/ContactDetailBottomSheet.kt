@@ -4,6 +4,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -11,14 +13,18 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.LocalPolice
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.PhoneAndroid
+import androidx.compose.material.icons.filled.Print
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.StarOutline
@@ -49,7 +55,7 @@ import com.example.ui.theme.EmergencyRed
 import com.example.ui.theme.PoliceGold
 import com.example.ui.theme.PoliceNavy
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun ContactDetailBottomSheet(
     contact: PoliceContact,
@@ -64,6 +70,7 @@ fun ContactDetailBottomSheet(
 ) {
     val context = LocalContext.current
     val isEmergency = contact.rank == "HOTLINE" || contact.generalPhone == "119" || contact.generalPhone == "118"
+    val scrollState = rememberScrollState()
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -73,10 +80,11 @@ fun ContactDetailBottomSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 24.dp)
+                .verticalScroll(scrollState)
+                .padding(horizontal = 20.dp)
                 .padding(bottom = 32.dp)
         ) {
-            // Header Bar
+            // Top Header Bar
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -85,7 +93,7 @@ fun ContactDetailBottomSheet(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(
                         modifier = Modifier
-                            .size(48.dp)
+                            .size(44.dp)
                             .clip(CircleShape)
                             .background(if (isEmergency) EmergencyRed else PoliceNavy),
                         contentAlignment = Alignment.Center
@@ -94,11 +102,11 @@ fun ContactDetailBottomSheet(
                             imageVector = Icons.Default.LocalPolice,
                             contentDescription = null,
                             tint = Color.White,
-                            modifier = Modifier.size(26.dp)
+                            modifier = Modifier.size(24.dp)
                         )
                     }
 
-                    Spacer(modifier = Modifier.width(12.dp))
+                    Spacer(modifier = Modifier.width(10.dp))
 
                     if (contact.rank.isNotBlank()) {
                         Surface(
@@ -134,14 +142,15 @@ fun ContactDetailBottomSheet(
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
-            // Station Name & Officer
+            // Full Station Title (Wrapped naturally so no text is cut off on real phones)
             Text(
                 text = contact.stationOrDesignation,
-                style = MaterialTheme.typography.headlineSmall.copy(
+                style = MaterialTheme.typography.titleLarge.copy(
                     fontWeight = FontWeight.ExtraBold,
-                    fontSize = 20.sp
+                    fontSize = 19.sp,
+                    lineHeight = 26.sp
                 ),
                 color = MaterialTheme.colorScheme.onSurface
             )
@@ -152,139 +161,136 @@ fun ContactDetailBottomSheet(
                     text = "👮 ${contact.officerName}",
                     style = MaterialTheme.typography.titleMedium.copy(
                         fontWeight = FontWeight.Medium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 15.sp
                     )
                 )
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(14.dp))
             HorizontalDivider()
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
-            // Action Buttons Section
+            // Action Buttons Section Header
             Text(
-                text = "Contact Options / සම්බන්ධ වීමට",
+                text = "සම්බන්ධතා විස්තර සහ සේවාවන් / Contact Details",
                 style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
-                color = MaterialTheme.colorScheme.outline
+                color = MaterialTheme.colorScheme.primary
             )
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // General Telephone Action
+            // General Telephone Card
             if (contact.generalPhone.isNotBlank()) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Button(
-                        onClick = { onCallClick(contact.generalPhone) },
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(48.dp),
-                        shape = RoundedCornerShape(14.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (isEmergency) EmergencyRed else MaterialTheme.colorScheme.primary
-                        )
-                    ) {
-                        Icon(imageVector = Icons.Default.Phone, contentDescription = null)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Call ${contact.generalPhone}",
-                            style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold)
-                        )
-                    }
-
-                    IconButton(
-                        onClick = { onCopyClick(contact.generalPhone, "Telephone Number") },
-                        modifier = Modifier
-                            .size(48.dp)
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(MaterialTheme.colorScheme.surfaceVariant)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.ContentCopy,
-                            contentDescription = "Copy phone",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
+                ContactDetailActionRow(
+                    label = "ප්‍රධාන දුරකථන / Telephone",
+                    value = contact.generalPhone,
+                    icon = Icons.Default.Phone,
+                    onCall = { onCallClick(contact.generalPhone) },
+                    onCopy = { onCopyClick(contact.generalPhone, "Telephone Number") },
+                    isPrimary = true,
+                    isEmergency = isEmergency
+                )
                 Spacer(modifier = Modifier.height(10.dp))
             }
 
-            // Mobile Telephone Action
+            // Mobile Telephone Card
             if (contact.mobilePhone.isNotBlank() && contact.mobilePhone != contact.generalPhone) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    OutlinedButton(
-                        onClick = { onCallClick(contact.mobilePhone) },
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(48.dp),
-                        shape = RoundedCornerShape(14.dp)
-                    ) {
-                        Icon(imageVector = Icons.Default.PhoneAndroid, contentDescription = null)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Call Mobile (${contact.mobilePhone})",
-                            style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold)
-                        )
-                    }
-
-                    IconButton(
-                        onClick = { onCopyClick(contact.mobilePhone, "Mobile Number") },
-                        modifier = Modifier
-                            .size(48.dp)
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(MaterialTheme.colorScheme.surfaceVariant)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.ContentCopy,
-                            contentDescription = "Copy mobile",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
+                ContactDetailActionRow(
+                    label = "ජංගම දුරකථන / Mobile",
+                    value = contact.mobilePhone,
+                    icon = Icons.Default.PhoneAndroid,
+                    onCall = { onCallClick(contact.mobilePhone) },
+                    onCopy = { onCopyClick(contact.mobilePhone, "Mobile Number") },
+                    isPrimary = false,
+                    isEmergency = false
+                )
                 Spacer(modifier = Modifier.height(10.dp))
             }
 
-            // Additional Office Phone 2 / 3
+            // Additional Office Phone 2
             if (contact.officePhone2.isNotBlank()) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    OutlinedButton(
-                        onClick = { onCallClick(contact.officePhone2) },
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(48.dp),
-                        shape = RoundedCornerShape(14.dp)
-                    ) {
-                        Icon(imageVector = Icons.Default.Phone, contentDescription = null)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Office Line 2 (${contact.officePhone2})",
-                            style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold)
-                        )
-                    }
+                ContactDetailActionRow(
+                    label = "අතිරේක මාර්ගය 2 / Office Line 2",
+                    value = contact.officePhone2,
+                    icon = Icons.Default.Phone,
+                    onCall = { onCallClick(contact.officePhone2) },
+                    onCopy = { onCopyClick(contact.officePhone2, "Office Line 2") },
+                    isPrimary = false,
+                    isEmergency = false
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+            }
 
-                    IconButton(
-                        onClick = { onCopyClick(contact.officePhone2, "Office Line 2") },
-                        modifier = Modifier
-                            .size(48.dp)
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(MaterialTheme.colorScheme.surfaceVariant)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.ContentCopy,
-                            contentDescription = "Copy Office 2",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+            // Additional Office Phone 3
+            if (contact.officePhone3.isNotBlank()) {
+                ContactDetailActionRow(
+                    label = "අතිරේක මාර්ගය 3 / Office Line 3",
+                    value = contact.officePhone3,
+                    icon = Icons.Default.Phone,
+                    onCall = { onCallClick(contact.officePhone3) },
+                    onCopy = { onCopyClick(contact.officePhone3, "Office Line 3") },
+                    isPrimary = false,
+                    isEmergency = false
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+            }
+
+            // Fax Number if present
+            if (contact.fax.isNotBlank()) {
+                ContactDetailActionRow(
+                    label = "ෆැක්ස් / Fax Number",
+                    value = contact.fax,
+                    icon = Icons.Default.Phone,
+                    onCall = null,
+                    onCopy = { onCopyClick(contact.fax, "Fax Number") },
+                    isPrimary = false,
+                    isEmergency = false
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+            }
+
+            // Email Action
+            if (contact.email.isNotBlank()) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp),
+                    color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.3f)
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Text(
+                            text = "විද්‍යුත් තැපෑල / Email Address",
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, fontSize = 11.sp),
+                            color = MaterialTheme.colorScheme.tertiary
                         )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = contact.email,
+                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold, fontSize = 14.sp),
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Button(
+                                onClick = { onEmailClick(contact.email, contact.stationOrDesignation) },
+                                modifier = Modifier.weight(1f).height(40.dp),
+                                shape = RoundedCornerShape(10.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.tertiary)
+                            ) {
+                                Icon(Icons.Default.Email, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Email යවන්න", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            }
+                            IconButton(
+                                onClick = { onCopyClick(contact.email, "Email Address") },
+                                modifier = Modifier.size(40.dp).clip(RoundedCornerShape(10.dp)).background(Color.White)
+                            ) {
+                                Icon(Icons.Default.ContentCopy, contentDescription = "Copy", tint = MaterialTheme.colorScheme.tertiary, modifier = Modifier.size(18.dp))
+                            }
+                        }
                     }
                 }
                 Spacer(modifier = Modifier.height(10.dp))
@@ -292,96 +298,204 @@ fun ContactDetailBottomSheet(
 
             // OIC Direct Contact Lines Section
             if (contact.oicTraffic.isNotBlank() || contact.oicCrime.isNotBlank() || contact.oicVice.isNotBlank() || contact.oicCommunityPolicing.isNotBlank()) {
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(6.dp))
                 Text(
-                    text = "OIC Officer Direct Lines / OIC ස්ථානාධිපති අංශ",
-                    style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                    text = "OIC ස්ථානාධිපති සෘජු අංශ / OIC Emergency Direct Lines",
+                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
                     color = MaterialTheme.colorScheme.primary
                 )
                 Spacer(modifier = Modifier.height(8.dp))
 
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
                     if (contact.oicTraffic.isNotBlank()) {
-                        Button(
-                            onClick = { onCallClick(contact.oicTraffic) },
-                            modifier = Modifier.fillMaxWidth().height(44.dp),
-                            shape = RoundedCornerShape(12.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
-                        ) {
-                            Text("🚦 Call OIC Traffic (${contact.oicTraffic})", fontWeight = FontWeight.Bold)
-                        }
+                        OicDirectButton(
+                            title = "🚦 Traffic OIC",
+                            number = contact.oicTraffic,
+                            onCall = { onCallClick(contact.oicTraffic) },
+                            onCopy = { onCopyClick(contact.oicTraffic, "OIC Traffic") }
+                        )
                     }
                     if (contact.oicCrime.isNotBlank()) {
-                        Button(
-                            onClick = { onCallClick(contact.oicCrime) },
-                            modifier = Modifier.fillMaxWidth().height(44.dp),
-                            shape = RoundedCornerShape(12.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
-                        ) {
-                            Text("🔍 Call OIC Crime (${contact.oicCrime})", fontWeight = FontWeight.Bold)
-                        }
+                        OicDirectButton(
+                            title = "🔍 Crime OIC",
+                            number = contact.oicCrime,
+                            onCall = { onCallClick(contact.oicCrime) },
+                            onCopy = { onCopyClick(contact.oicCrime, "OIC Crime") }
+                        )
                     }
                     if (contact.oicVice.isNotBlank()) {
-                        Button(
-                            onClick = { onCallClick(contact.oicVice) },
-                            modifier = Modifier.fillMaxWidth().height(44.dp),
-                            shape = RoundedCornerShape(12.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.tertiary)
-                        ) {
-                            Text("🛡️ Call OIC Vice (${contact.oicVice})", fontWeight = FontWeight.Bold)
-                        }
+                        OicDirectButton(
+                            title = "🛡️ Vice OIC",
+                            number = contact.oicVice,
+                            onCall = { onCallClick(contact.oicVice) },
+                            onCopy = { onCopyClick(contact.oicVice, "OIC Vice") }
+                        )
                     }
                     if (contact.oicCommunityPolicing.isNotBlank()) {
-                        OutlinedButton(
-                            onClick = { onCallClick(contact.oicCommunityPolicing) },
-                            modifier = Modifier.fillMaxWidth().height(44.dp),
-                            shape = RoundedCornerShape(12.dp)
-                        ) {
-                            Text("🤝 Call OIC Community Policing (${contact.oicCommunityPolicing})", fontWeight = FontWeight.Bold)
-                        }
+                        OicDirectButton(
+                            title = "🤝 Community OIC",
+                            number = contact.oicCommunityPolicing,
+                            onCall = { onCallClick(contact.oicCommunityPolicing) },
+                            onCopy = { onCopyClick(contact.oicCommunityPolicing, "OIC Community") }
+                        )
                     }
                 }
                 Spacer(modifier = Modifier.height(10.dp))
             }
 
-            // Email Action
-            if (contact.email.isNotBlank()) {
-                Row(
+            // Location Address Card
+            if (contact.locationAddress.isNotBlank()) {
+                Surface(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                    shape = RoundedCornerShape(14.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
                 ) {
-                    Button(
-                        onClick = { onEmailClick(contact.email, contact.stationOrDesignation) },
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(48.dp),
-                        shape = RoundedCornerShape(14.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.tertiary
-                        )
-                    ) {
-                        Icon(imageVector = Icons.Default.Email, contentDescription = null)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Send Email",
-                            style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold)
-                        )
-                    }
-
-                    IconButton(
-                        onClick = { onCopyClick(contact.email, "Email Address") },
-                        modifier = Modifier
-                            .size(48.dp)
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.Top
                     ) {
                         Icon(
-                            imageVector = Icons.Default.ContentCopy,
-                            contentDescription = "Copy email",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            imageVector = Icons.Default.LocationOn,
+                            contentDescription = "Address",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(20.dp)
                         )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column {
+                            Text(
+                                text = "ලිපිනය / Address",
+                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, fontSize = 11.sp),
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = contact.locationAddress,
+                                style = MaterialTheme.typography.bodySmall.copy(fontSize = 13.sp),
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
                     }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ContactDetailActionRow(
+    label: String,
+    value: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    onCall: (() -> Unit)?,
+    onCopy: () -> Unit,
+    isPrimary: Boolean,
+    isEmergency: Boolean
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(14.dp),
+        color = if (isEmergency) EmergencyRed.copy(alpha = 0.08f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, fontSize = 11.sp),
+                color = if (isEmergency) EmergencyRed else MaterialTheme.colorScheme.outline
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = value,
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold, fontSize = 16.sp),
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                if (onCall != null) {
+                    Button(
+                        onClick = onCall,
+                        modifier = Modifier.weight(1f).height(40.dp),
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (isEmergency) EmergencyRed else MaterialTheme.colorScheme.primary
+                        )
+                    ) {
+                        Icon(imageVector = icon, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(text = "ඇමතුමක් ගන්න / Call", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    }
+                }
+                IconButton(
+                    onClick = onCopy,
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(Color.White)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.ContentCopy,
+                        contentDescription = "Copy",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun OicDirectButton(
+    title: String,
+    number: String,
+    onCall: () -> Unit,
+    onCopy: () -> Unit
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surface,
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, fontSize = 11.sp),
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Text(
+                    text = number,
+                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold, fontSize = 13.sp),
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                Button(
+                    onClick = onCall,
+                    modifier = Modifier.height(34.dp),
+                    shape = RoundedCornerShape(8.dp),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp)
+                ) {
+                    Icon(Icons.Default.Phone, contentDescription = null, modifier = Modifier.size(14.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Call", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                }
+                IconButton(
+                    onClick = onCopy,
+                    modifier = Modifier.size(34.dp)
+                ) {
+                    Icon(Icons.Default.ContentCopy, contentDescription = "Copy", tint = MaterialTheme.colorScheme.outline, modifier = Modifier.size(16.dp))
                 }
             }
         }

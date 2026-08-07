@@ -5,6 +5,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -16,8 +18,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.PhoneAndroid
+import androidx.compose.material.icons.filled.Print
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.StarOutline
@@ -40,13 +44,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.model.PoliceContact
 import com.example.ui.theme.EmergencyRed
 import com.example.ui.theme.PoliceGold
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun ContactCard(
     contact: PoliceContact,
@@ -78,9 +82,9 @@ fun ContactCard(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp)
+                .padding(14.dp)
         ) {
-            // Header Row: Title & Favorite Button
+            // Header Row: Title & Action Buttons
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -103,24 +107,23 @@ fun ContactCard(
                         }
                     }
 
-                    // Station / Designation Title
+                    // Station / Designation Title (Fully wrapped, no truncation)
                     Text(
                         text = contact.stationOrDesignation,
                         style = MaterialTheme.typography.titleMedium.copy(
                             fontWeight = FontWeight.Bold,
-                            fontSize = 17.sp
+                            fontSize = 16.sp,
+                            lineHeight = 22.sp
                         ),
-                        color = if (isEmergency) EmergencyRed else MaterialTheme.colorScheme.onSurface,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
+                        color = if (isEmergency) EmergencyRed else MaterialTheme.colorScheme.onSurface
                     )
 
                     // Officer Name if present
                     if (contact.officerName.isNotBlank()) {
-                        Spacer(modifier = Modifier.height(2.dp))
+                        Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             text = "👮 ${contact.officerName}",
-                            style = MaterialTheme.typography.bodyMedium.copy(
+                            style = MaterialTheme.typography.bodySmall.copy(
                                 fontWeight = FontWeight.Medium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -155,12 +158,12 @@ fun ContactCard(
                 }
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(10.dp))
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
             // Phone Numbers Section with Direct Action Buttons
-            if (contact.generalPhone.isNotBlank() || contact.mobilePhone.isNotBlank()) {
+            if (contact.generalPhone.isNotBlank() || contact.mobilePhone.isNotBlank() || contact.officePhone2.isNotBlank() || contact.officePhone3.isNotBlank()) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     // General Phone Row
                     if (contact.generalPhone.isNotBlank()) {
@@ -175,7 +178,7 @@ fun ContactCard(
                             ) {
                                 Box(
                                     modifier = Modifier
-                                        .size(32.dp)
+                                        .size(30.dp)
                                         .clip(CircleShape)
                                         .background(MaterialTheme.colorScheme.primaryContainer),
                                     contentAlignment = Alignment.Center
@@ -184,41 +187,47 @@ fun ContactCard(
                                         imageVector = Icons.Default.Phone,
                                         contentDescription = "General Phone",
                                         tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(16.dp)
+                                        modifier = Modifier.size(15.dp)
                                     )
                                 }
-                                Spacer(modifier = Modifier.width(10.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
                                 Column {
                                     Text(
-                                        text = "General Telephone",
-                                        style = MaterialTheme.typography.labelSmall,
+                                        text = "දුරකථන / Phone",
+                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
                                         color = MaterialTheme.colorScheme.outline
                                     )
                                     Text(
                                         text = contact.generalPhone,
-                                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                                        style = MaterialTheme.typography.bodyMedium.copy(
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 14.sp
+                                        ),
                                         color = MaterialTheme.colorScheme.onSurface
                                     )
                                 }
                             }
 
+                            Spacer(modifier = Modifier.width(6.dp))
+
                             Button(
                                 onClick = { onCallClick(contact.generalPhone) },
-                                shape = RoundedCornerShape(12.dp),
+                                shape = RoundedCornerShape(10.dp),
                                 colors = ButtonDefaults.buttonColors(
                                     containerColor = if (isEmergency) EmergencyRed else MaterialTheme.colorScheme.primary
                                 ),
-                                modifier = Modifier.height(38.dp)
+                                modifier = Modifier.height(36.dp),
+                                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp)
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Phone,
                                     contentDescription = "Call General",
-                                    modifier = Modifier.size(16.dp)
+                                    modifier = Modifier.size(14.dp)
                                 )
-                                Spacer(modifier = Modifier.width(6.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
                                 Text(
-                                    text = "Call",
-                                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
+                                    text = "ඇමතුම්",
+                                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold, fontSize = 12.sp)
                                 )
                             }
                         }
@@ -237,7 +246,7 @@ fun ContactCard(
                             ) {
                                 Box(
                                     modifier = Modifier
-                                        .size(32.dp)
+                                        .size(30.dp)
                                         .clip(CircleShape)
                                         .background(MaterialTheme.colorScheme.secondaryContainer),
                                     contentAlignment = Alignment.Center
@@ -246,44 +255,50 @@ fun ContactCard(
                                         imageVector = Icons.Default.PhoneAndroid,
                                         contentDescription = "Mobile Phone",
                                         tint = MaterialTheme.colorScheme.secondary,
-                                        modifier = Modifier.size(16.dp)
+                                        modifier = Modifier.size(15.dp)
                                     )
                                 }
-                                Spacer(modifier = Modifier.width(10.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
                                 Column {
                                     Text(
-                                        text = "Mobile Phone",
-                                        style = MaterialTheme.typography.labelSmall,
+                                        text = "ජංගම / Mobile",
+                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
                                         color = MaterialTheme.colorScheme.outline
                                     )
                                     Text(
                                         text = contact.mobilePhone,
-                                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                                        style = MaterialTheme.typography.bodyMedium.copy(
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 14.sp
+                                        ),
                                         color = MaterialTheme.colorScheme.onSurface
                                     )
                                 }
                             }
 
+                            Spacer(modifier = Modifier.width(6.dp))
+
                             OutlinedButton(
                                 onClick = { onCallClick(contact.mobilePhone) },
-                                shape = RoundedCornerShape(12.dp),
-                                modifier = Modifier.height(38.dp)
+                                shape = RoundedCornerShape(10.dp),
+                                modifier = Modifier.height(36.dp),
+                                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp)
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.PhoneAndroid,
                                     contentDescription = "Call Mobile",
-                                    modifier = Modifier.size(16.dp)
+                                    modifier = Modifier.size(14.dp)
                                 )
-                                Spacer(modifier = Modifier.width(6.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
                                 Text(
                                     text = "Mobile",
-                                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
+                                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold, fontSize = 12.sp)
                                 )
                             }
                         }
                     }
 
-                    // Office Phone 2 if present
+                    // Office Phone 2 / 3
                     if (contact.officePhone2.isNotBlank()) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -296,7 +311,7 @@ fun ContactCard(
                             ) {
                                 Box(
                                     modifier = Modifier
-                                        .size(32.dp)
+                                        .size(30.dp)
                                         .clip(CircleShape)
                                         .background(MaterialTheme.colorScheme.surfaceVariant),
                                     contentAlignment = Alignment.Center
@@ -305,87 +320,94 @@ fun ContactCard(
                                         imageVector = Icons.Default.Phone,
                                         contentDescription = "Office Line 2",
                                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.size(16.dp)
+                                        modifier = Modifier.size(15.dp)
                                     )
                                 }
-                                Spacer(modifier = Modifier.width(10.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
                                 Column {
                                     Text(
-                                        text = "Office Line 2",
-                                        style = MaterialTheme.typography.labelSmall,
+                                        text = "අතිරේක ඇමතුම් / Office 2",
+                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
                                         color = MaterialTheme.colorScheme.outline
                                     )
                                     Text(
                                         text = contact.officePhone2,
-                                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                                        style = MaterialTheme.typography.bodyMedium.copy(
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 14.sp
+                                        ),
                                         color = MaterialTheme.colorScheme.onSurface
                                     )
                                 }
                             }
 
+                            Spacer(modifier = Modifier.width(6.dp))
+
                             OutlinedButton(
                                 onClick = { onCallClick(contact.officePhone2) },
-                                shape = RoundedCornerShape(12.dp),
-                                modifier = Modifier.height(38.dp)
+                                shape = RoundedCornerShape(10.dp),
+                                modifier = Modifier.height(36.dp),
+                                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp)
                             ) {
                                 Text(
                                     text = "Call 2",
-                                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
+                                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold, fontSize = 12.sp)
                                 )
                             }
                         }
                     }
 
-                    // OIC Contacts Section (Traffic, Crime, Vice, Community)
+                    // OIC Contacts Section (Traffic, Crime, Vice, Community) - Uses FlowRow for perfect wrapping on any screen!
                     if (contact.oicTraffic.isNotBlank() || contact.oicCrime.isNotBlank() || contact.oicVice.isNotBlank() || contact.oicCommunityPolicing.isNotBlank()) {
-                        Spacer(modifier = Modifier.height(4.dp))
+                        Spacer(modifier = Modifier.height(2.dp))
                         Text(
-                            text = "OIC Emergency Direct Lines:",
-                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                            text = "OIC හදිසි සෘජු අංශ / Direct OIC Lines:",
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, fontSize = 11.sp),
                             color = MaterialTheme.colorScheme.primary
                         )
-                        Row(
+                        FlowRow(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
                             if (contact.oicTraffic.isNotBlank()) {
                                 OutlinedButton(
                                     onClick = { onCallClick(contact.oicTraffic) },
-                                    shape = RoundedCornerShape(10.dp),
-                                    modifier = Modifier.height(34.dp),
+                                    shape = RoundedCornerShape(8.dp),
+                                    modifier = Modifier.height(32.dp),
                                     contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp)
                                 ) {
-                                    Text("🚦 Traffic", style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp))
+                                    Text("🚦 Traffic (${contact.oicTraffic})", style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.5.sp, fontWeight = FontWeight.Bold))
                                 }
                             }
                             if (contact.oicCrime.isNotBlank()) {
                                 OutlinedButton(
                                     onClick = { onCallClick(contact.oicCrime) },
-                                    shape = RoundedCornerShape(10.dp),
-                                    modifier = Modifier.height(34.dp),
+                                    shape = RoundedCornerShape(8.dp),
+                                    modifier = Modifier.height(32.dp),
                                     contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp)
                                 ) {
-                                    Text("🔍 Crime", style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp))
+                                    Text("🔍 Crime (${contact.oicCrime})", style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.5.sp, fontWeight = FontWeight.Bold))
                                 }
                             }
                             if (contact.oicVice.isNotBlank()) {
                                 OutlinedButton(
                                     onClick = { onCallClick(contact.oicVice) },
-                                    shape = RoundedCornerShape(10.dp),
-                                    modifier = Modifier.height(34.dp),
+                                    shape = RoundedCornerShape(8.dp),
+                                    modifier = Modifier.height(32.dp),
                                     contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp)
                                 ) {
-                                    Text("🛡️ Vice", style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp))
+                                    Text("🛡️ Vice (${contact.oicVice})", style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.5.sp, fontWeight = FontWeight.Bold))
                                 }
                             }
                             if (contact.oicCommunityPolicing.isNotBlank()) {
                                 OutlinedButton(
                                     onClick = { onCallClick(contact.oicCommunityPolicing) },
-                                    shape = RoundedCornerShape(10.dp),
-                                    modifier = Modifier.height(34.dp),
+                                    shape = RoundedCornerShape(8.dp),
+                                    modifier = Modifier.height(32.dp),
                                     contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp)
                                 ) {
-                                    Text("🤝 Comm", style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp))
+                                    Text("🤝 Comm (${contact.oicCommunityPolicing})", style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.5.sp, fontWeight = FontWeight.Bold))
                                 }
                             }
                         }
@@ -393,7 +415,7 @@ fun ContactCard(
                 }
             }
 
-            // Email Section with Direct Email Button
+            // Email Section
             if (contact.email.isNotBlank()) {
                 Spacer(modifier = Modifier.height(8.dp))
                 Row(
@@ -407,7 +429,7 @@ fun ContactCard(
                     ) {
                         Box(
                             modifier = Modifier
-                                .size(32.dp)
+                                .size(30.dp)
                                 .clip(CircleShape)
                                 .background(MaterialTheme.colorScheme.tertiaryContainer),
                             contentAlignment = Alignment.Center
@@ -416,46 +438,73 @@ fun ContactCard(
                                 imageVector = Icons.Default.Email,
                                 contentDescription = "Email",
                                 tint = MaterialTheme.colorScheme.tertiary,
-                                modifier = Modifier.size(16.dp)
+                                modifier = Modifier.size(15.dp)
                             )
                         }
-                        Spacer(modifier = Modifier.width(10.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
                         Column {
                             Text(
-                                text = "Email Address",
-                                style = MaterialTheme.typography.labelSmall,
+                                text = "විද්‍යුත් තැපෑල / Email",
+                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
                                 color = MaterialTheme.colorScheme.outline
                             )
                             Text(
                                 text = contact.email,
-                                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
-                                color = MaterialTheme.colorScheme.onSurface,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
+                                style = MaterialTheme.typography.bodySmall.copy(
+                                    fontWeight = FontWeight.Medium,
+                                    fontSize = 12.sp
+                                ),
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                         }
                     }
 
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
 
                     OutlinedButton(
                         onClick = { onEmailClick(contact.email, contact.stationOrDesignation) },
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier.height(38.dp)
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.height(36.dp),
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Default.Email,
                             contentDescription = "Send Email",
-                            modifier = Modifier.size(16.dp)
+                            modifier = Modifier.size(14.dp)
                         )
-                        Spacer(modifier = Modifier.width(6.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
                         Text(
                             text = "Email",
-                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
+                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold, fontSize = 12.sp)
                         )
                     }
+                }
+            }
+
+            // Location Address if present
+            if (contact.locationAddress.isNotBlank()) {
+                Spacer(modifier = Modifier.height(6.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(top = 2.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.LocationOn,
+                        contentDescription = "Location",
+                        tint = MaterialTheme.colorScheme.outline,
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = contact.locationAddress,
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontSize = 11.sp
+                        )
+                    )
                 }
             }
         }
     }
 }
+

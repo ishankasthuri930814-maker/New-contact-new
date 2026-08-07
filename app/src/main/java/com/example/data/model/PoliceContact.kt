@@ -25,6 +25,7 @@ enum class ContactCategory(val displayName: String, val sinhalaName: String, val
     ALL("All", "සියල්ල", "all"),
     FAVORITES("Favorites", "ප්‍රියතම", "star"),
     EMERGENCY("Emergency", "හදිසි ඇමතුම්", "emergency"),
+    FIRE_STATIONS("Fire Service", "ගිනි නිවීම් සේවා", "fire"),
     SHORT_CODES("Short Codes", "කෙටි සංකේත", "dialpad"),
     HOSPITALS("Hospitals", "රෝහල්", "hospital"),
     GOVT_SERVICES("Govt & Depts", "රජයේ සේවා", "account_balance"),

@@ -27,14 +27,24 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Dialpad
+import androidx.compose.material.icons.filled.DirectionsBus
+import androidx.compose.material.icons.filled.Fireplace
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.LocalHospital
 import androidx.compose.material.icons.filled.LocalPolice
+import androidx.compose.material.icons.filled.PhoneInTalk
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SearchOff
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Divider
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -65,6 +75,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.testTag
@@ -72,15 +83,19 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.model.ContactCategory
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import com.example.ui.components.ContactCard
 import com.example.ui.components.ContactDetailBottomSheet
 import com.example.ui.components.EmergencyHeader
 import com.example.ui.theme.PoliceGold
 import com.example.ui.theme.PoliceNavy
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun PoliceScreen(
     viewModel: PoliceViewModel,
@@ -91,7 +106,9 @@ fun PoliceScreen(
     val keyboardController = LocalSoftwareKeyboardController.current
     val snackbarHostState = remember { SnackbarHostState() }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    var showInfoDialog by remember { mutableStateOf(false) }
+    var showInfoDialog by remember { mutableStateOf(true) }
+    var showAiSearchDialog by remember { mutableStateOf(false) }
+    var aiSearchQuery by remember { mutableStateOf("") }
 
     // Handle user messages in Snackbar
     LaunchedEffect(uiState.userMessage) {
@@ -150,6 +167,39 @@ fun PoliceScreen(
                     }
                 },
                 actions = {
+                    Surface(
+                        onClick = {
+                            aiSearchQuery = uiState.searchQuery
+                            showAiSearchDialog = true
+                        },
+                        shape = RoundedCornerShape(20.dp),
+                        color = PoliceGold,
+                        modifier = Modifier
+                            .padding(end = 4.dp)
+                            .testTag("top_ai_search_button")
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Search,
+                                contentDescription = "AI Google Search",
+                                tint = PoliceNavy,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "✨ AI Search",
+                                style = MaterialTheme.typography.labelMedium.copy(
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = PoliceNavy,
+                                    fontSize = 12.sp
+                                )
+                            )
+                        }
+                    }
+
                     IconButton(
                         onClick = { showInfoDialog = true },
                         modifier = Modifier.testTag("info_button")
@@ -192,6 +242,49 @@ fun PoliceScreen(
                             .fillMaxWidth()
                             .padding(horizontal = 16.dp, vertical = 12.dp)
                     ) {
+                        // AI Web Search Quick Banner
+                        Surface(
+                            onClick = {
+                                aiSearchQuery = uiState.searchQuery
+                                showAiSearchDialog = true
+                            },
+                            shape = RoundedCornerShape(12.dp),
+                            color = Color.White.copy(alpha = 0.15f),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 8.dp)
+                                .testTag("ai_search_banner")
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = "✨ ඇප් එකේ නැති අංක/නම් ගූගල් හි සොයන්න",
+                                    style = MaterialTheme.typography.labelMedium.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White,
+                                        fontSize = 11.5.sp
+                                    )
+                                )
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = PoliceGold
+                                ) {
+                                    Text(
+                                        text = "AI Search",
+                                        style = MaterialTheme.typography.labelSmall.copy(
+                                            fontWeight = FontWeight.Bold,
+                                            color = PoliceNavy,
+                                            fontSize = 10.5.sp
+                                        ),
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                    )
+                                }
+                            }
+                        }
+
                         // Search Bar
                         OutlinedTextField(
                             value = uiState.searchQuery,
@@ -346,7 +439,7 @@ fun PoliceScreen(
                                 Box(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .padding(vertical = 48.dp),
+                                        .padding(vertical = 32.dp),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -354,20 +447,45 @@ fun PoliceScreen(
                                             imageVector = Icons.Default.SearchOff,
                                             contentDescription = null,
                                             tint = MaterialTheme.colorScheme.outline,
-                                            modifier = Modifier.size(56.dp)
+                                            modifier = Modifier.size(52.dp)
                                         )
                                         Spacer(modifier = Modifier.height(12.dp))
                                         Text(
-                                            text = "No matching police contacts found",
+                                            text = "මෙම ඇප් එකේ සටහන් වී නැත / Not Found in App",
                                             style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                                             color = MaterialTheme.colorScheme.onSurface
                                         )
                                         Spacer(modifier = Modifier.height(4.dp))
                                         Text(
-                                            text = "Try searching with a different town name, station, or rank",
+                                            text = "ඇප් එකේ නොමැති ඕනෑම අංකයක් හෝ නමක් ගූගල් සෙවුම හරහා සෘජුවම ලබා ගන්න",
                                             style = MaterialTheme.typography.bodySmall,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
+                                        Spacer(modifier = Modifier.height(16.dp))
+                                        Button(
+                                            onClick = {
+                                                aiSearchQuery = uiState.searchQuery
+                                                showAiSearchDialog = true
+                                            },
+                                            shape = RoundedCornerShape(12.dp),
+                                            colors = ButtonDefaults.buttonColors(containerColor = PoliceNavy),
+                                            modifier = Modifier.testTag("empty_state_ai_search_button")
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Search,
+                                                contentDescription = null,
+                                                tint = PoliceGold,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Text(
+                                                text = if (uiState.searchQuery.isNotEmpty()) "🔍 '${uiState.searchQuery}' ගූගල් හි සොයන්න" else "✨ AI Google Search",
+                                                style = MaterialTheme.typography.labelLarge.copy(
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = Color.White
+                                                )
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -404,81 +522,478 @@ fun PoliceScreen(
                 )
             }
 
-            // Creator Info Dialog
+            // Creator Info / Welcome Dialog
             if (showInfoDialog) {
-                AlertDialog(
+                Dialog(
                     onDismissRequest = { showInfoDialog = false },
-                    confirmButton = {
-                        TextButton(
-                            onClick = { showInfoDialog = false },
-                            modifier = Modifier.testTag("info_dialog_ok_button")
+                    properties = DialogProperties(usePlatformDefaultWidth = false)
+                ) {
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth(0.92f)
+                            .padding(vertical = 16.dp),
+                        shape = RoundedCornerShape(20.dp),
+                        color = Color.White,
+                        shadowElevation = 10.dp
+                    ) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth()
                         ) {
-                            Text("OK", fontWeight = FontWeight.Bold, color = PoliceNavy)
+                            // Top Header Bar
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(PoliceNavy)
+                                    .padding(horizontal = 16.dp, vertical = 12.dp)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.align(Alignment.CenterStart)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(36.dp)
+                                            .clip(CircleShape)
+                                            .background(PoliceGold),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.LocalPolice,
+                                            contentDescription = null,
+                                            tint = PoliceNavy,
+                                            modifier = Modifier.size(22.dp)
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.width(10.dp))
+                                    Column {
+                                        Text(
+                                            text = "සාදරයෙන් පිළිගනිමු",
+                                            style = MaterialTheme.typography.titleMedium.copy(
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color.White,
+                                                fontSize = 16.sp
+                                            )
+                                        )
+                                        Text(
+                                            text = "Sri Lanka Services Directory",
+                                            style = MaterialTheme.typography.labelSmall.copy(
+                                                color = PoliceGold,
+                                                fontSize = 11.sp
+                                            )
+                                        )
+                                    }
+                                }
+                                IconButton(
+                                    onClick = { showInfoDialog = false },
+                                    modifier = Modifier
+                                        .align(Alignment.CenterEnd)
+                                        .size(32.dp)
+                                        .testTag("welcome_dialog_close_button")
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Close,
+                                        contentDescription = "Close",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            }
+
+                            // Content Container
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Text(
+                                    text = "මෙම යෙදුමෙහි ඇතුළත් ප්‍රධාන සේවාවන් 07:",
+                                    style = MaterialTheme.typography.bodyMedium.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF0F172A),
+                                        fontSize = 13.sp
+                                    )
+                                )
+
+                                Column(
+                                    verticalArrangement = Arrangement.spacedBy(5.dp)
+                                ) {
+                                    WelcomeFeatureRow(
+                                        number = "1",
+                                        titleSi = "පොලිස් කොට්ඨාස, කලාප සහ ජ්‍යෙෂ්ඨ නිලධාරීන්",
+                                        titleEn = "Police Stations & Senior Officers",
+                                        badgeColor = Color(0xFF0D1B2A),
+                                        icon = Icons.Default.LocalPolice
+                                    )
+                                    WelcomeFeatureRow(
+                                        number = "2",
+                                        titleSi = "රජයේ දෙපාර්තමේන්තු සහ සේවා",
+                                        titleEn = "Govt Departments & Services",
+                                        badgeColor = Color(0xFF1E3A8A),
+                                        icon = Icons.Default.AccountBalance
+                                    )
+                                    WelcomeFeatureRow(
+                                        number = "3",
+                                        titleSi = "ගමන් බිමන් සහ ප්‍රවාහනය",
+                                        titleEn = "Travel & Transport Services",
+                                        badgeColor = Color(0xFF3730A3),
+                                        icon = Icons.Default.DirectionsBus
+                                    )
+                                    WelcomeFeatureRow(
+                                        number = "4",
+                                        titleSi = "රෝහල් සහ හදිසි ප්‍රතිකාර ඒකක",
+                                        titleEn = "Hospitals & Medical Services",
+                                        badgeColor = Color(0xFF991B1B),
+                                        icon = Icons.Default.LocalHospital
+                                    )
+                                    WelcomeFeatureRow(
+                                        number = "5",
+                                        titleSi = "කෙටි සංකේත සහ තොරතුරු සේවා",
+                                        titleEn = "Short Codes & Helplines",
+                                        badgeColor = Color(0xFF6B21A8),
+                                        icon = Icons.Default.Dialpad
+                                    )
+                                    WelcomeFeatureRow(
+                                        number = "6",
+                                        titleSi = "හදිසි ඇමතුම් සේවා (119, 1990)",
+                                        titleEn = "Emergency Hotlines & Rescue",
+                                        badgeColor = Color(0xFFDC2626),
+                                        icon = Icons.Default.PhoneInTalk
+                                    )
+                                    WelcomeFeatureRow(
+                                        number = "7",
+                                        titleSi = "ගිනි නිවීම් සේවා (110)",
+                                        titleEn = "Fire Stations & Services",
+                                        badgeColor = Color(0xFFEA580C),
+                                        icon = Icons.Default.Fireplace
+                                    )
+                                }
+
+                                Divider(color = Color(0xFFE2E8F0), modifier = Modifier.padding(vertical = 2.dp))
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(
+                                            text = "නිර්මාණකරු: ",
+                                            style = MaterialTheme.typography.labelSmall.copy(
+                                                color = Color(0xFF64748B),
+                                                fontSize = 11.sp
+                                            )
+                                        )
+                                        Text(
+                                            text = "Ishan Maduranga",
+                                            style = MaterialTheme.typography.labelMedium.copy(
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color(0xFF1E293B),
+                                                fontSize = 12.sp
+                                            )
+                                        )
+                                    }
+                                    Text(
+                                        text = "v1.0.0",
+                                        style = MaterialTheme.typography.labelSmall.copy(
+                                            color = Color(0xFF94A3B8),
+                                            fontSize = 10.sp
+                                        )
+                                    )
+                                }
+
+                                Button(
+                                    onClick = { showInfoDialog = false },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(42.dp)
+                                        .testTag("welcome_dialog_accept_button"),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = PoliceNavy,
+                                        contentColor = Color.White
+                                    ),
+                                    shape = RoundedCornerShape(12.dp)
+                                ) {
+                                    Text(
+                                        text = "තහවුරුයි / OK",
+                                        style = MaterialTheme.typography.bodyMedium.copy(
+                                            fontWeight = FontWeight.Bold,
+                                            color = PoliceGold,
+                                            fontSize = 14.sp
+                                        )
+                                    )
+                                }
+                            }
                         }
-                    },
-                    icon = {
+                    }
+                }
+            }
+
+            // AI Web Search Dialog
+            if (showAiSearchDialog) {
+                AiSearchDialog(
+                    initialQuery = aiSearchQuery,
+                    onDismiss = { showAiSearchDialog = false },
+                    onSearch = { query ->
+                        showAiSearchDialog = false
+                        viewModel.performGoogleSearch(context, query)
+                    }
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun AiSearchDialog(
+    initialQuery: String,
+    onDismiss: () -> Unit,
+    onSearch: (String) -> Unit
+) {
+    var queryText by remember { mutableStateOf(initialQuery) }
+    val quickSuggestions = listOf(
+        "ගම්පහ පොලිසිය",
+        "කුරුණෑගල පොලිසිය",
+        "මාතර පොලිසිය",
+        "Sri Lanka Police Hotline",
+        "National Hospital Colombo",
+        "Disaster Management Center"
+    )
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth(0.92f)
+                .padding(vertical = 16.dp),
+            shape = RoundedCornerShape(20.dp),
+            color = Color.White,
+            shadowElevation = 10.dp
+        ) {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                // Header
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(PoliceNavy)
+                        .padding(horizontal = 16.dp, vertical = 14.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.align(Alignment.CenterStart)
+                    ) {
                         Box(
                             modifier = Modifier
-                                .size(48.dp)
+                                .size(36.dp)
                                 .clip(CircleShape)
                                 .background(PoliceGold),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
-                                imageVector = Icons.Default.Info,
+                                imageVector = Icons.Default.Search,
                                 contentDescription = null,
                                 tint = PoliceNavy,
-                                modifier = Modifier.size(28.dp)
+                                modifier = Modifier.size(20.dp)
                             )
                         }
-                    },
-                    title = {
-                        Text(
-                            text = "ALL Police Contact",
-                            style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-                            color = PoliceNavy
-                        )
-                    },
-                    text = {
-                        Column(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column {
                             Text(
-                                text = "Sri Lanka Police Official Directory",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                text = "✨ AI Google Search / ගූගල් සෙවුම",
+                                style = MaterialTheme.typography.titleMedium.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White,
+                                    fontSize = 16.sp
+                                )
                             )
-                            Divider(
-                                modifier = Modifier.padding(vertical = 4.dp),
-                                color = MaterialTheme.colorScheme.outlineVariant
+                            Text(
+                                text = "Search any number or contact not in app",
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    color = Color.White.copy(alpha = 0.8f),
+                                    fontSize = 11.sp
+                                )
                             )
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.Center
+                        }
+                    }
+
+                    IconButton(
+                        onClick = onDismiss,
+                        modifier = Modifier
+                            .align(Alignment.CenterEnd)
+                            .size(30.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Close",
+                            tint = Color.White
+                        )
+                    }
+                }
+
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp)
+                ) {
+                    Text(
+                        text = "මෙම ඇප් එකේ ඇතුළත් නොවන ඕනෑම පොලිස් ස්ථානයක්, රාජ්‍ය ආයතනයක්, නිලධාරියෙකු හෝ අංකයක් මෙහි ඇතුළත් කර සෘජුවම ගූගල් (Google) හරහා සොයන්න:",
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontSize = 12.sp,
+                            lineHeight = 17.sp
+                        )
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    OutlinedTextField(
+                        value = queryText,
+                        onValueChange = { queryText = it },
+                        textStyle = MaterialTheme.typography.bodyLarge.copy(
+                            color = PoliceNavy,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp
+                        ),
+                        placeholder = { 
+                            Text(
+                                "නම, ස්ථානය හෝ දුරකථන අංකය...",
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                            ) 
+                        },
+                        leadingIcon = {
+                            Icon(Icons.Default.Search, contentDescription = null, tint = PoliceNavy)
+                        },
+                        trailingIcon = {
+                            if (queryText.isNotEmpty()) {
+                                IconButton(onClick = { queryText = "" }) {
+                                    Icon(Icons.Default.Clear, contentDescription = "Clear", tint = PoliceNavy)
+                                }
+                            }
+                        },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth().testTag("ai_search_dialog_input"),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = PoliceNavy,
+                            unfocusedTextColor = PoliceNavy,
+                            focusedContainerColor = Color(0xFFF8F9FA),
+                            unfocusedContainerColor = Color(0xFFF8F9FA),
+                            focusedBorderColor = PoliceNavy,
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outline
+                        )
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Text(
+                        text = "ඉක්මන් මාතෘකා / Quick Shortcuts:",
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                        color = PoliceNavy
+                    )
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        quickSuggestions.forEach { suggestion ->
+                            Surface(
+                                onClick = { queryText = suggestion },
+                                shape = RoundedCornerShape(16.dp),
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.outlineVariant)
                             ) {
                                 Text(
-                                    text = "Creator / නිර්මාණකරු: ",
-                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold)
-                                )
-                                Text(
-                                    text = "Ishan Maduranga",
-                                    style = MaterialTheme.typography.bodyLarge.copy(
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.primary
-                                    )
+                                    text = suggestion,
+                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
                                 )
                             }
-                            Text(
-                                text = "Version 1.0.0",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.outline
-                            )
                         }
-                    },
-                    containerColor = Color.White,
-                    shape = RoundedCornerShape(20.dp)
+                    }
+
+                    Spacer(modifier = Modifier.height(18.dp))
+
+                    Button(
+                        onClick = { onSearch(queryText) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(46.dp)
+                            .testTag("ai_search_submit_button"),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = PoliceNavy)
+                    ) {
+                        Icon(Icons.Default.Search, contentDescription = null, tint = PoliceGold, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "🔍 ගූගල් හි සොයන්න (Search Google)",
+                            style = MaterialTheme.typography.titleSmall.copy(
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun WelcomeFeatureRow(
+    number: String,
+    titleSi: String,
+    titleEn: String,
+    badgeColor: Color,
+    icon: ImageVector
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(8.dp),
+        color = Color(0xFFF8FAFC),
+        border = BorderStroke(1.dp, Color(0xFFE2E8F0))
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(24.dp)
+                    .clip(CircleShape)
+                    .background(badgeColor),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(14.dp)
+                )
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "$number. $titleSi",
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF0F172A),
+                        fontSize = 11.sp
+                    ),
+                    maxLines = 1
+                )
+                Text(
+                    text = titleEn,
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        color = Color(0xFF475569),
+                        fontSize = 9.5.sp
+                    ),
+                    maxLines = 1
                 )
             }
         }

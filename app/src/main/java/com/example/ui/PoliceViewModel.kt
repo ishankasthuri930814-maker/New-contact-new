@@ -138,6 +138,7 @@ class PoliceViewModel(private val repository: PoliceRepository) : ViewModel() {
                 ContactCategory.ALL -> true
                 ContactCategory.FAVORITES -> contact.isFavorite
                 ContactCategory.EMERGENCY -> contact.category == ContactCategory.EMERGENCY
+                ContactCategory.FIRE_STATIONS -> contact.category == ContactCategory.FIRE_STATIONS || contact.stationOrDesignation.contains("Fire", ignoreCase = true)
                 ContactCategory.SHORT_CODES -> contact.category == ContactCategory.SHORT_CODES
                 ContactCategory.HOSPITALS -> contact.category == ContactCategory.HOSPITALS
                 ContactCategory.GOVT_SERVICES -> contact.category == ContactCategory.GOVT_SERVICES
@@ -233,6 +234,28 @@ class PoliceViewModel(private val repository: PoliceRepository) : ViewModel() {
         val clip = ClipData.newPlainText(label, text)
         clipboard.setPrimaryClip(clip)
         Toast.makeText(context, "$label copied to clipboard", Toast.LENGTH_SHORT).show()
+    }
+
+    fun performGoogleSearch(context: Context, query: String) {
+        val cleanQuery = query.trim()
+        if (cleanQuery.isEmpty()) {
+            Toast.makeText(context, "කරුණාකර සොයන්න අවශ්‍ය නම හෝ අංකය ඇතුළත් කරන්න", Toast.LENGTH_SHORT).show()
+            return
+        }
+        try {
+            val searchQuery = if (cleanQuery.lowercase().contains("sri lanka") || cleanQuery.lowercase().contains("police")) {
+                "$cleanQuery contact phone number"
+            } else {
+                "$cleanQuery Sri Lanka police contact phone number"
+            }
+            val intent = Intent(Intent.ACTION_VIEW).apply {
+                data = Uri.parse("https://www.google.com/search?q=${Uri.encode(searchQuery)}")
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            context.startActivity(intent)
+        } catch (e: Exception) {
+            Toast.makeText(context, "ගූගල් සෙවුම විවෘත කිරීමට නොහැකි විය", Toast.LENGTH_SHORT).show()
+        }
     }
 
     class Factory(private val repository: PoliceRepository) : ViewModelProvider.Factory {
