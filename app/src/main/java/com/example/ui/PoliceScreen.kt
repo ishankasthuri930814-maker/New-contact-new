@@ -170,17 +170,6 @@ fun PoliceScreen(
                     }
                 },
                 actions = {
-                    IconButton(
-                        onClick = onOpenPhoneAuth,
-                        modifier = Modifier.testTag("otp_verify_top_button")
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Phone,
-                            contentDescription = "Phone OTP Verification",
-                            tint = PoliceGold
-                        )
-                    }
-
                     Surface(
                         onClick = {
                             aiSearchQuery = uiState.searchQuery
@@ -665,7 +654,7 @@ fun PoliceScreen(
                                         )
                                     }
                                     Text(
-                                        text = "v1.0.0",
+                                        text = "v2.0",
                                         style = MaterialTheme.typography.labelSmall.copy(
                                             color = Color(0xFF94A3B8),
                                             fontSize = 10.sp

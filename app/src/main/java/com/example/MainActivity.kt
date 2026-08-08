@@ -30,7 +30,6 @@ import com.google.firebase.messaging.FirebaseMessaging
 class MainActivity : ComponentActivity() {
 
     private lateinit var policeViewModel: PoliceViewModel
-    private lateinit var phoneAuthViewModel: PhoneAuthViewModel
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -76,15 +75,9 @@ class MainActivity : ComponentActivity() {
         val repository = PoliceRepository(applicationContext)
         val factory = PoliceViewModel.Factory(repository)
         policeViewModel = ViewModelProvider(this, factory)[PoliceViewModel::class.java]
-        phoneAuthViewModel = ViewModelProvider(this)[PhoneAuthViewModel::class.java]
 
         setContent {
             PoliceDirectoryTheme {
-                val authState by phoneAuthViewModel.uiState.collectAsStateWithLifecycle()
-                var currentScreen by remember {
-                    mutableStateOf(if (authState.isAuthenticated) "directory" else "phone_auth")
-                }
-
                 // Request POST_NOTIFICATIONS permission on Android 13+ (API 33+)
                 val permissionLauncher = rememberLauncherForActivityResult(
                     contract = ActivityResultContracts.RequestPermission()
@@ -109,17 +102,9 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
-                if (currentScreen == "phone_auth") {
-                    PhoneAuthScreen(
-                        viewModel = phoneAuthViewModel,
-                        onNavigateBack = { currentScreen = "directory" }
-                    )
-                } else {
-                    PoliceScreen(
-                        viewModel = policeViewModel,
-                        onOpenPhoneAuth = { currentScreen = "phone_auth" }
-                    )
-                }
+                PoliceScreen(
+                    viewModel = policeViewModel
+                )
             }
         }
     }
