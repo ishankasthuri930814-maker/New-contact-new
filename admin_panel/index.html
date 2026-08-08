@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Police Directory Admin Panel</title>
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f4f6f9;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .login-card {
+            max-width: 420px;
+            margin: 80px auto;
+            border: none;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+        }
+        .icon-circle {
+            width: 70px;
+            height: 70px;
+            background-color: #e8f0fe;
+            color: #0d6efd;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 15px auto;
+            font-size: 28px;
+        }
+    </style>
+</head>
+<body>
+
+    <nav class="navbar navbar-dark bg-dark mb-4">
+        <div class="container">
+            <span class="navbar-brand mb-0 h1">
+                <i class="fa-solid fa-shield-halved text-warning me-2"></i>Police Directory Admin Panel
+            </span>
+            <button id="logoutBtn" class="btn btn-outline-light btn-sm d-none" onclick="handleLogout()">Logout</button>
+        </div>
+    </nav>
+
+    <div class="container">
+        <!-- Login Form Card -->
+        <div id="loginSection" class="card login-card">
+            <div class="card-body p-4">
+                <div class="icon-circle">
+                    <i class="fa-solid fa-user-shield"></i>
+                </div>
+                <h4 class="text-center fw-bold mb-1">Admin Login</h4>
+                <p class="text-center text-muted small mb-4">Sign in with email & password to manage police directory</p>
+                
+                <div id="alertBox" class="alert alert-danger d-none small" role="alert"></div>
+
+                <form id="loginForm" onsubmit="handleLogin(event)">
+                    <div class="mb-3">
+                        <label class="form-label text-secondary fw-semibold small">Email Address</label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-light text-secondary"><i class="fa-solid fa-envelope"></i></span>
+                            <input type="email" id="email" class="form-control" placeholder="admin@example.com" required>
+                        </div>
+                    </div>
+                    <div class="mb-4">
+                        <label class="form-label text-secondary fw-semibold small">Password</label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-light text-secondary"><i class="fa-solid fa-lock"></i></span>
+                            <input type="password" id="password" class="form-control" placeholder="••••••••" required>
+                        </div>
+                    </div>
+                    <button type="submit" id="submitBtn" class="btn btn-primary w-100 fw-semibold py-2">Sign In</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Admin Content Section (Hidden by Default) -->
+        <div id="dashboardSection" class="d-none">
+            <div class="alert alert-success d-flex align-items-center" role="alert">
+                <i class="fa-solid fa-circle-check me-2 fs-5"></i>
+                <div>
+                    <strong>Logged In Successfully!</strong> Welcome to the Police Directory Admin Dashboard.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase v10 SDK Scripts -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+
+        // Your Exact Firebase Configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyCJmnUZhOSW2OfhlKhljhw9oTnqDFc4I_s",
+            authDomain: "police-contact-9d553.firebaseapp.com",
+            projectId: "police-contact-9d553",
+            storageBucket: "police-contact-9d553.firebasestorage.app",
+            messagingSenderId: "850829172957",
+            appId: "1:850829172957:web:1b5022fb47651c17c13b34",
+            measurementId: "G-8E8CT56FPE"
+        };
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+
+        // Check authentication status
+        onAuthStateChanged(auth, (user) => {
+            const loginSection = document.getElementById('loginSection');
+            const dashboardSection = document.getElementById('dashboardSection');
+            const logoutBtn = document.getElementById('logoutBtn');
+
+            if (user) {
+                loginSection.classList.add('d-none');
+                dashboardSection.classList.remove('d-none');
+                logoutBtn.classList.remove('d-none');
+            } else {
+                loginSection.classList.remove('d-none');
+                dashboardSection.classList.add('d-none');
+                logoutBtn.classList.add('d-none');
+            }
+        });
+
+        // Login Handler
+        window.handleLogin = async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const alertBox = document.getElementById('alertBox');
+            const submitBtn = document.getElementById('submitBtn');
+
+            alertBox.classList.add('d-none');
+            submitBtn.disabled = true;
+            submitBtn.innerText = 'Signing In...';
+
+            try {
+                await signInWithEmailAndPassword(auth, email, password);
+            } catch (error) {
+                alertBox.innerText = error.message;
+                alertBox.classList.remove('d-none');
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.innerText = 'Sign In';
+            }
+        };
+
+        // Logout Handler
+        window.handleLogout = async () => {
+            try {
+                await signOut(auth);
+            } catch (error) {
+                alert("Logout Error: " + error.message);
+            }
+        };
+    </script>
+</body>
+</html>

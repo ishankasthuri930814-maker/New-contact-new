@@ -38,6 +38,7 @@ import androidx.compose.material.icons.filled.Fireplace
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.LocalHospital
 import androidx.compose.material.icons.filled.LocalPolice
+import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.PhoneInTalk
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
@@ -99,7 +100,8 @@ import com.example.ui.theme.PoliceNavy
 @Composable
 fun PoliceScreen(
     viewModel: PoliceViewModel,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onOpenPhoneAuth: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
@@ -127,6 +129,7 @@ fun PoliceScreen(
         modifier = modifier.fillMaxSize(),
         contentWindowInsets = WindowInsets.navigationBars,
         snackbarHost = { SnackbarHost(snackbarHostState) },
+        bottomBar = { BannerAdView() },
         topBar = {
             TopAppBar(
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -167,6 +170,17 @@ fun PoliceScreen(
                     }
                 },
                 actions = {
+                    IconButton(
+                        onClick = onOpenPhoneAuth,
+                        modifier = Modifier.testTag("otp_verify_top_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Phone,
+                            contentDescription = "Phone OTP Verification",
+                            tint = PoliceGold
+                        )
+                    }
+
                     Surface(
                         onClick = {
                             aiSearchQuery = uiState.searchQuery
@@ -242,49 +256,6 @@ fun PoliceScreen(
                             .fillMaxWidth()
                             .padding(horizontal = 16.dp, vertical = 12.dp)
                     ) {
-                        // AI Web Search Quick Banner
-                        Surface(
-                            onClick = {
-                                aiSearchQuery = uiState.searchQuery
-                                showAiSearchDialog = true
-                            },
-                            shape = RoundedCornerShape(12.dp),
-                            color = Color.White.copy(alpha = 0.15f),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(bottom = 8.dp)
-                                .testTag("ai_search_banner")
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text(
-                                    text = "✨ ඇප් එකේ නැති අංක/නම් ගූගල් හි සොයන්න",
-                                    style = MaterialTheme.typography.labelMedium.copy(
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color.White,
-                                        fontSize = 11.5.sp
-                                    )
-                                )
-                                Surface(
-                                    shape = RoundedCornerShape(8.dp),
-                                    color = PoliceGold
-                                ) {
-                                    Text(
-                                        text = "AI Search",
-                                        style = MaterialTheme.typography.labelSmall.copy(
-                                            fontWeight = FontWeight.Bold,
-                                            color = PoliceNavy,
-                                            fontSize = 10.5.sp
-                                        ),
-                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                                    )
-                                }
-                            }
-                        }
-
                         // Search Bar
                         OutlinedTextField(
                             value = uiState.searchQuery,
