@@ -9,6 +9,7 @@ data class PoliceContact(
     val mobilePhone: String = "",
     val officePhone2: String = "",
     val officePhone3: String = "",
+    val pvtNumber: String = "",
     val fax: String = "",
     val email: String = "",
     val oicTraffic: String = "",

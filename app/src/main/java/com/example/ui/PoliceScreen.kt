@@ -654,7 +654,7 @@ fun PoliceScreen(
                                         )
                                     }
                                     Text(
-                                        text = "v2.0",
+                                        text = "v2.5",
                                         style = MaterialTheme.typography.labelSmall.copy(
                                             color = Color(0xFF94A3B8),
                                             fontSize = 10.sp

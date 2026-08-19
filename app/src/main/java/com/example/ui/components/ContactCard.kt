@@ -163,7 +163,7 @@ fun ContactCard(
             Spacer(modifier = Modifier.height(10.dp))
 
             // Phone Numbers Section with Direct Action Buttons
-            if (contact.generalPhone.isNotBlank() || contact.mobilePhone.isNotBlank() || contact.officePhone2.isNotBlank() || contact.officePhone3.isNotBlank()) {
+            if (contact.generalPhone.isNotBlank() || contact.mobilePhone.isNotBlank() || contact.officePhone2.isNotBlank() || contact.officePhone3.isNotBlank() || contact.pvtNumber.isNotBlank()) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     // General Phone Row
                     if (contact.generalPhone.isNotBlank()) {
@@ -292,6 +292,77 @@ fun ContactCard(
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Text(
                                     text = "Mobile",
+                                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                )
+                            }
+                        }
+                    }
+
+                    // PVT Number Row if present
+                    if (contact.pvtNumber.isNotBlank()) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(30.dp)
+                                        .clip(CircleShape)
+                                        .background(PoliceGold.copy(alpha = 0.2f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.PhoneAndroid,
+                                        contentDescription = "PVT Number",
+                                        tint = PoliceGold,
+                                        modifier = Modifier.size(15.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Column {
+                                    Text(
+                                        text = "පුද්ගලික / PVT Number",
+                                        style = MaterialTheme.typography.labelSmall.copy(
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Bold
+                                        ),
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                    Text(
+                                        text = contact.pvtNumber,
+                                        style = MaterialTheme.typography.bodyMedium.copy(
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 14.sp
+                                        ),
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.width(6.dp))
+
+                            OutlinedButton(
+                                onClick = { onCallClick(contact.pvtNumber) },
+                                shape = RoundedCornerShape(10.dp),
+                                modifier = Modifier.height(36.dp),
+                                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp),
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    contentColor = MaterialTheme.colorScheme.primary
+                                )
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Phone,
+                                    contentDescription = "Call PVT",
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "PVT",
                                     style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold, fontSize = 12.sp)
                                 )
                             }

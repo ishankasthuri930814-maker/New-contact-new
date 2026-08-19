@@ -77,27 +77,25 @@ class PoliceRepository(private val context: Context) {
     private suspend fun fetchAndCacheRemote(favorites: Set<String>): List<PoliceContact> {
         val allParsed = mutableListOf<PoliceContact>()
 
-        // Fetch from Primary Sheet
+        // 1. Fetch all sheets/tabs dynamically from User's spreadsheet (1VTch65JpwfuZkUdnrrLpv7AA0YV-ekSLSY-fXToPpHs)
         try {
-            val resp1 = apiService.getSheetValues(PoliceApiService.PRIMARY_SHEET_URL)
-            resp1.body()?.values?.let { rows1 ->
-                allParsed.addAll(parseSheetRows(rows1))
-            }
+            val userContacts = fetchAllSheetsFromSpreadsheet(PoliceApiService.USER_SPREADSHEET_ID)
+            allParsed.addAll(userContacts)
+            Log.d("PoliceRepo", "Loaded ${userContacts.size} contacts from user spreadsheet (all tabs)")
         } catch (e: Exception) {
-            Log.e("PoliceRepo", "Primary sheet fetch failed", e)
+            Log.e("PoliceRepo", "User spreadsheet multi-sheet fetch failed", e)
         }
 
-        // Fetch from Secondary Sheet
+        // 2. Fetch all sheets/tabs dynamically from Primary spreadsheet (1tMu-Wpwht7dH0NF4YSfiWjlttS_WOsgrbfJ3_zsJYd0)
         try {
-            val resp2 = apiService.getSheetValues(PoliceApiService.SECONDARY_SHEET_URL)
-            resp2.body()?.values?.let { rows2 ->
-                allParsed.addAll(parseSheetRows(rows2))
-            }
+            val primaryContacts = fetchAllSheetsFromSpreadsheet(PoliceApiService.PRIMARY_SPREADSHEET_ID)
+            allParsed.addAll(primaryContacts)
+            Log.d("PoliceRepo", "Loaded ${primaryContacts.size} contacts from primary spreadsheet")
         } catch (e: Exception) {
-            Log.e("PoliceRepo", "Secondary sheet fetch failed", e)
+            Log.e("PoliceRepo", "Primary spreadsheet multi-sheet fetch failed", e)
         }
 
-        // Fallback if both failed
+        // Fallback if all failed
         if (allParsed.isEmpty()) {
             try {
                 val respFb = apiService.getSheetValues(PoliceApiService.FALLBACK_SHEET_URL)
@@ -109,7 +107,7 @@ class PoliceRepository(private val context: Context) {
             }
         }
 
-        // Merge contacts from both sheets and emergency defaults
+        // Merge contacts from all sheets and emergency defaults
         val mergedMap = mutableMapOf<String, PoliceContact>()
 
         for (c in (getDefaultEmergencyContacts() + allParsed)) {
@@ -127,6 +125,7 @@ class PoliceRepository(private val context: Context) {
                     mobilePhone = existing.mobilePhone.ifBlank { c.mobilePhone },
                     officePhone2 = existing.officePhone2.ifBlank { c.officePhone2 },
                     officePhone3 = existing.officePhone3.ifBlank { c.officePhone3 },
+                    pvtNumber = existing.pvtNumber.ifBlank { c.pvtNumber },
                     fax = existing.fax.ifBlank { c.fax },
                     email = existing.email.ifBlank { c.email },
                     oicTraffic = existing.oicTraffic.ifBlank { c.oicTraffic },
@@ -145,6 +144,52 @@ class PoliceRepository(private val context: Context) {
         saveToLocalCache(allContacts)
 
         return allContacts.map { it.copy(isFavorite = favorites.contains(it.id)) }
+    }
+
+    private suspend fun fetchAllSheetsFromSpreadsheet(spreadsheetId: String): List<PoliceContact> {
+        val contacts = mutableListOf<PoliceContact>()
+        try {
+            // 1. Fetch metadata to discover ALL sheets/tabs dynamically
+            val metadataResp = apiService.getSpreadsheetMetadata(PoliceApiService.getMetadataUrl(spreadsheetId))
+            val sheetTitles = metadataResp.body()?.sheets?.mapNotNull { it.properties?.title } ?: emptyList()
+
+            if (sheetTitles.isNotEmpty()) {
+                Log.d("PoliceRepo", "Discovered ${sheetTitles.size} sheet tabs in $spreadsheetId: $sheetTitles")
+                for (title in sheetTitles) {
+                    try {
+                        val sheetUrl = PoliceApiService.getSheetRangeUrl(spreadsheetId, title)
+                        val resp = apiService.getSheetValues(sheetUrl)
+                        resp.body()?.values?.let { rows ->
+                            val parsed = parseSheetRows(rows)
+                            Log.d("PoliceRepo", "Parsed ${parsed.size} contacts from sheet tab '$title'")
+                            contacts.addAll(parsed)
+                        }
+                    } catch (e: Exception) {
+                        Log.e("PoliceRepo", "Error fetching tab '$title' from $spreadsheetId", e)
+                    }
+                }
+            } else {
+                // Fallback to Sheet1 if metadata sheets list was empty
+                val resp = apiService.getSheetValues(PoliceApiService.getSheetRangeUrl(spreadsheetId, "Sheet1"))
+                resp.body()?.values?.let { rows ->
+                    contacts.addAll(parseSheetRows(rows))
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("PoliceRepo", "Failed to fetch metadata for spreadsheet $spreadsheetId, trying direct Sheet1..5 fallback", e)
+            // Direct tab fallbacks: Sheet1, Sheet2, Sheet3, Sheet4, Sheet5, Sheet6
+            for (tab in listOf("Sheet1", "Sheet2", "Sheet3", "Sheet4", "Sheet5", "Sheet6")) {
+                try {
+                    val resp = apiService.getSheetValues(PoliceApiService.getSheetRangeUrl(spreadsheetId, tab))
+                    resp.body()?.values?.let { rows ->
+                        if (rows.isNotEmpty()) {
+                            contacts.addAll(parseSheetRows(rows))
+                        }
+                    }
+                } catch (ignored: Exception) {}
+            }
+        }
+        return contacts
     }
 
     private fun parseSheetRows(rows: List<List<String>>): List<PoliceContact> {
@@ -177,6 +222,7 @@ class PoliceRepository(private val context: Context) {
         val colOffice2 = findColIdx("office_no2", defaultIdx = -1)
         val colMobile = findColIdx("mobile", defaultIdx = 4)
         val colOffice3 = findColIdx("office_no3", defaultIdx = -1)
+        val colPvtNumber = findColIdx("pvt", "private", defaultIdx = 13)
         val colFax = findColIdx("fax", defaultIdx = -1)
         val colEmail = findColIdx("email", defaultIdx = 5)
         val colTraffic = findColIdx("traffic", defaultIdx = -1)
@@ -204,6 +250,7 @@ class PoliceRepository(private val context: Context) {
             val officePhone2 = getVal(colOffice2)
             val mobilePhone = getVal(colMobile)
             val officePhone3 = getVal(colOffice3)
+            val pvtNumber = getVal(colPvtNumber)
             val fax = getVal(colFax)
             val email = getVal(colEmail)
             val oicTraffic = getVal(colTraffic)
@@ -232,6 +279,7 @@ class PoliceRepository(private val context: Context) {
                     mobilePhone = mobilePhone,
                     officePhone2 = officePhone2,
                     officePhone3 = officePhone3,
+                    pvtNumber = pvtNumber,
                     fax = fax,
                     email = email,
                     oicTraffic = oicTraffic,

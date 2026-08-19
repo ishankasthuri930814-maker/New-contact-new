@@ -208,6 +208,20 @@ fun ContactDetailBottomSheet(
                 Spacer(modifier = Modifier.height(10.dp))
             }
 
+            // PVT Private Number Card
+            if (contact.pvtNumber.isNotBlank()) {
+                ContactDetailActionRow(
+                    label = "පුද්ගලික අංකය / PVT Number",
+                    value = contact.pvtNumber,
+                    icon = Icons.Default.PhoneAndroid,
+                    onCall = { onCallClick(contact.pvtNumber) },
+                    onCopy = { onCopyClick(contact.pvtNumber, "PVT Number") },
+                    isPrimary = false,
+                    isEmergency = false
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+            }
+
             // Additional Office Phone 2
             if (contact.officePhone2.isNotBlank()) {
                 ContactDetailActionRow(

@@ -157,6 +157,7 @@ class PoliceViewModel(private val repository: PoliceRepository) : ViewModel() {
                         contact.rank.lowercase().contains(q) ||
                         contact.generalPhone.lowercase().contains(q) ||
                         contact.mobilePhone.lowercase().contains(q) ||
+                        contact.pvtNumber.lowercase().contains(q) ||
                         contact.officePhone2.lowercase().contains(q) ||
                         contact.officePhone3.lowercase().contains(q) ||
                         contact.fax.lowercase().contains(q) ||
@@ -216,6 +217,7 @@ class PoliceViewModel(private val repository: PoliceRepository) : ViewModel() {
             if (contact.officerName.isNotBlank()) append("👤 Officer: ${contact.officerName}\n")
             if (contact.generalPhone.isNotBlank()) append("📞 Telephone: ${contact.generalPhone}\n")
             if (contact.mobilePhone.isNotBlank()) append("📱 Mobile: ${contact.mobilePhone}\n")
+            if (contact.pvtNumber.isNotBlank()) append("🔒 PVT: ${contact.pvtNumber}\n")
             if (contact.email.isNotBlank()) append("✉️ Email: ${contact.email}\n")
         }
 
