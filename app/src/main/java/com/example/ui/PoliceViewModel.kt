@@ -191,6 +191,43 @@ class PoliceViewModel(private val repository: PoliceRepository) : ViewModel() {
         }
     }
 
+    fun openWhatsApp(context: Context, phoneNumber: String) {
+        val digitsOnly = phoneNumber.replace(Regex("[^0-9+]"), "")
+        if (digitsOnly.isBlank()) {
+            Toast.makeText(context, "වලංගු දුරකථන අංකයක් නොමැත (No valid phone number)", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        // Format for Sri Lanka (+94)
+        val formattedNumber = when {
+            digitsOnly.startsWith("+94") -> digitsOnly.removePrefix("+")
+            digitsOnly.startsWith("0") -> "94" + digitsOnly.substring(1)
+            digitsOnly.startsWith("94") -> digitsOnly
+            digitsOnly.length == 9 && digitsOnly.startsWith("7") -> "94$digitsOnly"
+            else -> digitsOnly.removePrefix("+")
+        }
+
+        try {
+            // Attempt to open WhatsApp directly with the phone number
+            val uri = Uri.parse("https://api.whatsapp.com/send?phone=$formattedNumber")
+            val intent = Intent(Intent.ACTION_VIEW, uri).apply {
+                setPackage("com.whatsapp")
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            context.startActivity(intent)
+        } catch (e: Exception) {
+            // If WhatsApp package check fails or WhatsApp Business is installed or browser fallback
+            try {
+                val fallbackIntent = Intent(Intent.ACTION_VIEW, Uri.parse("https://wa.me/$formattedNumber")).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                }
+                context.startActivity(fallbackIntent)
+            } catch (ex: Exception) {
+                Toast.makeText(context, "WhatsApp විවෘත කිරීමට නොහැකි විය (Unable to open WhatsApp)", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
     fun sendEmail(context: Context, emailAddress: String, stationName: String) {
         val cleanEmail = emailAddress.trim()
         if (cleanEmail.isEmpty()) {

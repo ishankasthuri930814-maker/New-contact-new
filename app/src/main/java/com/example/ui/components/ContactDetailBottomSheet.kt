@@ -54,6 +54,8 @@ import com.example.data.model.PoliceContact
 import com.example.ui.theme.EmergencyRed
 import com.example.ui.theme.PoliceGold
 import com.example.ui.theme.PoliceNavy
+import com.example.ui.theme.WhatsAppDarkGreen
+import com.example.ui.theme.WhatsAppGreen
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -62,6 +64,7 @@ fun ContactDetailBottomSheet(
     sheetState: SheetState,
     onDismiss: () -> Unit,
     onCallClick: (String) -> Unit,
+    onWhatsAppClick: (String) -> Unit,
     onEmailClick: (String, String) -> Unit,
     onCopyClick: (String, String) -> Unit,
     onShareClick: (PoliceContact) -> Unit,
@@ -187,6 +190,9 @@ fun ContactDetailBottomSheet(
                     value = contact.generalPhone,
                     icon = Icons.Default.Phone,
                     onCall = { onCallClick(contact.generalPhone) },
+                    onWhatsApp = if (contact.generalPhone.startsWith("07") || contact.generalPhone.startsWith("+947") || contact.generalPhone.startsWith("947")) {
+                        { onWhatsAppClick(contact.generalPhone) }
+                    } else null,
                     onCopy = { onCopyClick(contact.generalPhone, "Telephone Number") },
                     isPrimary = true,
                     isEmergency = isEmergency
@@ -201,6 +207,7 @@ fun ContactDetailBottomSheet(
                     value = contact.mobilePhone,
                     icon = Icons.Default.PhoneAndroid,
                     onCall = { onCallClick(contact.mobilePhone) },
+                    onWhatsApp = { onWhatsAppClick(contact.mobilePhone) },
                     onCopy = { onCopyClick(contact.mobilePhone, "Mobile Number") },
                     isPrimary = false,
                     isEmergency = false
@@ -215,6 +222,7 @@ fun ContactDetailBottomSheet(
                     value = contact.pvtNumber,
                     icon = Icons.Default.PhoneAndroid,
                     onCall = { onCallClick(contact.pvtNumber) },
+                    onWhatsApp = { onWhatsAppClick(contact.pvtNumber) },
                     onCopy = { onCopyClick(contact.pvtNumber, "PVT Number") },
                     isPrimary = false,
                     isEmergency = false
@@ -229,6 +237,9 @@ fun ContactDetailBottomSheet(
                     value = contact.officePhone2,
                     icon = Icons.Default.Phone,
                     onCall = { onCallClick(contact.officePhone2) },
+                    onWhatsApp = if (contact.officePhone2.startsWith("07") || contact.officePhone2.startsWith("+947") || contact.officePhone2.startsWith("947")) {
+                        { onWhatsAppClick(contact.officePhone2) }
+                    } else null,
                     onCopy = { onCopyClick(contact.officePhone2, "Office Line 2") },
                     isPrimary = false,
                     isEmergency = false
@@ -243,6 +254,9 @@ fun ContactDetailBottomSheet(
                     value = contact.officePhone3,
                     icon = Icons.Default.Phone,
                     onCall = { onCallClick(contact.officePhone3) },
+                    onWhatsApp = if (contact.officePhone3.startsWith("07") || contact.officePhone3.startsWith("+947") || contact.officePhone3.startsWith("947")) {
+                        { onWhatsAppClick(contact.officePhone3) }
+                    } else null,
                     onCopy = { onCopyClick(contact.officePhone3, "Office Line 3") },
                     isPrimary = false,
                     isEmergency = false
@@ -330,6 +344,9 @@ fun ContactDetailBottomSheet(
                             title = "🚦 Traffic OIC",
                             number = contact.oicTraffic,
                             onCall = { onCallClick(contact.oicTraffic) },
+                            onWhatsApp = if (contact.oicTraffic.startsWith("07") || contact.oicTraffic.startsWith("+947") || contact.oicTraffic.startsWith("947")) {
+                                { onWhatsAppClick(contact.oicTraffic) }
+                            } else null,
                             onCopy = { onCopyClick(contact.oicTraffic, "OIC Traffic") }
                         )
                     }
@@ -338,6 +355,9 @@ fun ContactDetailBottomSheet(
                             title = "🔍 Crime OIC",
                             number = contact.oicCrime,
                             onCall = { onCallClick(contact.oicCrime) },
+                            onWhatsApp = if (contact.oicCrime.startsWith("07") || contact.oicCrime.startsWith("+947") || contact.oicCrime.startsWith("947")) {
+                                { onWhatsAppClick(contact.oicCrime) }
+                            } else null,
                             onCopy = { onCopyClick(contact.oicCrime, "OIC Crime") }
                         )
                     }
@@ -346,6 +366,9 @@ fun ContactDetailBottomSheet(
                             title = "🛡️ Vice OIC",
                             number = contact.oicVice,
                             onCall = { onCallClick(contact.oicVice) },
+                            onWhatsApp = if (contact.oicVice.startsWith("07") || contact.oicVice.startsWith("+947") || contact.oicVice.startsWith("947")) {
+                                { onWhatsAppClick(contact.oicVice) }
+                            } else null,
                             onCopy = { onCopyClick(contact.oicVice, "OIC Vice") }
                         )
                     }
@@ -354,6 +377,9 @@ fun ContactDetailBottomSheet(
                             title = "🤝 Community OIC",
                             number = contact.oicCommunityPolicing,
                             onCall = { onCallClick(contact.oicCommunityPolicing) },
+                            onWhatsApp = if (contact.oicCommunityPolicing.startsWith("07") || contact.oicCommunityPolicing.startsWith("+947") || contact.oicCommunityPolicing.startsWith("947")) {
+                                { onWhatsAppClick(contact.oicCommunityPolicing) }
+                            } else null,
                             onCopy = { onCopyClick(contact.oicCommunityPolicing, "OIC Community") }
                         )
                     }
@@ -405,6 +431,7 @@ private fun ContactDetailActionRow(
     value: String,
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     onCall: (() -> Unit)?,
+    onWhatsApp: (() -> Unit)? = null,
     onCopy: () -> Unit,
     isPrimary: Boolean,
     isEmergency: Boolean
@@ -429,7 +456,8 @@ private fun ContactDetailActionRow(
             Spacer(modifier = Modifier.height(8.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 if (onCall != null) {
                     Button(
@@ -438,11 +466,27 @@ private fun ContactDetailActionRow(
                         shape = RoundedCornerShape(10.dp),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = if (isEmergency) EmergencyRed else MaterialTheme.colorScheme.primary
-                        )
+                        ),
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp)
                     ) {
-                        Icon(imageVector = icon, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(text = "ඇමතුමක් ගන්න / Call", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        Icon(imageVector = icon, contentDescription = null, modifier = Modifier.size(15.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(text = "Call", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    }
+                }
+                if (onWhatsApp != null) {
+                    Button(
+                        onClick = onWhatsApp,
+                        modifier = Modifier.weight(1f).height(40.dp),
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = WhatsAppDarkGreen
+                        ),
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp)
+                    ) {
+                        Icon(imageVector = Icons.Default.Phone, contentDescription = "WhatsApp", tint = Color.White, modifier = Modifier.size(15.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(text = "WhatsApp", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                     }
                 }
                 IconButton(
@@ -469,6 +513,7 @@ private fun OicDirectButton(
     title: String,
     number: String,
     onCall: () -> Unit,
+    onWhatsApp: (() -> Unit)? = null,
     onCopy: () -> Unit
 ) {
     Surface(
@@ -494,16 +539,29 @@ private fun OicDirectButton(
                     color = MaterialTheme.colorScheme.onSurface
                 )
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
                 Button(
                     onClick = onCall,
                     modifier = Modifier.height(34.dp),
                     shape = RoundedCornerShape(8.dp),
-                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp)
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp)
                 ) {
-                    Icon(Icons.Default.Phone, contentDescription = null, modifier = Modifier.size(14.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
+                    Icon(Icons.Default.Phone, contentDescription = null, modifier = Modifier.size(13.dp))
+                    Spacer(modifier = Modifier.width(3.dp))
                     Text("Call", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                }
+                if (onWhatsApp != null) {
+                    Button(
+                        onClick = onWhatsApp,
+                        modifier = Modifier.height(34.dp),
+                        shape = RoundedCornerShape(8.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = WhatsAppDarkGreen),
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp)
+                    ) {
+                        Icon(Icons.Default.Phone, contentDescription = "WhatsApp", tint = Color.White, modifier = Modifier.size(13.dp))
+                        Spacer(modifier = Modifier.width(3.dp))
+                        Text("WhatsApp", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    }
                 }
                 IconButton(
                     onClick = onCopy,

@@ -92,6 +92,10 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import com.example.ui.components.ContactCard
 import com.example.ui.components.ContactDetailBottomSheet
+import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.Logout
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Shield
 import com.example.ui.components.EmergencyHeader
 import com.example.ui.theme.PoliceGold
 import com.example.ui.theme.PoliceNavy
@@ -101,6 +105,8 @@ import com.example.ui.theme.PoliceNavy
 fun PoliceScreen(
     viewModel: PoliceViewModel,
     modifier: Modifier = Modifier,
+    currentUser: String? = null,
+    onLogout: () -> Unit = {},
     onOpenPhoneAuth: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -109,6 +115,7 @@ fun PoliceScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var showInfoDialog by remember { mutableStateOf(true) }
+    var showUserDialog by remember { mutableStateOf(false) }
     var showAiSearchDialog by remember { mutableStateOf(false) }
     var aiSearchQuery by remember { mutableStateOf("") }
 
@@ -221,6 +228,16 @@ fun PoliceScreen(
                             imageVector = Icons.Default.Refresh,
                             contentDescription = "Sync Sheet Data",
                             modifier = Modifier.rotate(rotationAngle)
+                        )
+                    }
+                    IconButton(
+                        onClick = { showUserDialog = true },
+                        modifier = Modifier.testTag("account_profile_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.AccountCircle,
+                            contentDescription = "User Account",
+                            tint = Color.White
                         )
                     }
                 }
@@ -457,6 +474,7 @@ fun PoliceScreen(
                                 ContactCard(
                                     contact = contact,
                                     onCallClick = { phone -> viewModel.makePhoneCall(context, phone) },
+                                    onWhatsAppClick = { phone -> viewModel.openWhatsApp(context, phone) },
                                     onEmailClick = { email, station -> viewModel.sendEmail(context, email, station) },
                                     onFavoriteToggle = { c -> viewModel.toggleFavorite(c) },
                                     onShareClick = { c -> viewModel.shareContact(context, c) },
@@ -475,6 +493,7 @@ fun PoliceScreen(
                     sheetState = sheetState,
                     onDismiss = { viewModel.closeContactDetail() },
                     onCallClick = { phone -> viewModel.makePhoneCall(context, phone) },
+                    onWhatsAppClick = { phone -> viewModel.openWhatsApp(context, phone) },
                     onEmailClick = { email, station -> viewModel.sendEmail(context, email, station) },
                     onCopyClick = { text, label -> viewModel.copyToClipboard(context, text, label) },
                     onShareClick = { c -> viewModel.shareContact(context, c) },
@@ -654,7 +673,7 @@ fun PoliceScreen(
                                         )
                                     }
                                     Text(
-                                        text = "v2.5",
+                                        text = "v3.0",
                                         style = MaterialTheme.typography.labelSmall.copy(
                                             color = Color(0xFF94A3B8),
                                             fontSize = 10.sp
@@ -683,6 +702,124 @@ fun PoliceScreen(
                                         )
                                     )
                                 }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // User Profile Dialog
+            if (showUserDialog) {
+                Dialog(onDismissRequest = { showUserDialog = false }) {
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(0.9f),
+                        shape = RoundedCornerShape(20.dp),
+                        color = Color.White,
+                        shadowElevation = 8.dp
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(20.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(54.dp)
+                                    .clip(CircleShape)
+                                    .background(PoliceNavy),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.AccountCircle,
+                                    contentDescription = null,
+                                    tint = PoliceGold,
+                                    modifier = Modifier.size(36.dp)
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            Text(
+                                text = "පරිශීලක ගිණුම / User Account",
+                                style = MaterialTheme.typography.titleMedium.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    color = PoliceNavy,
+                                    fontSize = 16.sp
+                                )
+                            )
+
+                            Spacer(modifier = Modifier.height(4.dp))
+
+                            Text(
+                                text = currentUser ?: "Authorized Police User",
+                                style = MaterialTheme.typography.bodyLarge.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF1E293B)
+                                )
+                            )
+
+                            Spacer(modifier = Modifier.height(6.dp))
+
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = Color(0xFFDCFCE7),
+                                border = BorderStroke(1.dp, Color(0xFF86EFAC))
+                            ) {
+                                Text(
+                                    text = "● Verified via Google Sheet",
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF166534),
+                                        fontSize = 11.sp
+                                    ),
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(20.dp))
+
+                            Divider(color = Color(0xFFE2E8F0))
+
+                            Spacer(modifier = Modifier.height(16.dp))
+
+                            Button(
+                                onClick = {
+                                    showUserDialog = false
+                                    onLogout()
+                                },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(44.dp)
+                                    .testTag("logout_dialog_button"),
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = Color(0xFFDC2626),
+                                    contentColor = Color.White
+                                )
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Logout,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "ගිණුමෙන් ඉවත් වන්න (Sign Out)",
+                                    style = MaterialTheme.typography.bodyMedium.copy(
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            TextButton(
+                                onClick = { showUserDialog = false },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("වසන්න / Close", color = Color(0xFF64748B))
                             }
                         }
                     }

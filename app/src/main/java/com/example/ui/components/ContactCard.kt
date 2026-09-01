@@ -49,12 +49,15 @@ import androidx.compose.ui.unit.sp
 import com.example.data.model.PoliceContact
 import com.example.ui.theme.EmergencyRed
 import com.example.ui.theme.PoliceGold
+import com.example.ui.theme.WhatsAppDarkGreen
+import com.example.ui.theme.WhatsAppGreen
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun ContactCard(
     contact: PoliceContact,
     onCallClick: (String) -> Unit,
+    onWhatsAppClick: (String) -> Unit,
     onEmailClick: (String, String) -> Unit,
     onFavoriteToggle: (PoliceContact) -> Unit,
     onShareClick: (PoliceContact) -> Unit,
@@ -276,24 +279,50 @@ fun ContactCard(
                                 }
                             }
 
-                            Spacer(modifier = Modifier.width(6.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
 
-                            OutlinedButton(
-                                onClick = { onCallClick(contact.mobilePhone) },
-                                shape = RoundedCornerShape(10.dp),
-                                modifier = Modifier.height(36.dp),
-                                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp)
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Icon(
-                                    imageVector = Icons.Default.PhoneAndroid,
-                                    contentDescription = "Call Mobile",
-                                    modifier = Modifier.size(14.dp)
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(
-                                    text = "Mobile",
-                                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                                )
+                                OutlinedButton(
+                                    onClick = { onCallClick(contact.mobilePhone) },
+                                    shape = RoundedCornerShape(8.dp),
+                                    modifier = Modifier.height(34.dp),
+                                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.PhoneAndroid,
+                                        contentDescription = "Call Mobile",
+                                        modifier = Modifier.size(13.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(3.dp))
+                                    Text(
+                                        text = "Call",
+                                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                                    )
+                                }
+
+                                Button(
+                                    onClick = { onWhatsAppClick(contact.mobilePhone) },
+                                    shape = RoundedCornerShape(8.dp),
+                                    modifier = Modifier.height(34.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = WhatsAppDarkGreen),
+                                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Phone,
+                                        contentDescription = "WhatsApp",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(13.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(3.dp))
+                                    Text(
+                                        text = "WhatsApp",
+                                        color = Color.White,
+                                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                                    )
+                                }
                             }
                         }
                     }
@@ -344,27 +373,53 @@ fun ContactCard(
                                 }
                             }
 
-                            Spacer(modifier = Modifier.width(6.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
 
-                            OutlinedButton(
-                                onClick = { onCallClick(contact.pvtNumber) },
-                                shape = RoundedCornerShape(10.dp),
-                                modifier = Modifier.height(36.dp),
-                                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp),
-                                colors = ButtonDefaults.outlinedButtonColors(
-                                    contentColor = MaterialTheme.colorScheme.primary
-                                )
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Icon(
-                                    imageVector = Icons.Default.Phone,
-                                    contentDescription = "Call PVT",
-                                    modifier = Modifier.size(14.dp)
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(
-                                    text = "PVT",
-                                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                                )
+                                OutlinedButton(
+                                    onClick = { onCallClick(contact.pvtNumber) },
+                                    shape = RoundedCornerShape(8.dp),
+                                    modifier = Modifier.height(34.dp),
+                                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp),
+                                    colors = ButtonDefaults.outlinedButtonColors(
+                                        contentColor = MaterialTheme.colorScheme.primary
+                                    )
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Phone,
+                                        contentDescription = "Call PVT",
+                                        modifier = Modifier.size(13.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(3.dp))
+                                    Text(
+                                        text = "Call",
+                                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                                    )
+                                }
+
+                                Button(
+                                    onClick = { onWhatsAppClick(contact.pvtNumber) },
+                                    shape = RoundedCornerShape(8.dp),
+                                    modifier = Modifier.height(34.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = WhatsAppDarkGreen),
+                                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Phone,
+                                        contentDescription = "WhatsApp",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(13.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(3.dp))
+                                    Text(
+                                        text = "WhatsApp",
+                                        color = Color.White,
+                                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                                    )
+                                }
                             }
                         }
                     }

@@ -8,6 +8,8 @@ val PoliceBlueAccent = Color(0xFF2563EB)
 val PoliceGold = Color(0xFFD97706)
 val PoliceGoldLight = Color(0xFFFBBF24)
 val EmergencyRed = Color(0xFFDC2626)
+val WhatsAppGreen = Color(0xFF25D366)
+val WhatsAppDarkGreen = Color(0xFF128C7E)
 
 val Navy80 = Color(0xFF93C5FD)
 val NavyGrey80 = Color(0xFFBFDBFE)

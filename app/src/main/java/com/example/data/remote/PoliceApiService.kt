@@ -34,6 +34,9 @@ interface PoliceApiService {
         const val SECONDARY_SHEET_URL = "https://sheets.googleapis.com/v4/spreadsheets/1VTch65JpwfuZkUdnrrLpv7AA0YV-ekSLSY-fXToPpHs/values/Sheet1!A1:Z1000?key=AIzaSyC6wDD_qFJmgK3tQICKrmgh6IgtWUbI0ps"
         const val DEFAULT_SHEET_URL = PRIMARY_SHEET_URL
         const val FALLBACK_SHEET_URL = "https://sheets.googleapis.com/v1/spreadsheets/1tMu-Wpwht7dH0NF4YSfiWjlttS_WOsgrbfJ3_zsJYd0/values/Sheet1!A1:Z1000?key=AIzaSyC6wDD_qFJmgK3tQICKrmgh6IgtWUbI0ps"
+
+        const val AUTH_SPREADSHEET_ID = "16PxPfbpkgj9EVRp59EYgf7hkurn-fwM6xgVHjxlYoXE"
+        const val AUTH_SHEET_URL = "https://sheets.googleapis.com/v4/spreadsheets/16PxPfbpkgj9EVRp59EYgf7hkurn-fwM6xgVHjxlYoXE/values/Sheet1!A1:B1000?key=AIzaSyDz3ArrD8jOAtU8bzXONnkE0FnCElObw4Q"
     }
 }
 
