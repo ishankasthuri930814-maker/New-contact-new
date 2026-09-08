@@ -8,15 +8,21 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.wrapContentHeight
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import com.example.MainActivity
 import com.google.android.gms.ads.AdListener
 import com.google.android.gms.ads.AdRequest
 import com.google.android.gms.ads.AdSize
@@ -32,6 +38,37 @@ fun BannerAdView(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val isVirtualOrNoDri = remember { MainActivity.isEmulator() }
+
+    if (isVirtualOrNoDri) {
+        // Render a safe, native placeholder when running on headless emulator or without DRI
+        // This completely prevents Chromium/Mesa from attempting to open /dev/dri/renderD128
+        Surface(
+            modifier = modifier
+                .fillMaxWidth()
+                .testTag("admob_banner_view"),
+            color = Color(0xFFF1F5F9),
+            shadowElevation = 1.dp
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 44.dp)
+                    .padding(vertical = 8.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "📢 AdMob Banner Space",
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        color = Color.Gray,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                )
+            }
+        }
+        return
+    }
 
     Surface(
         modifier = modifier
@@ -74,6 +111,11 @@ fun BannerAdView(
                         val adView = AdView(ctx).apply {
                             setAdSize(adSize)
                             this.adUnitId = targetUnitId
+                            try {
+                                setLayerType(View.LAYER_TYPE_SOFTWARE, null)
+                            } catch (e: Exception) {
+                                // Fallback
+                            }
                         }
 
                         adView.adListener = object : AdListener() {

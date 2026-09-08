@@ -524,7 +524,7 @@ fun LoginScreen(
 
                     // Footer notice
                     Text(
-                        text = "Official Police Directory System v3.0",
+                        text = "Official Police Directory System v3.5",
                         style = MaterialTheme.typography.labelSmall.copy(
                             color = Color(0xFF94A3B8),
                             fontSize = 11.sp

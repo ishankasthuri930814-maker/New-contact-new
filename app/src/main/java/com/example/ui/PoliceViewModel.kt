@@ -24,7 +24,7 @@ data class PoliceUiState(
     val contacts: List<PoliceContact> = emptyList(),
     val filteredContacts: List<PoliceContact> = emptyList(),
     val searchQuery: String = "",
-    val selectedCategory: ContactCategory = ContactCategory.ALL,
+    val selectedCategory: ContactCategory = ContactCategory.POLICE,
     val selectedContactForDetail: PoliceContact? = null,
     val lastSyncTime: String = "",
     val userMessage: String? = null
@@ -135,6 +135,17 @@ class PoliceViewModel(private val repository: PoliceRepository) : ViewModel() {
         return contacts.filter { contact ->
             // Category filter
             val matchesCategory = when (category) {
+                ContactCategory.POLICE -> {
+                    contact.category == ContactCategory.POLICE ||
+                            contact.category == ContactCategory.DIVISIONS ||
+                            contact.category == ContactCategory.RANGES ||
+                            contact.category == ContactCategory.SENIOR_OFFICERS ||
+                            (contact.category != ContactCategory.HOSPITALS &&
+                                    contact.category != ContactCategory.FIRE_STATIONS &&
+                                    contact.category != ContactCategory.GOVT_SERVICES &&
+                                    contact.category != ContactCategory.TRAVEL &&
+                                    contact.category != ContactCategory.SHORT_CODES)
+                }
                 ContactCategory.ALL -> true
                 ContactCategory.FAVORITES -> contact.isFavorite
                 ContactCategory.EMERGENCY -> contact.category == ContactCategory.EMERGENCY
@@ -256,6 +267,11 @@ class PoliceViewModel(private val repository: PoliceRepository) : ViewModel() {
             if (contact.mobilePhone.isNotBlank()) append("📱 Mobile: ${contact.mobilePhone}\n")
             if (contact.pvtNumber.isNotBlank()) append("🔒 PVT: ${contact.pvtNumber}\n")
             if (contact.email.isNotBlank()) append("✉️ Email: ${contact.email}\n")
+            if (contact.locationCoordinates.isNotBlank()) {
+                append("🧭 GPS: ${contact.locationCoordinates}\n")
+                append("🗺 Google Maps: https://www.google.com/maps/dir/?api=1&destination=${contact.locationCoordinates}\n")
+            }
+            if (contact.locationAddress.isNotBlank()) append("🏢 Address: ${contact.locationAddress}\n")
         }
 
         val sendIntent = Intent().apply {
@@ -266,6 +282,79 @@ class PoliceViewModel(private val repository: PoliceRepository) : ViewModel() {
         val shareIntent = Intent.createChooser(sendIntent, "Share Police Contact")
         shareIntent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
         context.startActivity(shareIntent)
+    }
+
+    fun startNavigation(context: Context, contact: PoliceContact) {
+        val coords = contact.locationCoordinates.trim()
+        val stationName = contact.stationOrDesignation.trim()
+
+        try {
+            if (coords.isNotBlank() && coords.contains(",")) {
+                val parts = coords.split(",")
+                val lat = parts[0].trim()
+                val lng = parts[1].trim()
+
+                // 1. First attempt: Direct turn-by-turn Navigation in Google Maps
+                val navUri = Uri.parse("google.navigation:q=$lat,$lng&mode=d")
+                val navIntent = Intent(Intent.ACTION_VIEW, navUri).apply {
+                    setPackage("com.google.android.apps.maps")
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                }
+                if (navIntent.resolveActivity(context.packageManager) != null) {
+                    context.startActivity(navIntent)
+                    return
+                }
+
+                // 2. Second attempt: geo intent
+                val geoUri = Uri.parse("geo:$lat,$lng?q=$lat,$lng(${Uri.encode(stationName)})")
+                val mapIntent = Intent(Intent.ACTION_VIEW, geoUri).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                }
+                if (mapIntent.resolveActivity(context.packageManager) != null) {
+                    context.startActivity(mapIntent)
+                    return
+                }
+
+                // 3. Fallback: Google Maps web direction link
+                val webUri = Uri.parse("https://www.google.com/maps/dir/?api=1&destination=$lat,$lng")
+                val browserIntent = Intent(Intent.ACTION_VIEW, webUri).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                }
+                context.startActivity(browserIntent)
+            } else {
+                // If coordinates missing, query location by station name
+                val query = if (stationName.lowercase().contains("police")) {
+                    "$stationName, Sri Lanka"
+                } else {
+                    "$stationName Police Station, Sri Lanka"
+                }
+                val navUri = Uri.parse("google.navigation:q=${Uri.encode(query)}&mode=d")
+                val navIntent = Intent(Intent.ACTION_VIEW, navUri).apply {
+                    setPackage("com.google.android.apps.maps")
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                }
+                if (navIntent.resolveActivity(context.packageManager) != null) {
+                    context.startActivity(navIntent)
+                    return
+                }
+
+                val webUri = Uri.parse("https://www.google.com/maps/dir/?api=1&destination=${Uri.encode(query)}")
+                val browserIntent = Intent(Intent.ACTION_VIEW, webUri).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                }
+                context.startActivity(browserIntent)
+            }
+        } catch (e: Exception) {
+            try {
+                val fallbackDest = if (coords.isNotBlank() && coords.contains(",")) coords else Uri.encode("$stationName Police Station, Sri Lanka")
+                val fallbackIntent = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/maps/dir/?api=1&destination=$fallbackDest")).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                }
+                context.startActivity(fallbackIntent)
+            } catch (ex: Exception) {
+                Toast.makeText(context, "Google Maps විවෘත කිරීමට නොහැකි විය (Unable to open Maps)", Toast.LENGTH_SHORT).show()
+            }
+        }
     }
 
     fun copyToClipboard(context: Context, text: String, label: String) {

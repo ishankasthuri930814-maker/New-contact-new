@@ -64,11 +64,11 @@ class PoliceRepository(private val context: Context) {
             // Fallback to local disk cache if remote fetch failed
             val cached = loadFromLocalCache()
             if (cached.isNotEmpty()) {
-                val updated = cached.map { it.copy(isFavorite = favorites.contains(it.id)) }
+                val updated = cached.map { PoliceGpsDirectory.enrichContact(it).copy(isFavorite = favorites.contains(it.id)) }
                 Result.success(updated)
             } else {
                 val defaults = getDefaultEmergencyContacts().map {
-                    it.copy(isFavorite = favorites.contains(it.id))
+                    PoliceGpsDirectory.enrichContact(it).copy(isFavorite = favorites.contains(it.id))
                 }
                 Result.success(defaults)
             }
@@ -110,7 +110,8 @@ class PoliceRepository(private val context: Context) {
         // Merge contacts from all sheets and emergency defaults
         val mergedMap = mutableMapOf<String, PoliceContact>()
 
-        for (c in (getDefaultEmergencyContacts() + allParsed)) {
+        for (raw in (getDefaultEmergencyContacts() + allParsed)) {
+            val c = PoliceGpsDirectory.enrichContact(raw)
             val key = c.stationOrDesignation.trim().lowercase().replace(Regex("[^a-z0-9]"), "")
             if (key.isBlank()) continue
 
@@ -138,7 +139,28 @@ class PoliceRepository(private val context: Context) {
             }
         }
 
-        val allContacts = mergedMap.values.toList()
+        // Also ensure every police station from PoliceGpsDirectory (Google My Maps) is present
+        for (loc in PoliceGpsDirectory.allLocations) {
+            val key = loc.station.lowercase().replace(Regex("[^a-z0-9]"), "")
+            if (!mergedMap.containsKey(key)) {
+                val existsInAny = mergedMap.keys.any { (it.contains(key) || key.contains(it)) && it.length >= 6 }
+                if (!existsInAny) {
+                    val id = "gps_station_${loc.station.hashCode()}"
+                    mergedMap[key] = PoliceContact(
+                        id = id,
+                        stationOrDesignation = loc.station,
+                        rank = "POLICE STATION",
+                        officerName = "${loc.station} Duty Office",
+                        generalPhone = "119",
+                        locationCoordinates = "${loc.lat},${loc.lng}",
+                        locationAddress = loc.address.ifBlank { "${loc.station}, ${loc.division}, Sri Lanka" },
+                        category = ContactCategory.DIVISIONS
+                    )
+                }
+            }
+        }
+
+        val allContacts = mergedMap.values.map { PoliceGpsDirectory.enrichContact(it) }
 
         // Save merged data to local disk cache
         saveToLocalCache(allContacts)
@@ -264,33 +286,32 @@ class PoliceRepository(private val context: Context) {
                 rank.contains("DIG", ignoreCase = true) || stationOrDesignation.contains("DIG", ignoreCase = true) -> ContactCategory.RANGES
                 rank.contains("SSP", ignoreCase = true) || rank.contains("SP", ignoreCase = true) || stationOrDesignation.contains("Division", ignoreCase = true) -> ContactCategory.DIVISIONS
                 stationOrDesignation.contains("Snr", ignoreCase = true) || stationOrDesignation.contains("Senior", ignoreCase = true) || rank.contains("IGP", ignoreCase = true) -> ContactCategory.SENIOR_OFFICERS
-                else -> ContactCategory.ALL
+                else -> ContactCategory.POLICE
             }
 
             val id = "contact_${i}_${stationOrDesignation.hashCode()}"
 
-            contacts.add(
-                PoliceContact(
-                    id = id,
-                    stationOrDesignation = stationOrDesignation,
-                    rank = rank,
-                    officerName = officerName,
-                    generalPhone = generalPhone,
-                    mobilePhone = mobilePhone,
-                    officePhone2 = officePhone2,
-                    officePhone3 = officePhone3,
-                    pvtNumber = pvtNumber,
-                    fax = fax,
-                    email = email,
-                    oicTraffic = oicTraffic,
-                    oicCrime = oicCrime,
-                    oicVice = oicVice,
-                    oicCommunityPolicing = oicComm,
-                    locationCoordinates = locCoords,
-                    locationAddress = locAddr,
-                    category = category
-                )
+            val parsedContact = PoliceContact(
+                id = id,
+                stationOrDesignation = stationOrDesignation,
+                rank = rank,
+                officerName = officerName,
+                generalPhone = generalPhone,
+                mobilePhone = mobilePhone,
+                officePhone2 = officePhone2,
+                officePhone3 = officePhone3,
+                pvtNumber = pvtNumber,
+                fax = fax,
+                email = email,
+                oicTraffic = oicTraffic,
+                oicCrime = oicCrime,
+                oicVice = oicVice,
+                oicCommunityPolicing = oicComm,
+                locationCoordinates = locCoords,
+                locationAddress = locAddr,
+                category = category
             )
+            contacts.add(PoliceGpsDirectory.enrichContact(parsedContact))
         }
         return contacts
     }

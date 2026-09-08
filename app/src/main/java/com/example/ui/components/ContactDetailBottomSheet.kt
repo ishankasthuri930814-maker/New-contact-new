@@ -19,6 +19,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Directions
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.LocalPolice
 import androidx.compose.material.icons.filled.LocationOn
@@ -69,6 +70,7 @@ fun ContactDetailBottomSheet(
     onCopyClick: (String, String) -> Unit,
     onShareClick: (PoliceContact) -> Unit,
     onFavoriteToggle: (PoliceContact) -> Unit,
+    onNavigationClick: (PoliceContact) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -126,7 +128,15 @@ fun ContactDetailBottomSheet(
                     }
                 }
 
-                Row {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = { onNavigationClick(contact) }) {
+                        Icon(
+                            imageVector = Icons.Default.Directions,
+                            contentDescription = "Navigate to Station",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+
                     IconButton(onClick = { onShareClick(contact) }) {
                         Icon(
                             imageVector = Icons.Default.Share,
@@ -387,37 +397,89 @@ fun ContactDetailBottomSheet(
                 Spacer(modifier = Modifier.height(10.dp))
             }
 
-            // Location Address Card
-            if (contact.locationAddress.isNotBlank()) {
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(14.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+            // Google Maps GPS Navigation & Location Card
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f),
+                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f))
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(14.dp)
                 ) {
                     Row(
-                        modifier = Modifier.padding(12.dp),
-                        verticalAlignment = Alignment.Top
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.LocationOn,
-                            contentDescription = "Address",
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Column {
-                            Text(
-                                text = "ලිපිනය / Address",
-                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, fontSize = 11.sp),
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                            Spacer(modifier = Modifier.height(2.dp))
-                            Text(
-                                text = contact.locationAddress,
-                                style = MaterialTheme.typography.bodySmall.copy(fontSize = 13.sp),
-                                color = MaterialTheme.colorScheme.onSurface
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.primary),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.LocationOn,
+                                contentDescription = "Location",
+                                tint = Color.White,
+                                modifier = Modifier.size(20.dp)
                             )
                         }
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "GPS ස්ථානය සහ සිතියම / Station Location",
+                                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            if (contact.locationCoordinates.isNotBlank()) {
+                                Text(
+                                    text = "GPS: ${contact.locationCoordinates}",
+                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+
+                    if (contact.locationAddress.isNotBlank()) {
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Text(
+                            text = contact.locationAddress,
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                fontSize = 13.sp,
+                                lineHeight = 18.sp
+                            ),
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Button(
+                        onClick = { onNavigationClick(contact) },
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(44.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Directions,
+                            contentDescription = "Navigate to Station",
+                            tint = Color.White,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = if (contact.locationCoordinates.isNotBlank()) "Google Maps Navigation ඔස්සේ යන්න" else "Google Maps හි සොයන්න",
+                            style = MaterialTheme.typography.labelLarge.copy(
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                        )
                     }
                 }
             }

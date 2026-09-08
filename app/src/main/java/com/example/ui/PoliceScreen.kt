@@ -373,8 +373,8 @@ fun PoliceScreen(
                         contentPadding = PaddingValues(16.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        // Emergency Header Card (Only show if no search query or in All/Emergency category)
-                        if (uiState.searchQuery.isEmpty() && (uiState.selectedCategory == ContactCategory.ALL || uiState.selectedCategory == ContactCategory.EMERGENCY)) {
+                        // Emergency Header Card (Only show if no search query or in Police/All/Emergency category)
+                        if (uiState.searchQuery.isEmpty() && (uiState.selectedCategory == ContactCategory.POLICE || uiState.selectedCategory == ContactCategory.ALL || uiState.selectedCategory == ContactCategory.EMERGENCY)) {
                             item {
                                 EmergencyHeader(
                                     onEmergencyCall = { number -> viewModel.makePhoneCall(context, number) },
@@ -478,7 +478,8 @@ fun PoliceScreen(
                                     onEmailClick = { email, station -> viewModel.sendEmail(context, email, station) },
                                     onFavoriteToggle = { c -> viewModel.toggleFavorite(c) },
                                     onShareClick = { c -> viewModel.shareContact(context, c) },
-                                    onCardClick = { c -> viewModel.openContactDetail(c) }
+                                    onCardClick = { c -> viewModel.openContactDetail(c) },
+                                    onNavigationClick = { c -> viewModel.startNavigation(context, c) }
                                 )
                             }
                         }
@@ -497,7 +498,8 @@ fun PoliceScreen(
                     onEmailClick = { email, station -> viewModel.sendEmail(context, email, station) },
                     onCopyClick = { text, label -> viewModel.copyToClipboard(context, text, label) },
                     onShareClick = { c -> viewModel.shareContact(context, c) },
-                    onFavoriteToggle = { c -> viewModel.toggleFavorite(c) }
+                    onFavoriteToggle = { c -> viewModel.toggleFavorite(c) },
+                    onNavigationClick = { c -> viewModel.startNavigation(context, c) }
                 )
             }
 
@@ -657,7 +659,7 @@ fun PoliceScreen(
                                 ) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Text(
-                                            text = "නිර්මාණකරු: ",
+                                            text = "නිමැවුම: ",
                                             style = MaterialTheme.typography.labelSmall.copy(
                                                 color = Color(0xFF64748B),
                                                 fontSize = 11.sp
@@ -673,7 +675,7 @@ fun PoliceScreen(
                                         )
                                     }
                                     Text(
-                                        text = "v3.0",
+                                        text = "v3.5",
                                         style = MaterialTheme.typography.labelSmall.copy(
                                             color = Color(0xFF94A3B8),
                                             fontSize = 10.sp

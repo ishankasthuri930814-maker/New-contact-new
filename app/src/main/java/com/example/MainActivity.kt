@@ -26,7 +26,10 @@ import com.example.ui.LoginScreen
 import com.example.ui.PoliceScreen
 import com.example.ui.PoliceViewModel
 import com.example.ui.theme.PoliceDirectoryTheme
+import com.google.android.gms.common.ConnectionResult
+import com.google.android.gms.common.GoogleApiAvailability
 import com.google.firebase.messaging.FirebaseMessaging
+import java.io.File
 
 class MainActivity : ComponentActivity() {
 
@@ -37,41 +40,41 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
-        // Initialize Firebase safely
+        // 1. Pre-create WebView and Chromium cache directories to prevent Chromium opendir & index errors
+        try {
+            val webViewCacheDir = File(cacheDir, "WebView/Default/HTTP Cache/Code Cache/js")
+            if (!webViewCacheDir.exists()) {
+                webViewCacheDir.mkdirs()
+            }
+        } catch (t: Throwable) {
+            Log.w("MainActivity", "WebView cache dir preparation", t)
+        }
+
+        // 2. Initialize Firebase safely
         try {
             com.google.firebase.FirebaseApp.initializeApp(this)
         } catch (t: Throwable) {
             Log.e("MainActivity", "FirebaseApp initialization error", t)
         }
 
-        // Initialize Google Mobile Ads SDK safely
+        // 3. Initialize Google Mobile Ads SDK safely (only when not running on headless emulator without DRI)
         try {
-            com.google.android.gms.ads.MobileAds.initialize(this) { status ->
-                Log.d("MainActivity", "AdMob MobileAds initialized: ${status.adapterStatusMap}")
+            if (!isEmulator()) {
+                com.google.android.gms.ads.MobileAds.initialize(this) { status ->
+                    Log.d("MainActivity", "AdMob MobileAds initialized: ${status.adapterStatusMap}")
+                }
+            } else {
+                Log.i("MainActivity", "Virtual/emulator environment detected without DRI; suppressed AdMob GPU initialization.")
             }
         } catch (t: Throwable) {
             Log.e("MainActivity", "MobileAds initialization error", t)
         }
 
-        // Initialize Notification Channel
+        // 4. Initialize Notification Channel (FCM auto-init kept false to prevent registration failures)
         try {
             MyFirebaseMessagingService.createNotificationChannel(applicationContext)
         } catch (t: Throwable) {
             Log.e("MainActivity", "NotificationChannel creation error", t)
-        }
-
-        // Retrieve FCM Token for debugging/push notification targeting
-        try {
-            FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
-                if (task.isSuccessful) {
-                    val token = task.result
-                    Log.d("MainActivity", "FCM Registration Token: $token")
-                } else {
-                    Log.w("MainActivity", "Fetching FCM registration token failed", task.exception)
-                }
-            }
-        } catch (t: Throwable) {
-            Log.e("MainActivity", "FirebaseMessaging error", t)
         }
 
         val authRepository = AuthRepository(applicationContext)
@@ -123,6 +126,31 @@ class MainActivity : ComponentActivity() {
                     )
                 }
             }
+        }
+    }
+
+    companion object {
+        fun isEmulator(): Boolean {
+            val fingerprint = Build.FINGERPRINT.lowercase()
+            val model = Build.MODEL.lowercase()
+            val manufacturer = Build.MANUFACTURER.lowercase()
+            val hardware = Build.HARDWARE.lowercase()
+            val product = Build.PRODUCT.lowercase()
+            val hasDri = File("/dev/dri").exists()
+
+            return !hasDri ||
+                    fingerprint.startsWith("generic") ||
+                    fingerprint.startsWith("unknown") ||
+                    model.contains("google_sdk") ||
+                    model.contains("emulator") ||
+                    model.contains("android sdk built for") ||
+                    manufacturer.contains("genymotion") ||
+                    hardware.contains("goldfish") ||
+                    hardware.contains("ranchu") ||
+                    hardware.contains("cutf") ||
+                    product.contains("sdk") ||
+                    product.contains("google_sdk") ||
+                    product.contains("emulator")
         }
     }
 }

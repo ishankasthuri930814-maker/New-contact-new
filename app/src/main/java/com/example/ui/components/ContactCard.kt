@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Directions
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Phone
@@ -62,6 +63,7 @@ fun ContactCard(
     onFavoriteToggle: (PoliceContact) -> Unit,
     onShareClick: (PoliceContact) -> Unit,
     onCardClick: (PoliceContact) -> Unit,
+    onNavigationClick: (PoliceContact) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -135,6 +137,18 @@ fun ContactCard(
                 }
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(
+                        onClick = { onNavigationClick(contact) },
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Directions,
+                            contentDescription = "Navigate to Station",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+
                     IconButton(
                         onClick = { onShareClick(contact) },
                         modifier = Modifier.size(36.dp)
@@ -538,6 +552,37 @@ fun ContactCard(
                             }
                         }
                     }
+
+                    // Direct Google Maps Navigation Button right at contact numbers
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Button(
+                        onClick = { onNavigationClick(contact) },
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                        ),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(38.dp),
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Directions,
+                            contentDescription = "Navigate to Station",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = if (contact.locationCoordinates.isNotBlank()) "Google Maps Navigation (මාර්ගය පෙන්වන්න)" else "Google Maps ඔස්සේ සොයන්න",
+                            style = MaterialTheme.typography.labelMedium.copy(
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.sp
+                            ),
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
                 }
             }
 
@@ -607,27 +652,56 @@ fun ContactCard(
                 }
             }
 
-            // Location Address if present
-            if (contact.locationAddress.isNotBlank()) {
-                Spacer(modifier = Modifier.height(6.dp))
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(top = 2.dp)
+            // Location Address & GPS (Clickable for direct Google Maps Navigation)
+            if (contact.locationAddress.isNotBlank() || contact.locationCoordinates.isNotBlank()) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Surface(
+                    onClick = { onNavigationClick(contact) },
+                    shape = RoundedCornerShape(10.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.LocationOn,
-                        contentDescription = "Location",
-                        tint = MaterialTheme.colorScheme.outline,
-                        modifier = Modifier.size(14.dp)
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = contact.locationAddress,
-                        style = MaterialTheme.typography.labelSmall.copy(
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            fontSize = 11.sp
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.LocationOn,
+                            contentDescription = "Location",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(16.dp)
                         )
-                    )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            if (contact.locationAddress.isNotBlank()) {
+                                Text(
+                                    text = contact.locationAddress,
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                )
+                            }
+                            if (contact.locationCoordinates.isNotBlank()) {
+                                Text(
+                                    text = "🧭 GPS: ${contact.locationCoordinates}",
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        color = MaterialTheme.colorScheme.primary,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Icon(
+                            imageVector = Icons.Default.Directions,
+                            contentDescription = "Navigate",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
                 }
             }
         }
