@@ -8,8 +8,11 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Density
 
 private val DarkColorScheme = darkColorScheme(
     primary = Navy80,
@@ -50,6 +53,16 @@ fun PoliceDirectoryTheme(
         else -> LightColorScheme
     }
 
-    MaterialTheme(colorScheme = colorScheme, typography = Typography, content = content)
+    // Adapt fontScale so it stays within a comfortable, readable range across all real phones
+    // Preventing gigantic fonts from overflowing layouts on devices with extreme system font scaling
+    val currentDensity = LocalDensity.current
+    val adaptiveDensity = Density(
+        density = currentDensity.density,
+        fontScale = currentDensity.fontScale.coerceIn(0.85f, 1.12f)
+    )
+
+    CompositionLocalProvider(LocalDensity provides adaptiveDensity) {
+        MaterialTheme(colorScheme = colorScheme, typography = Typography, content = content)
+    }
 }
 

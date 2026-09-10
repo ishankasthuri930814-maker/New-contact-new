@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.Print
+import androidx.compose.material.icons.filled.QrCode2
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.StarOutline
@@ -64,6 +65,7 @@ fun ContactCard(
     onShareClick: (PoliceContact) -> Unit,
     onCardClick: (PoliceContact) -> Unit,
     onNavigationClick: (PoliceContact) -> Unit = {},
+    onQrCodeClick: ((PoliceContact) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -117,8 +119,8 @@ fun ContactCard(
                         text = contact.stationOrDesignation,
                         style = MaterialTheme.typography.titleMedium.copy(
                             fontWeight = FontWeight.Bold,
-                            fontSize = 16.sp,
-                            lineHeight = 22.sp
+                            fontSize = 14.5.sp,
+                            lineHeight = 20.sp
                         ),
                         color = if (isEmergency) EmergencyRed else MaterialTheme.colorScheme.onSurface
                     )
@@ -147,6 +149,22 @@ fun ContactCard(
                             tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(20.dp)
                         )
+                    }
+
+                    if (onQrCodeClick != null) {
+                        IconButton(
+                            onClick = { onQrCodeClick(contact) },
+                            modifier = Modifier
+                                .size(36.dp)
+                                .testTag("contact_qr_button_${contact.id}")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.QrCode2,
+                                contentDescription = "Show QR Code",
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
                     }
 
                     IconButton(
@@ -218,7 +236,7 @@ fun ContactCard(
                                         text = contact.generalPhone,
                                         style = MaterialTheme.typography.bodyMedium.copy(
                                             fontWeight = FontWeight.Bold,
-                                            fontSize = 14.sp
+                                            fontSize = 13.sp
                                         ),
                                         color = MaterialTheme.colorScheme.onSurface
                                     )
@@ -286,7 +304,7 @@ fun ContactCard(
                                         text = contact.mobilePhone,
                                         style = MaterialTheme.typography.bodyMedium.copy(
                                             fontWeight = FontWeight.Bold,
-                                            fontSize = 14.sp
+                                            fontSize = 13.sp
                                         ),
                                         color = MaterialTheme.colorScheme.onSurface
                                     )
@@ -380,7 +398,7 @@ fun ContactCard(
                                         text = contact.pvtNumber,
                                         style = MaterialTheme.typography.bodyMedium.copy(
                                             fontWeight = FontWeight.Bold,
-                                            fontSize = 14.sp
+                                            fontSize = 13.sp
                                         ),
                                         color = MaterialTheme.colorScheme.onSurface
                                     )
@@ -474,7 +492,7 @@ fun ContactCard(
                                         text = contact.officePhone2,
                                         style = MaterialTheme.typography.bodyMedium.copy(
                                             fontWeight = FontWeight.Bold,
-                                            fontSize = 14.sp
+                                            fontSize = 13.sp
                                         ),
                                         color = MaterialTheme.colorScheme.onSurface
                                     )

@@ -125,6 +125,84 @@ class PoliceViewModel(private val repository: PoliceRepository) : ViewModel() {
         _uiState.update { it.copy(userMessage = null) }
     }
 
+    fun saveContact(
+        contact: PoliceContact,
+        onSuccess: () -> Unit,
+        onError: (String) -> Unit
+    ) {
+        viewModelScope.launch {
+            val result = repository.saveContact(contact)
+            result.onSuccess {
+                _uiState.update { state ->
+                    val updated = state.contacts.toMutableList()
+                    val idx = updated.indexOfFirst { it.id == contact.id }
+                    if (idx >= 0) {
+                        updated[idx] = contact
+                    } else {
+                        updated.add(0, contact)
+                    }
+                    val filtered = filterContactsList(updated, state.searchQuery, state.selectedCategory)
+                    state.copy(
+                        contacts = updated,
+                        filteredContacts = filtered,
+                        userMessage = "සම්බන්ධතාව සාර්ථකව සුරකින ලදී (Contact saved successfully)"
+                    )
+                }
+                onSuccess()
+            }.onFailure { err ->
+                onError(err.message ?: "Failed to save contact")
+            }
+        }
+    }
+
+    fun deleteContact(
+        contactId: String,
+        onSuccess: () -> Unit,
+        onError: (String) -> Unit
+    ) {
+        viewModelScope.launch {
+            val result = repository.deleteContact(contactId)
+            result.onSuccess {
+                _uiState.update { state ->
+                    val updated = state.contacts.filterNot { it.id == contactId }
+                    val filtered = filterContactsList(updated, state.searchQuery, state.selectedCategory)
+                    state.copy(
+                        contacts = updated,
+                        filteredContacts = filtered,
+                        userMessage = "සම්බන්ධතාව සාර්ථකව ඉවත් කරන ලදී (Contact deleted)"
+                    )
+                }
+                onSuccess()
+            }.onFailure { err ->
+                onError(err.message ?: "Failed to delete contact")
+            }
+        }
+    }
+
+    fun bulkImportContacts(
+        contacts: List<PoliceContact>,
+        onSuccess: (Int) -> Unit,
+        onError: (String) -> Unit
+    ) {
+        viewModelScope.launch {
+            val result = repository.saveContactsBulk(contacts)
+            result.onSuccess { count ->
+                _uiState.update { state ->
+                    val current = repository.loadFromLocalCache()
+                    val filtered = filterContactsList(current, state.searchQuery, state.selectedCategory)
+                    state.copy(
+                        contacts = current,
+                        filteredContacts = filtered,
+                        userMessage = "සම්බන්ධතා $count ක් සාර්ථකව ආනයනය කරන ලදී ($count contacts imported)"
+                    )
+                }
+                onSuccess(count)
+            }.onFailure { err ->
+                onError(err.message ?: "Failed to import contacts")
+            }
+        }
+    }
+
     private fun filterContactsList(
         contacts: List<PoliceContact>,
         query: String,
@@ -259,27 +337,61 @@ class PoliceViewModel(private val repository: PoliceRepository) : ViewModel() {
 
     fun shareContact(context: Context, contact: PoliceContact) {
         val shareText = buildString {
-            append("👮 Sri Lanka Police Contact Details\n")
-            append("📍 ${contact.stationOrDesignation}\n")
-            if (contact.rank.isNotBlank()) append("🎖 Rank: ${contact.rank}\n")
-            if (contact.officerName.isNotBlank()) append("👤 Officer: ${contact.officerName}\n")
-            if (contact.generalPhone.isNotBlank()) append("📞 Telephone: ${contact.generalPhone}\n")
-            if (contact.mobilePhone.isNotBlank()) append("📱 Mobile: ${contact.mobilePhone}\n")
-            if (contact.pvtNumber.isNotBlank()) append("🔒 PVT: ${contact.pvtNumber}\n")
-            if (contact.email.isNotBlank()) append("✉️ Email: ${contact.email}\n")
-            if (contact.locationCoordinates.isNotBlank()) {
-                append("🧭 GPS: ${contact.locationCoordinates}\n")
-                append("🗺 Google Maps: https://www.google.com/maps/dir/?api=1&destination=${contact.locationCoordinates}\n")
+            append("👮 ශ්‍රී ලංකා පොලිස් තොරතුරු / Sri Lanka Police Contact\n")
+            append("━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+            append("🏛 ස්ථානය / ආයතනය: ${contact.stationOrDesignation}\n")
+            if (contact.rank.isNotBlank()) append("🎖 නිලය / Rank: ${contact.rank}\n")
+            if (contact.officerName.isNotBlank()) append("👤 නිලධාරී / Officer: ${contact.officerName}\n")
+            if (contact.category.displayName.isNotBlank()) {
+                append("📂 ප්‍රවර්ගය / Category: ${contact.category.sinhalaName} (${contact.category.displayName})\n")
             }
-            if (contact.locationAddress.isNotBlank()) append("🏢 Address: ${contact.locationAddress}\n")
+            append("────────────────────────────\n")
+
+            // All Contact Numbers
+            append("📞 දුරකථන අංක / Contact Numbers:\n")
+            if (contact.generalPhone.isNotBlank()) append("  • ප්‍රධාන දුරකථන: ${contact.generalPhone}\n")
+            if (contact.mobilePhone.isNotBlank()) append("  • ජංගම දුරකථන: ${contact.mobilePhone}\n")
+            if (contact.officePhone2.isNotBlank()) append("  • කාර්යාලය 2: ${contact.officePhone2}\n")
+            if (contact.officePhone3.isNotBlank()) append("  • කාර්යාලය 3: ${contact.officePhone3}\n")
+            if (contact.pvtNumber.isNotBlank()) append("  • පෞද්ගලික (PVT): ${contact.pvtNumber}\n")
+            if (contact.fax.isNotBlank()) append("  • ෆැක්ස් (Fax): ${contact.fax}\n")
+            if (contact.email.isNotBlank()) append("  • ඊමේල් (Email): ${contact.email}\n")
+
+            // Section officers if present (Traffic, Crime, Vice, Community Policing)
+            val hasSectionOfficers = contact.oicTraffic.isNotBlank() || contact.oicCrime.isNotBlank() ||
+                    contact.oicVice.isNotBlank() || contact.oicCommunityPolicing.isNotBlank()
+            if (hasSectionOfficers) {
+                append("────────────────────────────\n")
+                append("📋 අංශභාර ස්ථානාධිපතිවරුන් (OIC Sections):\n")
+                if (contact.oicTraffic.isNotBlank()) append("  • 🚦 රථවාහන අංශය: ${contact.oicTraffic}\n")
+                if (contact.oicCrime.isNotBlank()) append("  • 🔍 අපරාධ අංශය: ${contact.oicCrime}\n")
+                if (contact.oicVice.isNotBlank()) append("  • 🛡️ දූෂණ මර්ධන අංශය: ${contact.oicVice}\n")
+                if (contact.oicCommunityPolicing.isNotBlank()) append("  • 🤝 ප්‍රජා පොලිස් අංශය: ${contact.oicCommunityPolicing}\n")
+            }
+
+            // Address & GPS Navigation
+            if (contact.locationAddress.isNotBlank() || contact.locationCoordinates.isNotBlank()) {
+                append("────────────────────────────\n")
+                if (contact.locationAddress.isNotBlank()) append("🏢 ලිපිනය / Address: ${contact.locationAddress}\n")
+                if (contact.locationCoordinates.isNotBlank()) {
+                    val cleanCoords = contact.locationCoordinates.trim()
+                    append("🧭 GPS: $cleanCoords\n")
+                    append("🗺️ සිතියම / Google Maps: https://www.google.com/maps/search/?api=1&query=$cleanCoords\n")
+                    append("🚗 Navigation: https://www.google.com/maps/dir/?api=1&destination=$cleanCoords\n")
+                }
+            }
+
+            append("━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+            append("📲 Shared via Sri Lanka Police Directory App v3.5\n")
         }
 
         val sendIntent = Intent().apply {
             action = Intent.ACTION_SEND
+            putExtra(Intent.EXTRA_SUBJECT, "${contact.stationOrDesignation} - Sri Lanka Police Contact")
             putExtra(Intent.EXTRA_TEXT, shareText)
             type = "text/plain"
         }
-        val shareIntent = Intent.createChooser(sendIntent, "Share Police Contact")
+        val shareIntent = Intent.createChooser(sendIntent, "සම්පූර්ණ තොරතුරු Share කරන්න (Share Contact)")
         shareIntent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
         context.startActivity(shareIntent)
     }

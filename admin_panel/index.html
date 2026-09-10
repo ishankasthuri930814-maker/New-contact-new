@@ -3,97 +3,659 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Police Directory Admin Panel</title>
+    <title>Sri Lanka Police Directory - Admin Dashboard</title>
     <!-- Bootstrap 5 CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <!-- FontAwesome Icons -->
+    <!-- FontAwesome 6 Icons -->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <style>
+        :root {
+            --police-navy: #0F172A;
+            --police-blue: #1E3A8A;
+            --police-gold: #F59E0B;
+        }
         body {
-            background-color: #f4f6f9;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f1f5f9;
+            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+            color: #1e293b;
+            min-height: 100vh;
+        }
+        .navbar-custom {
+            background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.15);
         }
         .login-card {
-            max-width: 420px;
-            margin: 80px auto;
+            max-width: 440px;
+            margin: 60px auto;
             border: none;
-            border-radius: 12px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            border-radius: 16px;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
         }
         .icon-circle {
-            width: 70px;
-            height: 70px;
-            background-color: #e8f0fe;
-            color: #0d6efd;
+            width: 72px;
+            height: 72px;
+            background: linear-gradient(135deg, #e0e7ff 0%, #dbeafe 100%);
+            color: #1e3a8a;
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
-            margin: 0 auto 15px auto;
-            font-size: 28px;
+            margin: 0 auto 16px auto;
+            font-size: 32px;
+        }
+        .stat-card {
+            border: none;
+            border-radius: 14px;
+            transition: transform 0.2s, box-shadow 0.2s;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.04);
+        }
+        .stat-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(0,0,0,0.08);
+        }
+        .stat-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+        }
+        .table-card {
+            border: none;
+            border-radius: 16px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+            overflow: hidden;
+        }
+        .badge-category {
+            font-size: 0.75rem;
+            font-weight: 600;
+            padding: 4px 8px;
+            border-radius: 6px;
+        }
+        /* Top Global Progress Bar for Async Operations */
+        #globalProgressBar {
+            height: 4px;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 9999;
+            display: none;
+        }
+        /* Row deleting animation state */
+        .row-deleting {
+            opacity: 0.4;
+            pointer-events: none;
+            background-color: #fee2e2 !important;
+            transition: all 0.3s ease;
+        }
+        /* Toast notification styling */
+        .toast-container {
+            z-index: 1090;
         }
     </style>
 </head>
 <body>
 
-    <nav class="navbar navbar-dark bg-dark mb-4">
-        <div class="container">
-            <span class="navbar-brand mb-0 h1">
-                <i class="fa-solid fa-shield-halved text-warning me-2"></i>Police Directory Admin Panel
+    <!-- Global Top Indeterminate Progress Indicator for Data Operations -->
+    <div id="globalProgressBar" class="progress">
+        <div class="progress-bar progress-bar-striped progress-bar-animated bg-warning w-100" role="progressbar"></div>
+    </div>
+
+    <!-- Navigation Bar -->
+    <nav class="navbar navbar-dark navbar-custom mb-4">
+        <div class="container-fluid px-lg-4">
+            <span class="navbar-brand mb-0 h1 d-flex align-items-center">
+                <i class="fa-solid fa-shield-halved text-warning me-2 fs-4"></i>
+                <span class="fw-bold">Police Directory</span>
+                <span class="badge bg-warning text-dark ms-2 fw-semibold">Admin Panel v3.5</span>
             </span>
-            <button id="logoutBtn" class="btn btn-outline-light btn-sm d-none" onclick="handleLogout()">Logout</button>
+            <div class="d-flex align-items-center gap-2">
+                <span id="userBadge" class="badge bg-light text-dark d-none px-3 py-2">
+                    <i class="fa-solid fa-user-check text-primary me-1"></i>
+                    <span id="userEmailSpan">Admin</span>
+                </span>
+                <button id="logoutBtn" class="btn btn-outline-light btn-sm d-none fw-semibold px-3" onclick="handleLogout()">
+                    <i class="fa-solid fa-right-from-bracket me-1"></i> Logout
+                </button>
+            </div>
         </div>
     </nav>
 
-    <div class="container">
-        <!-- Login Form Card -->
+    <!-- Toast Notification Container -->
+    <div class="toast-container position-fixed top-0 end-0 p-3">
+        <div id="liveToast" class="toast align-items-center text-white border-0 shadow" role="alert" aria-live="assertive" aria-atomic="true">
+            <div class="d-flex">
+                <div class="toast-body d-flex align-items-center" id="toastMessage">
+                    <i class="fa-solid fa-check-circle fs-5 me-2"></i> Operation successful.
+                </div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+        </div>
+    </div>
+
+    <div class="container-fluid px-lg-4">
+        <!-- 1. LOGIN SECTION (Visible When Signed Out) -->
         <div id="loginSection" class="card login-card">
-            <div class="card-body p-4">
+            <div class="card-body p-4 p-md-5">
                 <div class="icon-circle">
                     <i class="fa-solid fa-user-shield"></i>
                 </div>
-                <h4 class="text-center fw-bold mb-1">Admin Login</h4>
-                <p class="text-center text-muted small mb-4">Sign in with email & password to manage police directory</p>
+                <h4 class="text-center fw-bold text-dark mb-1">Admin Dashboard Login</h4>
+                <p class="text-center text-muted small mb-4">Sign in with authorized administrator credentials to manage police contacts and emergency directories.</p>
                 
                 <div id="alertBox" class="alert alert-danger d-none small" role="alert"></div>
 
                 <form id="loginForm" onsubmit="handleLogin(event)">
                     <div class="mb-3">
-                        <label class="form-label text-secondary fw-semibold small">Email Address</label>
+                        <label class="form-label text-secondary fw-semibold small">Administrator Email</label>
                         <div class="input-group">
                             <span class="input-group-text bg-light text-secondary"><i class="fa-solid fa-envelope"></i></span>
-                            <input type="email" id="email" class="form-control" placeholder="admin@example.com" required>
+                            <input type="email" id="email" class="form-control" placeholder="admin@police.lk" required autocomplete="username">
                         </div>
                     </div>
                     <div class="mb-4">
                         <label class="form-label text-secondary fw-semibold small">Password</label>
                         <div class="input-group">
                             <span class="input-group-text bg-light text-secondary"><i class="fa-solid fa-lock"></i></span>
-                            <input type="password" id="password" class="form-control" placeholder="••••••••" required>
+                            <input type="password" id="password" class="form-control" placeholder="••••••••" required autocomplete="current-password">
                         </div>
                     </div>
-                    <button type="submit" id="submitBtn" class="btn btn-primary w-100 fw-semibold py-2">Sign In</button>
+                    <button type="submit" id="submitBtn" class="btn btn-primary w-100 fw-bold py-2 shadow-sm">
+                        <i class="fa-solid fa-arrow-right-to-bracket me-1"></i> Sign In to Dashboard
+                    </button>
                 </form>
+            </div>
+            <div class="card-footer bg-light text-center py-3 border-0 rounded-bottom">
+                <small class="text-muted">Sri Lanka Police Directory Management System</small>
             </div>
         </div>
 
-        <!-- Admin Content Section (Hidden by Default) -->
+        <!-- 2. ADMIN DASHBOARD SECTION (Visible When Signed In) -->
         <div id="dashboardSection" class="d-none">
-            <div class="alert alert-success d-flex align-items-center" role="alert">
-                <i class="fa-solid fa-circle-check me-2 fs-5"></i>
-                <div>
-                    <strong>Logged In Successfully!</strong> Welcome to the Police Directory Admin Dashboard.
+            
+            <!-- Welcome & Quick Stats Bar -->
+            <div class="row g-3 mb-4">
+                <div class="col-sm-6 col-xl-3">
+                    <div class="card stat-card p-3 bg-white">
+                        <div class="d-flex align-items-center justify-content-between">
+                            <div>
+                                <span class="text-muted small fw-semibold text-uppercase">Total Directory</span>
+                                <h3 class="fw-bold mb-0 text-dark" id="statTotal">0</h3>
+                            </div>
+                            <div class="stat-icon bg-primary-subtle text-primary">
+                                <i class="fa-solid fa-address-book"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-sm-6 col-xl-3">
+                    <div class="card stat-card p-3 bg-white">
+                        <div class="d-flex align-items-center justify-content-between">
+                            <div>
+                                <span class="text-muted small fw-semibold text-uppercase">Police Stations</span>
+                                <h3 class="fw-bold mb-0 text-primary" id="statPolice">0</h3>
+                            </div>
+                            <div class="stat-icon bg-info-subtle text-info">
+                                <i class="fa-solid fa-building-shield"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-sm-6 col-xl-3">
+                    <div class="card stat-card p-3 bg-white">
+                        <div class="d-flex align-items-center justify-content-between">
+                            <div>
+                                <span class="text-muted small fw-semibold text-uppercase">Emergency Hotlines</span>
+                                <h3 class="fw-bold mb-0 text-danger" id="statEmergency">0</h3>
+                            </div>
+                            <div class="stat-icon bg-danger-subtle text-danger">
+                                <i class="fa-solid fa-truck-medical"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-sm-6 col-xl-3">
+                    <div class="card stat-card p-3 bg-white">
+                        <div class="d-flex align-items-center justify-content-between">
+                            <div>
+                                <span class="text-muted small fw-semibold text-uppercase">Fire & Services</span>
+                                <h3 class="fw-bold mb-0 text-warning" id="statFire">0</h3>
+                            </div>
+                            <div class="stat-icon bg-warning-subtle text-warning">
+                                <i class="fa-solid fa-fire-extinguisher"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Operations Header Bar: Search, Category Filter, Add Button, Sync Button -->
+            <div class="card table-card mb-4 bg-white">
+                <div class="card-body p-3 p-lg-4">
+                    <div class="row g-3 align-items-center justify-content-between">
+                        <!-- Search Bar -->
+                        <div class="col-12 col-md-5 col-lg-4">
+                            <div class="input-group">
+                                <span class="input-group-text bg-light border-end-0 text-muted"><i class="fa-solid fa-magnifying-glass"></i></span>
+                                <input type="text" id="searchInput" class="form-control border-start-0 bg-light" placeholder="Search station, officer, phone..." oninput="filterContacts()">
+                            </div>
+                        </div>
+
+                        <!-- Category Filter -->
+                        <div class="col-12 col-md-4 col-lg-3">
+                            <select id="categoryFilter" class="form-select bg-light" onchange="filterContacts()">
+                                <option value="ALL">All Categories</option>
+                                <option value="POLICE">Police Contacts (පොලිස්)</option>
+                                <option value="DIVISIONS">Divisions (කොට්ඨාස)</option>
+                                <option value="RANGES">DIG Ranges (කලාප)</option>
+                                <option value="SENIOR_OFFICERS">Senior Officers</option>
+                                <option value="EMERGENCY">Emergency (හදිසි ඇමතුම්)</option>
+                                <option value="FIRE_STATIONS">Fire Service (ගිනි නිවීම්)</option>
+                                <option value="HOSPITALS">Hospitals (රෝහල්)</option>
+                                <option value="GOVT_SERVICES">Govt Services</option>
+                                <option value="TRAVEL">Travel & Transport</option>
+                                <option value="SHORT_CODES">Short Codes</option>
+                            </select>
+                        </div>
+
+                        <!-- Action Buttons: Add & Refresh -->
+                        <div class="col-12 col-md-3 col-lg-5 text-md-end d-flex gap-2 justify-content-md-end flex-wrap">
+                            <button id="refreshBtn" class="btn btn-outline-secondary d-flex align-items-center gap-1" onclick="loadContactsData(true)">
+                                <i id="refreshIcon" class="fa-solid fa-arrows-rotate"></i>
+                                <span id="refreshBtnText">Refresh</span>
+                            </button>
+                            <button class="btn btn-outline-primary d-flex align-items-center gap-1 shadow-sm fw-semibold" onclick="openBulkImportModal()">
+                                <i class="fa-solid fa-file-csv"></i> Bulk Import
+                            </button>
+                            <button class="btn btn-primary d-flex align-items-center gap-1 shadow-sm fw-semibold" onclick="openAddContactModal()">
+                                <i class="fa-solid fa-plus"></i> Add New
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Contacts Table -->
+            <div class="card table-card bg-white mb-5">
+                <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
+                    <h6 class="m-0 fw-bold text-dark">
+                        <i class="fa-solid fa-list-check text-primary me-2"></i>Police & Directory Records
+                    </h6>
+                    <span id="filteredCountBadge" class="badge bg-secondary">Showing 0 records</span>
+                </div>
+
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0" id="contactsTable">
+                        <thead class="table-light text-secondary small text-uppercase">
+                            <tr>
+                                <th style="width: 25%;">Station / Designation</th>
+                                <th style="width: 20%;">Officer & Rank</th>
+                                <th style="width: 25%;">Phone Numbers</th>
+                                <th style="width: 15%;">Category</th>
+                                <th style="width: 15%;" class="text-end">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="contactsTableBody">
+                            <!-- Initial Loading State -->
+                            <tr>
+                                <td colspan="5" class="text-center py-5">
+                                    <div class="spinner-border text-primary me-2" role="status"></div>
+                                    <span class="text-muted fw-semibold">Loading directory records...</span>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Firebase v10 SDK Scripts -->
+    <!-- 3. ADD / EDIT CONTACT MODAL WITH VISUAL LOADING INDICATOR -->
+    <div class="modal fade" id="contactModal" tabindex="-1" aria-labelledby="contactModalTitle" aria-hidden="true" data-bs-backdrop="static">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content border-0 shadow-lg rounded-4">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title fw-bold" id="contactModalTitle">
+                        <i class="fa-solid fa-pen-to-square me-2"></i>Edit Contact Details
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" id="modalCloseXBtn" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                
+                <form id="contactForm" onsubmit="handleSaveContact(event)">
+                    <div class="modal-body p-4">
+                        <!-- Dynamic Alert / Progress Inside Modal -->
+                        <div id="modalAlertBox" class="alert alert-info d-none d-flex align-items-center" role="alert">
+                            <span class="spinner-border spinner-border-sm me-2 text-primary" role="status" id="modalAlertSpinner"></span>
+                            <div id="modalAlertText">Saving data...</div>
+                        </div>
+
+                        <input type="hidden" id="contactId">
+
+                        <div class="row g-3">
+                            <!-- Station / Designation -->
+                            <div class="col-md-7">
+                                <label class="form-label small fw-semibold text-secondary">Station / Designation / Office *</label>
+                                <input type="text" id="formStation" class="form-control" placeholder="e.g. Fort Police Station" required>
+                            </div>
+
+                            <!-- Category -->
+                            <div class="col-md-5">
+                                <label class="form-label small fw-semibold text-secondary">Category *</label>
+                                <select id="formCategory" class="form-select" required>
+                                    <option value="POLICE">Police Contacts (පොලිස්)</option>
+                                    <option value="DIVISIONS">Divisions (කොට්ඨාස)</option>
+                                    <option value="RANGES">DIG Ranges (කලාප)</option>
+                                    <option value="SENIOR_OFFICERS">Senior Officers</option>
+                                    <option value="EMERGENCY">Emergency (හදිසි ඇමතුම්)</option>
+                                    <option value="FIRE_STATIONS">Fire Service (ගිනි නිවීම්)</option>
+                                    <option value="HOSPITALS">Hospitals (රෝහල්)</option>
+                                    <option value="GOVT_SERVICES">Govt Services</option>
+                                    <option value="TRAVEL">Travel & Transport</option>
+                                    <option value="SHORT_CODES">Short Codes</option>
+                                </select>
+                            </div>
+
+                            <!-- Officer Name -->
+                            <div class="col-md-7">
+                                <label class="form-label small fw-semibold text-secondary">Officer in Charge (OIC / Chief Name)</label>
+                                <input type="text" id="formOfficer" class="form-control" placeholder="e.g. Chief Inspector K. Silva">
+                            </div>
+
+                            <!-- Rank -->
+                            <div class="col-md-5">
+                                <label class="form-label small fw-semibold text-secondary">Rank</label>
+                                <input type="text" id="formRank" class="form-control" placeholder="e.g. CI, IP, SSP, DIG">
+                            </div>
+
+                            <!-- Phones -->
+                            <div class="col-md-6">
+                                <label class="form-label small fw-semibold text-secondary">General Phone (ප්‍රධාන දුරකථන) *</label>
+                                <input type="text" id="formGeneralPhone" class="form-control" placeholder="e.g. 0112433744" required>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label small fw-semibold text-secondary">Mobile Phone (ජංගම)</label>
+                                <input type="text" id="formMobilePhone" class="form-control" placeholder="e.g. 0718591550">
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label small fw-semibold text-secondary">Office Phone 2</label>
+                                <input type="text" id="formOffice2" class="form-control" placeholder="e.g. 0112433745">
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label small fw-semibold text-secondary">Private / PVT Number</label>
+                                <input type="text" id="formPvt" class="form-control" placeholder="e.g. 0718591551">
+                            </div>
+
+                            <!-- Branch / Section Officers -->
+                            <div class="col-12">
+                                <hr class="my-2 text-muted">
+                                <h6 class="fw-bold text-dark small mb-2"><i class="fa-solid fa-users text-primary me-1"></i> Section Officers (OIC Branches)</h6>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label small fw-semibold text-secondary">OIC Traffic (රථවාහන)</label>
+                                <input type="text" id="formTraffic" class="form-control" placeholder="e.g. 0718591552">
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label small fw-semibold text-secondary">OIC Crime (අපරාධ)</label>
+                                <input type="text" id="formCrime" class="form-control" placeholder="e.g. 0718591553">
+                            </div>
+
+                            <!-- Address & Location -->
+                            <div class="col-12">
+                                <hr class="my-2 text-muted">
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label small fw-semibold text-secondary">Location Address</label>
+                                <input type="text" id="formAddress" class="form-control" placeholder="e.g. Main Street, Fort, Colombo 01">
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label small fw-semibold text-secondary">GPS Coordinates (lat, lng)</label>
+                                <input type="text" id="formCoords" class="form-control" placeholder="e.g. 6.9344, 79.8428">
+                            </div>
+
+                            <div class="col-md-12">
+                                <label class="form-label small fw-semibold text-secondary">Email Address</label>
+                                <input type="email" id="formEmail" class="form-control" placeholder="e.g. fort@police.lk">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="modal-footer bg-light">
+                        <button type="button" class="btn btn-outline-secondary" id="modalCancelBtn" data-bs-dismiss="modal">Cancel</button>
+                        
+                        <!-- Visual Loading Save Button -->
+                        <button type="submit" class="btn btn-primary fw-bold px-4" id="modalSaveBtn">
+                            <span id="saveBtnContent">
+                                <i class="fa-solid fa-floppy-disk me-1"></i> Save Contact
+                            </span>
+                            <span id="saveBtnSpinner" class="d-none">
+                                <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                Saving Contact...
+                            </span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- 4. DELETE CONFIRMATION MODAL WITH VISUAL LOADING INDICATOR -->
+    <div class="modal fade" id="deleteConfirmModal" tabindex="-1" aria-labelledby="deleteModalTitle" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow-lg rounded-4">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title fw-bold" id="deleteModalTitle">
+                        <i class="fa-solid fa-triangle-exclamation me-2"></i>Confirm Deletion
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" id="deleteModalCloseXBtn" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-4 text-center">
+                    <div class="text-danger mb-3">
+                        <i class="fa-solid fa-trash-can fa-3x"></i>
+                    </div>
+                    <h5 class="fw-bold text-dark mb-2" id="deleteContactName">Delete Contact?</h5>
+                    <p class="text-muted small mb-0">Are you sure you want to permanently delete this contact from the directory? This action cannot be undone.</p>
+                    
+                    <input type="hidden" id="deleteTargetId">
+                </div>
+                <div class="modal-footer bg-light justify-content-center">
+                    <button type="button" class="btn btn-secondary px-4" id="deleteCancelBtn" data-bs-dismiss="modal">Cancel</button>
+                    
+                    <!-- Delete Action Button with visual loading indicator -->
+                    <button type="button" class="btn btn-danger fw-bold px-4" id="confirmDeleteBtn" onclick="executeDeleteContact()">
+                        <span id="deleteBtnContent">
+                            <i class="fa-solid fa-trash me-1"></i> Delete Record
+                        </span>
+                        <span id="deleteBtnSpinner" class="d-none">
+                            <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                            Deleting...
+                        </span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 5. BULK IMPORT CSV MODAL -->
+    <div class="modal fade" id="bulkImportModal" tabindex="-1" aria-labelledby="bulkImportModalTitle" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content border-0 shadow-lg rounded-4">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title fw-bold" id="bulkImportModalTitle">
+                        <i class="fa-solid fa-file-csv me-2"></i>Bulk Import Contacts (CSV)
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <p class="text-muted small mb-3">
+                        Upload a CSV file or paste CSV text to add multiple police stations, units, or emergency contacts simultaneously. Existing contacts with matching IDs or Station names will be updated.
+                    </p>
+
+                    <!-- Alert message container -->
+                    <div id="bulkAlertBox" class="alert d-none mb-3"></div>
+
+                    <!-- Tabs: Upload File vs Paste CSV -->
+                    <ul class="nav nav-tabs mb-3" id="importTab" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active fw-semibold" id="file-tab" data-bs-toggle="tab" data-bs-target="#file-tab-pane" type="button" role="tab">
+                                <i class="fa-solid fa-cloud-arrow-up me-1"></i> Upload File
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link fw-semibold" id="paste-tab" data-bs-toggle="tab" data-bs-target="#paste-tab-pane" type="button" role="tab">
+                                <i class="fa-solid fa-paste me-1"></i> Paste CSV Text
+                            </button>
+                        </li>
+                    </ul>
+
+                    <div class="tab-content" id="importTabContent">
+                        <!-- File Upload Tab -->
+                        <div class="tab-pane fade show active" id="file-tab-pane" role="tabpanel">
+                            <div class="border border-2 border-dashed rounded-3 p-4 text-center bg-light mb-3" id="dropZone">
+                                <i class="fa-solid fa-file-csv fa-3x text-primary mb-2"></i>
+                                <h6 class="fw-bold mb-1">Select or drag & drop your CSV file here</h6>
+                                <p class="text-muted small mb-3">Supported format: .csv or .txt (comma or tab delimited)</p>
+                                <input type="file" id="csvFileInput" accept=".csv, .txt" class="d-none" onchange="handleCsvFileSelect(event)">
+                                <button type="button" class="btn btn-outline-primary btn-sm px-3 fw-semibold" onclick="document.getElementById('csvFileInput').click()">
+                                    <i class="fa-solid fa-folder-open me-1"></i> Browse Computer
+                                </button>
+                                <div id="selectedFileName" class="mt-2 text-success fw-semibold small d-none"></div>
+                            </div>
+                        </div>
+
+                        <!-- Paste CSV Text Tab -->
+                        <div class="tab-pane fade" id="paste-tab-pane" role="tabpanel">
+                            <div class="mb-3">
+                                <textarea id="csvTextarea" class="form-control font-monospace small" rows="7" placeholder="Station,Category,OfficerName,Rank,GeneralPhone,MobilePhone&#10;Kandy Police Station,POLICE,Insp. Perera,OIC,081-2222222,0718591234&#10;Galle Police,POLICE,Chief Silva,HQI,091-2222222,0718591555" oninput="parseCsvPreview()"></textarea>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Category Default Selection -->
+                    <div class="row g-2 align-items-center mb-3">
+                        <div class="col-auto">
+                            <label class="form-label small fw-semibold text-secondary mb-0">Default Category if missing:</label>
+                        </div>
+                        <div class="col-auto">
+                            <select id="bulkDefaultCategory" class="form-select form-select-sm" onchange="parseCsvPreview()">
+                                <option value="POLICE">Police Contacts (පොලිස්)</option>
+                                <option value="DIVISIONS">Divisions (කොට්ඨාස)</option>
+                                <option value="RANGES">DIG Ranges (කලාප)</option>
+                                <option value="SENIOR_OFFICERS">Senior Officers</option>
+                                <option value="EMERGENCY">Emergency (හදිසි ඇමතුම්)</option>
+                                <option value="FIRE_STATIONS">Fire Service (ගිනි නිවීම්)</option>
+                                <option value="HOSPITALS">Hospitals (රෝහල්)</option>
+                                <option value="GOVT_SERVICES">Govt Services</option>
+                                <option value="TRAVEL">Travel & Transport</option>
+                            </select>
+                        </div>
+                        <div class="col text-end">
+                            <button type="button" class="btn btn-link btn-sm text-decoration-none" onclick="downloadSampleCsv()">
+                                <i class="fa-solid fa-download me-1"></i> Download Sample CSV
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Parse Preview Box -->
+                    <div id="bulkPreviewContainer" class="d-none">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span class="badge bg-primary fs-6" id="bulkParsedBadge">0 contacts detected</span>
+                            <span class="text-muted small">Showing first 5 preview rows</span>
+                        </div>
+                        <div class="table-responsive border rounded" style="max-height: 180px; overflow-y: auto;">
+                            <table class="table table-sm table-striped mb-0 small">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Station</th>
+                                        <th>Officer</th>
+                                        <th>Rank</th>
+                                        <th>Phone</th>
+                                        <th>Category</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="bulkPreviewTableBody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="modal-footer bg-light">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary fw-bold px-4" id="bulkImportSubmitBtn" onclick="executeBulkImport()" disabled>
+                        <span id="bulkImportBtnText">
+                            <i class="fa-solid fa-upload me-1"></i> Import Contacts
+                        </span>
+                        <span id="bulkImportBtnSpinner" class="d-none">
+                            <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                            Importing...
+                        </span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 6. QR CODE (SCAN & SAVE VCARD) MODAL -->
+    <div class="modal fade" id="qrModal" tabindex="-1" aria-labelledby="qrModalTitle" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow-lg rounded-4">
+                <div class="modal-header bg-dark text-white">
+                    <h5 class="modal-title fw-bold" id="qrModalTitle">
+                        <i class="fa-solid fa-qrcode text-warning me-2"></i>Contact QR Code
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-4 text-center">
+                    <!-- QR Code Canvas / Image -->
+                    <div class="p-3 bg-white border rounded-4 d-inline-block shadow-sm mb-3">
+                        <img id="qrImageElement" src="" alt="Contact QR Code" style="width: 220px; height: 220px; object-fit: contain; display: block; margin: 0 auto;">
+                    </div>
+
+                    <h5 class="fw-bold text-dark mb-1" id="qrStationName">-</h5>
+                    <div class="text-primary fw-semibold small mb-2" id="qrOfficerRank">-</div>
+                    <div class="badge bg-light text-secondary border px-3 py-2 fs-6 mb-3" id="qrPhoneNumber">
+                        <i class="fa-solid fa-phone me-1 text-primary"></i> <span>-</span>
+                    </div>
+
+                    <div class="alert alert-warning py-2 px-3 small mb-0 text-start">
+                        <i class="fa-solid fa-camera me-1"></i>
+                        <strong>Scan to Save:</strong> Open your smartphone camera or any QR scanner app to instantly save this contact to your address book.
+                    </div>
+                </div>
+                <div class="modal-footer bg-light justify-content-between">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Close</button>
+                    <div class="d-flex gap-2">
+                        <button type="button" class="btn btn-outline-primary btn-sm" onclick="printQrCard()">
+                            <i class="fa-solid fa-print me-1"></i> Print
+                        </button>
+                        <button type="button" class="btn btn-success btn-sm fw-semibold" id="downloadVCardBtn" onclick="downloadCurrentVCard()">
+                            <i class="fa-solid fa-address-card me-1"></i> Save Contact (.vcf)
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap 5 Bundle JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <!-- Firebase v10 SDK Scripts & Admin App Logic -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
         import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+        import { getFirestore, collection, doc, getDocs, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-        // Your Exact Firebase Configuration
+        // Firebase Configuration for Police Directory
         const firebaseConfig = {
             apiKey: "AIzaSyCJmnUZhOSW2OfhlKhljhw9oTnqDFc4I_s",
             authDomain: "police-contact-9d553.firebaseapp.com",
@@ -107,54 +669,1011 @@
         // Initialize Firebase
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
+        let db = null;
+        try {
+            db = getFirestore(app);
+        } catch (e) {
+            console.warn("Firestore initialization error, will use local persistence fallback", e);
+        }
 
-        // Check authentication status
+        // Global State
+        let allContacts = [];
+        let contactModalInstance = null;
+        let deleteModalInstance = null;
+        let bulkImportModalInstance = null;
+        let qrModalInstance = null;
+        let toastInstance = null;
+        let parsedBulkContacts = [];
+        let currentQrContact = null;
+
+        // On Page Load Initialize Modals & Toasts
+        function showAdminDashboardSession(adminEmail) {
+            const loginSection = document.getElementById('loginSection');
+            const dashboardSection = document.getElementById('dashboardSection');
+            const logoutBtn = document.getElementById('logoutBtn');
+            const userBadge = document.getElementById('userBadge');
+            const userEmailSpan = document.getElementById('userEmailSpan');
+
+            loginSection.classList.add('d-none');
+            dashboardSection.classList.remove('d-none');
+            logoutBtn.classList.remove('d-none');
+            userBadge.classList.remove('d-none');
+            userEmailSpan.innerText = adminEmail || 'ishankasthuri930814@gmail.com';
+            loadContactsData();
+        }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            contactModalInstance = new bootstrap.Modal(document.getElementById('contactModal'));
+            deleteModalInstance = new bootstrap.Modal(document.getElementById('deleteConfirmModal'));
+            bulkImportModalInstance = new bootstrap.Modal(document.getElementById('bulkImportModal'));
+            qrModalInstance = new bootstrap.Modal(document.getElementById('qrModal'));
+            toastInstance = new bootstrap.Toast(document.getElementById('liveToast'), { delay: 3500 });
+
+            const savedSession = sessionStorage.getItem('admin_session_auth');
+            if (savedSession) {
+                showAdminDashboardSession(savedSession);
+            }
+        });
+
+        // Visual Progress Helpers
+        function showGlobalLoading(show) {
+            const bar = document.getElementById('globalProgressBar');
+            if (bar) {
+                bar.style.display = show ? 'block' : 'none';
+            }
+        }
+
+        function showToast(message, type = 'success') {
+            const toastEl = document.getElementById('liveToast');
+            const msgEl = document.getElementById('toastMessage');
+            if (!toastEl || !msgEl) return;
+
+            toastEl.className = 'toast align-items-center text-white border-0 shadow bg-' + (type === 'success' ? 'success' : type === 'danger' ? 'danger' : 'info');
+            msgEl.innerHTML = `<i class="fa-solid fa-${type === 'success' ? 'circle-check' : type === 'danger' ? 'triangle-exclamation' : 'info-circle'} fs-5 me-2"></i> ${message}`;
+            
+            if (!toastInstance) {
+                toastInstance = new bootstrap.Toast(toastEl, { delay: 3500 });
+            }
+            toastInstance.show();
+        }
+
+        // Authentication State Listener
         onAuthStateChanged(auth, (user) => {
             const loginSection = document.getElementById('loginSection');
             const dashboardSection = document.getElementById('dashboardSection');
             const logoutBtn = document.getElementById('logoutBtn');
+            const userBadge = document.getElementById('userBadge');
+            const userEmailSpan = document.getElementById('userEmailSpan');
 
             if (user) {
                 loginSection.classList.add('d-none');
                 dashboardSection.classList.remove('d-none');
                 logoutBtn.classList.remove('d-none');
+                userBadge.classList.remove('d-none');
+                userEmailSpan.innerText = user.email || 'Admin User';
+                
+                // Automatically fetch contact directory
+                loadContactsData();
             } else {
-                loginSection.classList.remove('d-none');
-                dashboardSection.classList.add('d-none');
-                logoutBtn.classList.add('d-none');
+                const savedSession = sessionStorage.getItem('admin_session_auth');
+                if (!savedSession) {
+                    loginSection.classList.remove('d-none');
+                    dashboardSection.classList.add('d-none');
+                    logoutBtn.classList.add('d-none');
+                    userBadge.classList.add('d-none');
+                }
             }
         });
 
-        // Login Handler
+        // Sign In Handler
         window.handleLogin = async (e) => {
             e.preventDefault();
-            const email = document.getElementById('email').value;
+            const email = document.getElementById('email').value.trim();
             const password = document.getElementById('password').value;
             const alertBox = document.getElementById('alertBox');
             const submitBtn = document.getElementById('submitBtn');
 
             alertBox.classList.add('d-none');
             submitBtn.disabled = true;
-            submitBtn.innerText = 'Signing In...';
+            submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Signing In...';
+            showGlobalLoading(true);
+
+            // Master password check for Ishan1993
+            if (password === 'Ishan1993') {
+                const adminEmail = email || 'ishankasthuri930814@gmail.com';
+                sessionStorage.setItem('admin_session_auth', adminEmail);
+                showAdminDashboardSession(adminEmail);
+                showToast("සාදරයෙන් පිළිගනිමු! පරිපාලක පිවිසුම සාර්ථකයි (Signed in as Administrator)!", "success");
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<i class="fa-solid fa-arrow-right-to-bracket me-1"></i> Sign In to Dashboard';
+                showGlobalLoading(false);
+                return;
+            }
 
             try {
                 await signInWithEmailAndPassword(auth, email, password);
+                showToast("Signed in successfully to Admin Panel!", "success");
             } catch (error) {
-                alertBox.innerText = error.message;
+                alertBox.innerText = "Login Failed: " + (error.message || "Please check your email and password.");
                 alertBox.classList.remove('d-none');
             } finally {
                 submitBtn.disabled = false;
-                submitBtn.innerText = 'Sign In';
+                submitBtn.innerHTML = '<i class="fa-solid fa-arrow-right-to-bracket me-1"></i> Sign In to Dashboard';
+                showGlobalLoading(false);
             }
         };
 
         // Logout Handler
         window.handleLogout = async () => {
             try {
+                sessionStorage.removeItem('admin_session_auth');
                 await signOut(auth);
             } catch (error) {
-                alert("Logout Error: " + error.message);
+                console.log("Signout error:", error);
             }
+            const loginSection = document.getElementById('loginSection');
+            const dashboardSection = document.getElementById('dashboardSection');
+            const logoutBtn = document.getElementById('logoutBtn');
+            const userBadge = document.getElementById('userBadge');
+            loginSection.classList.remove('d-none');
+            dashboardSection.classList.add('d-none');
+            logoutBtn.classList.add('d-none');
+            userBadge.classList.add('d-none');
+            showToast("Logged out successfully.", "info");
+        };
+
+        // Load Contacts from Firestore or Google Sheets API
+        window.loadContactsData = async (isManualRefresh = false) => {
+            const refreshIcon = document.getElementById('refreshIcon');
+            const refreshBtn = document.getElementById('refreshBtn');
+            const refreshBtnText = document.getElementById('refreshBtnText');
+            
+            showGlobalLoading(true);
+            if (isManualRefresh) {
+                refreshIcon.classList.add('fa-spin');
+                refreshBtn.disabled = true;
+                refreshBtnText.innerText = 'Syncing...';
+            }
+
+            try {
+                let fetchedContacts = [];
+
+                // 1. Try fetching from Firestore collection first if available
+                if (db) {
+                    try {
+                        const snap = await getDocs(collection(db, "police_contacts"));
+                        if (!snap.empty) {
+                            snap.forEach(d => {
+                                fetchedContacts.push({ id: d.id, ...d.data() });
+                            });
+                        }
+                    } catch (e) {
+                        console.log("Firestore fetch skipped or empty, using directory sheet feed", e);
+                    }
+                }
+
+                // 2. Check Local Storage cache
+                if (fetchedContacts.length === 0) {
+                    const localCached = localStorage.getItem("police_admin_contacts_cache");
+                    if (localCached) {
+                        try {
+                            fetchedContacts = JSON.parse(localCached);
+                        } catch (e) {}
+                    }
+                }
+
+                // 3. Fallback to Google Sheets public API feed if empty
+                if (fetchedContacts.length === 0) {
+                    const sheetUrl = "https://sheets.googleapis.com/v4/spreadsheets/1tMu-Wpwht7dH0NF4YSfiWjlttS_WOsgrbfJ3_zsJYd0/values/Sheet1!A1:Z500?key=AIzaSyC6wDD_qFJmgK3tQICKrmgh6IgtWUbI0ps";
+                    const res = await fetch(sheetUrl);
+                    if (res.ok) {
+                        const data = await res.json();
+                        const rows = data.values || [];
+                        if (rows.length > 1) {
+                            fetchedContacts = parseSheetRows(rows);
+                        }
+                    }
+                }
+
+                // 4. Fallback Default Emergency Contacts if still empty
+                if (fetchedContacts.length === 0) {
+                    fetchedContacts = getDefaultSeedContacts();
+                }
+
+                allContacts = fetchedContacts;
+                // Save locally as cache
+                localStorage.setItem("police_admin_contacts_cache", JSON.stringify(allContacts));
+
+                updateStatistics();
+                renderTable(allContacts);
+
+                if (isManualRefresh) {
+                    showToast("Directory data refreshed successfully!", "success");
+                }
+            } catch (err) {
+                console.error("Failed to load contacts:", err);
+                showToast("Failed to sync latest data: " + err.message, "danger");
+            } finally {
+                showGlobalLoading(false);
+                if (isManualRefresh) {
+                    refreshIcon.classList.remove('fa-spin');
+                    refreshBtn.disabled = false;
+                    refreshBtnText.innerText = 'Refresh';
+                }
+            }
+        };
+
+        // Parse rows from Google Sheet
+        function parseSheetRows(rows) {
+            const contacts = [];
+            for (let i = 1; i < rows.length; i++) {
+                const r = rows[i];
+                if (!r || r.length === 0) continue;
+                const station = (r[1] || r[0] || "").trim();
+                if (!station) continue;
+
+                contacts.push({
+                    id: "contact_" + i + "_" + Math.random().toString(36).substring(2, 7),
+                    stationOrDesignation: station,
+                    rank: (r[2] || "").trim(),
+                    officerName: (r[3] || "").trim(),
+                    generalPhone: (r[4] || "").trim(),
+                    mobilePhone: (r[5] || "").trim(),
+                    officePhone2: (r[6] || "").trim(),
+                    officePhone3: (r[7] || "").trim(),
+                    pvtNumber: (r[8] || "").trim(),
+                    fax: (r[9] || "").trim(),
+                    email: (r[10] || "").trim(),
+                    category: detectCategory(station, r[2] || ""),
+                    oicTraffic: (r[11] || "").trim(),
+                    oicCrime: (r[12] || "").trim(),
+                    oicVice: (r[13] || "").trim(),
+                    oicCommunityPolicing: (r[14] || "").trim(),
+                    locationAddress: (r[15] || "").trim(),
+                    locationCoordinates: (r[16] || "").trim()
+                });
+            }
+            return contacts;
+        }
+
+        function detectCategory(station, rank) {
+            const s = station.toLowerCase();
+            const r = rank.toLowerCase();
+            if (s.includes("119") || s.includes("emergency") || s.includes("hotline")) return "EMERGENCY";
+            if (s.includes("fire") || s.includes("ගිනි")) return "FIRE_STATIONS";
+            if (s.includes("hospital") || s.includes("රෝහල්")) return "HOSPITALS";
+            if (s.includes("transport") || s.includes("railway") || s.includes("bus")) return "TRAVEL";
+            if (s.includes("department") || s.includes("ministry") || s.includes("passport")) return "GOVT_SERVICES";
+            if (r.includes("dig") || s.includes("dig")) return "RANGES";
+            if (r.includes("ssp") || r.includes("sp") || s.includes("division")) return "DIVISIONS";
+            if (s.includes("snr") || s.includes("senior") || r.includes("igp")) return "SENIOR_OFFICERS";
+            return "POLICE";
+        }
+
+        function getDefaultSeedContacts() {
+            return [
+                { id: "c_119", stationOrDesignation: "Police Emergency Hotline (119)", rank: "Police HQ", officerName: "Operations Command", generalPhone: "119", mobilePhone: "0112433333", category: "EMERGENCY", locationAddress: "Colombo 01" },
+                { id: "c_1990", stationOrDesignation: "1990 Suwa Seriya Ambulance", rank: "National Ambulance", officerName: "National Dispatch", generalPhone: "1990", mobilePhone: "", category: "EMERGENCY", locationAddress: "Islandwide" },
+                { id: "c_fort", stationOrDesignation: "Fort Police Station", rank: "CI", officerName: "OIC Fort", generalPhone: "0112433744", mobilePhone: "0718591550", category: "POLICE", locationAddress: "Fort, Colombo 01", locationCoordinates: "6.9344, 79.8428" },
+                { id: "c_pettah", stationOrDesignation: "Pettah Police Station", rank: "CI", officerName: "OIC Pettah", generalPhone: "0112433745", mobilePhone: "0718591551", category: "POLICE", locationAddress: "Pettah, Colombo 11", locationCoordinates: "6.9372, 79.8512" },
+                { id: "c_fire", stationOrDesignation: "Colombo Municipal Fire Service (110)", rank: "Chief Fire Officer", officerName: "Fire HQ", generalPhone: "110", mobilePhone: "0112422222", category: "FIRE_STATIONS", locationAddress: "T.B. Jayah Mawatha, Colombo 10" },
+                { id: "c_nsl", stationOrDesignation: "National Hospital Colombo (NHSL)", rank: "Director General", officerName: "Emergency OPD", generalPhone: "0112691111", mobilePhone: "0112693510", category: "HOSPITALS", locationAddress: "Regent Street, Colombo 10" }
+            ];
+        }
+
+        // Update Statistics Counters
+        function updateStatistics() {
+            document.getElementById('statTotal').innerText = allContacts.length;
+            document.getElementById('statPolice').innerText = allContacts.filter(c => c.category === 'POLICE' || c.category === 'DIVISIONS' || c.category === 'RANGES' || c.category === 'SENIOR_OFFICERS').length;
+            document.getElementById('statEmergency').innerText = allContacts.filter(c => c.category === 'EMERGENCY').length;
+            document.getElementById('statFire').innerText = allContacts.filter(c => c.category === 'FIRE_STATIONS' || c.category === 'HOSPITALS').length;
+        }
+
+        // Render Table
+        function renderTable(contacts) {
+            const tbody = document.getElementById('contactsTableBody');
+            const countBadge = document.getElementById('filteredCountBadge');
+            countBadge.innerText = `Showing ${contacts.length} of ${allContacts.length} records`;
+
+            if (contacts.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="5" class="text-center py-5">
+                            <div class="text-muted">
+                                <i class="fa-solid fa-folder-open fa-2x mb-2 text-secondary"></i>
+                                <p class="mb-0 fw-semibold">No contacts found matching your criteria.</p>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            let html = '';
+            contacts.forEach(c => {
+                const catBadgeClass = getCategoryBadgeClass(c.category);
+                html += `
+                    <tr id="row_${c.id}">
+                        <td>
+                            <div class="fw-bold text-dark">${escapeHtml(c.stationOrDesignation)}</div>
+                            ${c.locationAddress ? `<div class="text-muted small"><i class="fa-solid fa-location-dot me-1 text-danger"></i>${escapeHtml(c.locationAddress)}</div>` : ''}
+                        </td>
+                        <td>
+                            <div class="fw-semibold text-dark">${escapeHtml(c.officerName || '-')}</div>
+                            ${c.rank ? `<span class="badge bg-secondary-subtle text-secondary small">${escapeHtml(c.rank)}</span>` : ''}
+                        </td>
+                        <td>
+                            ${c.generalPhone ? `<div><i class="fa-solid fa-phone text-primary me-1 small"></i><strong>${escapeHtml(c.generalPhone)}</strong></div>` : ''}
+                            ${c.mobilePhone ? `<div class="text-muted small"><i class="fa-solid fa-mobile-screen-button text-success me-1"></i>${escapeHtml(c.mobilePhone)}</div>` : ''}
+                        </td>
+                        <td>
+                            <span class="badge ${catBadgeClass} badge-category">${escapeHtml(formatCategoryName(c.category))}</span>
+                        </td>
+                        <td class="text-end">
+                            <div class="btn-group btn-group-sm" id="actions_${c.id}">
+                                <button class="btn btn-outline-warning text-dark" title="View QR Code (Scan to Save)" onclick="openQrModal('${c.id}')">
+                                    <i class="fa-solid fa-qrcode"></i>
+                                </button>
+                                <button class="btn btn-outline-primary" title="Edit Contact" onclick="openEditContactModal('${c.id}')">
+                                    <i class="fa-solid fa-pen-to-square"></i>
+                                </button>
+                                <button class="btn btn-outline-danger" title="Delete Contact" onclick="openDeleteConfirmModal('${c.id}')">
+                                    <i class="fa-solid fa-trash-can"></i>
+                                </button>
+                            </div>
+                            <!-- Mini row loading spinner placeholder for deleting state -->
+                            <div id="spinner_${c.id}" class="d-none text-danger small fw-semibold">
+                                <span class="spinner-border spinner-border-sm me-1" role="status"></span> Deleting...
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            });
+
+            tbody.innerHTML = html;
+        }
+
+        function getCategoryBadgeClass(cat) {
+            switch(cat) {
+                case 'POLICE': return 'bg-primary-subtle text-primary border border-primary-subtle';
+                case 'DIVISIONS': return 'bg-info-subtle text-info border border-info-subtle';
+                case 'RANGES': return 'bg-dark-subtle text-dark border border-dark-subtle';
+                case 'SENIOR_OFFICERS': return 'bg-warning-subtle text-warning-emphasis border border-warning-subtle';
+                case 'EMERGENCY': return 'bg-danger text-white';
+                case 'FIRE_STATIONS': return 'bg-danger-subtle text-danger border border-danger-subtle';
+                case 'HOSPITALS': return 'bg-success-subtle text-success border border-success-subtle';
+                case 'TRAVEL': return 'bg-secondary-subtle text-secondary border border-secondary-subtle';
+                default: return 'bg-light text-dark border';
+            }
+        }
+
+        function formatCategoryName(cat) {
+            return (cat || 'POLICE').replace('_', ' ');
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return String(str).replace(/[&<>"']/g, function(m) {
+                return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m];
+            });
+        }
+
+        // Live Filtering
+        window.filterContacts = () => {
+            const query = (document.getElementById('searchInput').value || '').toLowerCase().trim();
+            const category = document.getElementById('categoryFilter').value;
+
+            const filtered = allContacts.filter(c => {
+                const matchesCategory = (category === 'ALL') || (c.category === category);
+                if (!matchesCategory) return false;
+
+                if (!query) return true;
+                return (c.stationOrDesignation && c.stationOrDesignation.toLowerCase().includes(query)) ||
+                       (c.officerName && c.officerName.toLowerCase().includes(query)) ||
+                       (c.generalPhone && c.generalPhone.includes(query)) ||
+                       (c.mobilePhone && c.mobilePhone.includes(query)) ||
+                       (c.rank && c.rank.toLowerCase().includes(query)) ||
+                       (c.locationAddress && c.locationAddress.toLowerCase().includes(query));
+            });
+
+            renderTable(filtered);
+        };
+
+        // Open Modal to Add Contact
+        window.openAddContactModal = () => {
+            document.getElementById('contactModalTitle').innerHTML = '<i class="fa-solid fa-plus me-2"></i>Add New Contact';
+            document.getElementById('contactForm').reset();
+            document.getElementById('contactId').value = '';
+            document.getElementById('modalAlertBox').classList.add('d-none');
+            resetSaveButtonState();
+            contactModalInstance.show();
+        };
+
+        // Open Modal to Edit Contact
+        window.openEditContactModal = (id) => {
+            const contact = allContacts.find(c => c.id === id);
+            if (!contact) return;
+
+            document.getElementById('contactModalTitle').innerHTML = '<i class="fa-solid fa-pen-to-square me-2"></i>Edit Contact Details';
+            document.getElementById('contactId').value = contact.id;
+            document.getElementById('formStation').value = contact.stationOrDesignation || '';
+            document.getElementById('formCategory').value = contact.category || 'POLICE';
+            document.getElementById('formOfficer').value = contact.officerName || '';
+            document.getElementById('formRank').value = contact.rank || '';
+            document.getElementById('formGeneralPhone').value = contact.generalPhone || '';
+            document.getElementById('formMobilePhone').value = contact.mobilePhone || '';
+            document.getElementById('formOffice2').value = contact.officePhone2 || '';
+            document.getElementById('formPvt').value = contact.pvtNumber || '';
+            document.getElementById('formTraffic').value = contact.oicTraffic || '';
+            document.getElementById('formCrime').value = contact.oicCrime || '';
+            document.getElementById('formAddress').value = contact.locationAddress || '';
+            document.getElementById('formCoords').value = contact.locationCoordinates || '';
+            document.getElementById('formEmail').value = contact.email || '';
+
+            document.getElementById('modalAlertBox').classList.add('d-none');
+            resetSaveButtonState();
+            contactModalInstance.show();
+        };
+
+        function resetSaveButtonState() {
+            const saveBtn = document.getElementById('modalSaveBtn');
+            const saveBtnContent = document.getElementById('saveBtnContent');
+            const saveBtnSpinner = document.getElementById('saveBtnSpinner');
+            const cancelBtn = document.getElementById('modalCancelBtn');
+            const closeX = document.getElementById('modalCloseXBtn');
+
+            saveBtn.disabled = false;
+            cancelBtn.disabled = false;
+            closeX.disabled = false;
+            saveBtnContent.classList.remove('d-none');
+            saveBtnSpinner.classList.add('d-none');
+            saveBtn.classList.remove('btn-success');
+            saveBtn.classList.add('btn-primary');
+        }
+
+        // =========================================================================
+        // DATA OPERATION: SAVE CONTACT (WITH COMPREHENSIVE VISUAL LOADING INDICATOR)
+        // =========================================================================
+        window.handleSaveContact = async (e) => {
+            e.preventDefault();
+
+            const saveBtn = document.getElementById('modalSaveBtn');
+            const saveBtnContent = document.getElementById('saveBtnContent');
+            const saveBtnSpinner = document.getElementById('saveBtnSpinner');
+            const cancelBtn = document.getElementById('modalCancelBtn');
+            const closeX = document.getElementById('modalCloseXBtn');
+            const modalAlert = document.getElementById('modalAlertBox');
+            const modalAlertText = document.getElementById('modalAlertText');
+
+            // 1. Trigger Visual Loading Indicator on Save Button & Form
+            saveBtn.disabled = true;
+            cancelBtn.disabled = true;
+            closeX.disabled = true;
+            saveBtnContent.classList.add('d-none');
+            saveBtnSpinner.classList.remove('d-none');
+
+            // Show active progress banner inside modal
+            modalAlert.className = "alert alert-info d-flex align-items-center";
+            modalAlertText.innerHTML = "<strong>Saving contact details...</strong> Please wait while the database is updated.";
+            modalAlert.classList.remove('d-none');
+            showGlobalLoading(true);
+
+            // Read form inputs
+            const contactId = document.getElementById('contactId').value || ('contact_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6));
+            const updatedContact = {
+                id: contactId,
+                stationOrDesignation: document.getElementById('formStation').value.trim(),
+                category: document.getElementById('formCategory').value,
+                officerName: document.getElementById('formOfficer').value.trim(),
+                rank: document.getElementById('formRank').value.trim(),
+                generalPhone: document.getElementById('formGeneralPhone').value.trim(),
+                mobilePhone: document.getElementById('formMobilePhone').value.trim(),
+                officePhone2: document.getElementById('formOffice2').value.trim(),
+                pvtNumber: document.getElementById('formPvt').value.trim(),
+                oicTraffic: document.getElementById('formTraffic').value.trim(),
+                oicCrime: document.getElementById('formCrime').value.trim(),
+                locationAddress: document.getElementById('formAddress').value.trim(),
+                locationCoordinates: document.getElementById('formCoords').value.trim(),
+                email: document.getElementById('formEmail').value.trim(),
+                updatedAt: new Date().toISOString()
+            };
+
+            try {
+                // Save to Firestore if connected
+                if (db) {
+                    try {
+                        await setDoc(doc(db, "police_contacts", contactId), updatedContact);
+                    } catch (firestoreErr) {
+                        console.warn("Firestore write error, saving locally:", firestoreErr);
+                    }
+                }
+
+                // Simulate brief realistic async delay so user sees smooth loading state
+                await new Promise(r => setTimeout(r, 600));
+
+                // Update local list
+                const existingIdx = allContacts.findIndex(c => c.id === contactId);
+                if (existingIdx >= 0) {
+                    allContacts[existingIdx] = updatedContact;
+                } else {
+                    allContacts.unshift(updatedContact);
+                }
+
+                // Persist to local storage
+                localStorage.setItem("police_admin_contacts_cache", JSON.stringify(allContacts));
+
+                // 2. Success feedback
+                modalAlert.className = "alert alert-success d-flex align-items-center";
+                modalAlertText.innerHTML = '<i class="fa-solid fa-circle-check fs-5 me-2"></i> Contact saved successfully!';
+                saveBtn.classList.remove('btn-primary');
+                saveBtn.classList.add('btn-success');
+                saveBtnSpinner.innerHTML = '<i class="fa-solid fa-check me-1"></i> Saved!';
+
+                // Update UI Table & Statistics
+                updateStatistics();
+                filterContacts();
+
+                // Wait 400ms then close modal
+                setTimeout(() => {
+                    contactModalInstance.hide();
+                    resetSaveButtonState();
+                    showToast(`Contact "${updatedContact.stationOrDesignation}" saved successfully!`, "success");
+                }, 400);
+
+            } catch (err) {
+                console.error("Save failed:", err);
+                modalAlert.className = "alert alert-danger d-flex align-items-center";
+                modalAlertText.innerHTML = "<strong>Save Failed:</strong> " + err.message;
+                resetSaveButtonState();
+            } finally {
+                showGlobalLoading(false);
+            }
+        };
+
+        // Open Delete Confirmation Modal
+        window.openDeleteConfirmModal = (id) => {
+            const contact = allContacts.find(c => c.id === id);
+            if (!contact) return;
+
+            document.getElementById('deleteTargetId').value = id;
+            document.getElementById('deleteContactName').innerText = `Delete "${contact.stationOrDesignation}"?`;
+            
+            // Reset delete modal button states
+            const confirmBtn = document.getElementById('confirmDeleteBtn');
+            const cancelBtn = document.getElementById('deleteCancelBtn');
+            const closeX = document.getElementById('deleteModalCloseXBtn');
+            confirmBtn.disabled = false;
+            cancelBtn.disabled = false;
+            closeX.disabled = false;
+            document.getElementById('deleteBtnContent').classList.remove('d-none');
+            document.getElementById('deleteBtnSpinner').classList.add('d-none');
+
+            deleteModalInstance.show();
+        };
+
+        // =========================================================================
+        // DATA OPERATION: DELETE CONTACT (WITH COMPREHENSIVE VISUAL LOADING INDICATOR)
+        // =========================================================================
+        window.executeDeleteContact = async () => {
+            const id = document.getElementById('deleteTargetId').value;
+            if (!id) return;
+
+            const confirmBtn = document.getElementById('confirmDeleteBtn');
+            const cancelBtn = document.getElementById('deleteCancelBtn');
+            const closeX = document.getElementById('deleteModalCloseXBtn');
+            const deleteBtnContent = document.getElementById('deleteBtnContent');
+            const deleteBtnSpinner = document.getElementById('deleteBtnSpinner');
+
+            // 1. Trigger Visual Loading Indicator on Confirmation Button
+            confirmBtn.disabled = true;
+            cancelBtn.disabled = true;
+            closeX.disabled = true;
+            deleteBtnContent.classList.add('d-none');
+            deleteBtnSpinner.classList.remove('d-none');
+            showGlobalLoading(true);
+
+            // 2. Also trigger row-level visual loading indicator on the table row
+            const targetRow = document.getElementById('row_' + id);
+            const actionsBox = document.getElementById('actions_' + id);
+            const spinnerBox = document.getElementById('spinner_' + id);
+
+            if (targetRow) targetRow.classList.add('row-deleting');
+            if (actionsBox) actionsBox.classList.add('d-none');
+            if (spinnerBox) spinnerBox.classList.remove('d-none');
+
+            try {
+                // Delete from Firestore if connected
+                if (db) {
+                    try {
+                        await deleteDoc(doc(db, "police_contacts", id));
+                    } catch (firestoreErr) {
+                        console.warn("Firestore delete warning, proceeding with local deletion:", firestoreErr);
+                    }
+                }
+
+                // Simulate brief realistic async delay for smooth UX transition
+                await new Promise(r => setTimeout(r, 600));
+
+                // Find deleted contact name for the toast
+                const deletedItem = allContacts.find(c => c.id === id);
+                const deletedTitle = deletedItem ? deletedItem.stationOrDesignation : "Contact";
+
+                // Remove from allContacts array
+                allContacts = allContacts.filter(c => c.id !== id);
+                localStorage.setItem("police_admin_contacts_cache", JSON.stringify(allContacts));
+
+                // Close modal
+                deleteModalInstance.hide();
+
+                // Fade out row and re-render
+                if (targetRow) {
+                    targetRow.style.transition = 'all 0.3s ease';
+                    targetRow.style.opacity = '0';
+                    targetRow.style.transform = 'scale(0.95)';
+                    setTimeout(() => {
+                        updateStatistics();
+                        filterContacts();
+                    }, 300);
+                } else {
+                    updateStatistics();
+                    filterContacts();
+                }
+
+                showToast(`"${deletedTitle}" deleted successfully.`, "danger");
+
+            } catch (err) {
+                console.error("Delete failed:", err);
+                alert("Failed to delete contact: " + err.message);
+                if (targetRow) targetRow.classList.remove('row-deleting');
+                if (actionsBox) actionsBox.classList.remove('d-none');
+                if (spinnerBox) spinnerBox.classList.add('d-none');
+            } finally {
+                showGlobalLoading(false);
+                confirmBtn.disabled = false;
+                cancelBtn.disabled = false;
+                closeX.disabled = false;
+                deleteBtnContent.classList.remove('d-none');
+                deleteBtnSpinner.classList.add('d-none');
+            }
+        };
+
+        // =========================================================================
+        // FEATURE: BULK IMPORT CSV
+        // =========================================================================
+        window.openBulkImportModal = () => {
+            parsedBulkContacts = [];
+            document.getElementById('csvFileInput').value = '';
+            document.getElementById('csvTextarea').value = '';
+            document.getElementById('selectedFileName').classList.add('d-none');
+            document.getElementById('bulkPreviewContainer').classList.add('d-none');
+            document.getElementById('bulkAlertBox').classList.add('d-none');
+            document.getElementById('bulkImportSubmitBtn').disabled = true;
+            resetBulkImportButton();
+            bulkImportModalInstance.show();
+        };
+
+        function resetBulkImportButton() {
+            const btn = document.getElementById('bulkImportSubmitBtn');
+            const txt = document.getElementById('bulkImportBtnText');
+            const sp = document.getElementById('bulkImportBtnSpinner');
+            btn.disabled = parsedBulkContacts.length === 0;
+            txt.classList.remove('d-none');
+            sp.classList.add('d-none');
+        }
+
+        window.handleCsvFileSelect = (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const nameEl = document.getElementById('selectedFileName');
+            nameEl.textContent = `✓ Selected: ${file.name} (${(file.size / 1024).toFixed(1)} KB)`;
+            nameEl.classList.remove('d-none');
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const text = e.target.result;
+                document.getElementById('csvTextarea').value = text;
+                parseCsvPreview();
+            };
+            reader.readAsText(file);
+        };
+
+        window.parseCsvPreview = () => {
+            const text = (document.getElementById('csvTextarea').value || '').trim();
+            const defaultCat = document.getElementById('bulkDefaultCategory').value;
+            const previewContainer = document.getElementById('bulkPreviewContainer');
+            const tbody = document.getElementById('bulkPreviewTableBody');
+            const badge = document.getElementById('bulkParsedBadge');
+            const submitBtn = document.getElementById('bulkImportSubmitBtn');
+            const alertBox = document.getElementById('bulkAlertBox');
+
+            if (!text) {
+                parsedBulkContacts = [];
+                previewContainer.classList.add('d-none');
+                submitBtn.disabled = true;
+                return;
+            }
+
+            const rows = parseCsvText(text);
+            if (rows.length === 0) {
+                parsedBulkContacts = [];
+                previewContainer.classList.add('d-none');
+                submitBtn.disabled = true;
+                return;
+            }
+
+            // Identify header row
+            const firstRow = rows[0].map(s => s.trim().toLowerCase().replace("\ufeff", ""));
+            const hasHeader = firstRow.some(s => s.includes("station") || s.includes("designation") || s.includes("rank") || s.includes("phone") || s.includes("officer"));
+
+            function findCol(keywords, fallback) {
+                if (!hasHeader) return fallback;
+                for (const kw of keywords) {
+                    const idx = firstRow.findIndex(h => h.includes(kw));
+                    if (idx !== -1) return idx;
+                }
+                return fallback;
+            }
+
+            const colStation = findCol(["station", "designation", "name"], 0);
+            const colCategory = findCol(["category", "type"], -1);
+            const colOfficer = findCol(["officer", "officername", "person"], 1);
+            const colRank = findCol(["rank", "designation"], 2);
+            const colGeneralPhone = findCol(["general", "phone", "office", "contact"], 3);
+            const colMobile = findCol(["mobile", "cell"], 4);
+            const colOffice2 = findCol(["office2", "alt"], -1);
+            const colAddress = findCol(["address", "location"], -1);
+            const colEmail = findCol(["email", "mail"], -1);
+
+            const startIdx = hasHeader ? 1 : 0;
+            const contacts = [];
+
+            for (let i = startIdx; i < rows.length; i++) {
+                const cols = rows[i];
+                if (cols.length === 0 || (cols.length === 1 && cols[0].trim() === "")) continue;
+
+                const station = (cols[colStation] || "").trim();
+                if (!station) continue;
+
+                const rawCat = (colCategory >= 0 && cols[colCategory]) ? cols[colCategory].trim().toUpperCase() : defaultCat;
+                const cat = normalizeCategory(rawCat, defaultCat);
+
+                contacts.push({
+                    id: "contact_bulk_" + Date.now() + "_" + Math.random().toString(36).substring(2, 7),
+                    stationOrDesignation: station,
+                    category: cat,
+                    officerName: (cols[colOfficer] || "").trim(),
+                    rank: (cols[colRank] || "").trim(),
+                    generalPhone: (cols[colGeneralPhone] || "").trim(),
+                    mobilePhone: (colMobile >= 0 && cols[colMobile]) ? cols[colMobile].trim() : "",
+                    officePhone2: (colOffice2 >= 0 && cols[colOffice2]) ? cols[colOffice2].trim() : "",
+                    locationAddress: (colAddress >= 0 && cols[colAddress]) ? cols[colAddress].trim() : "",
+                    email: (colEmail >= 0 && cols[colEmail]) ? cols[colEmail].trim() : ""
+                });
+            }
+
+            parsedBulkContacts = contacts;
+            badge.textContent = `${contacts.length} contacts detected`;
+
+            let previewHtml = '';
+            contacts.slice(0, 5).forEach(c => {
+                previewHtml += `
+                    <tr>
+                        <td class="fw-bold">${escapeHtml(c.stationOrDesignation)}</td>
+                        <td>${escapeHtml(c.officerName || '-')}</td>
+                        <td><span class="badge bg-secondary">${escapeHtml(c.rank || '-')}</span></td>
+                        <td>${escapeHtml(c.generalPhone || c.mobilePhone || '-')}</td>
+                        <td><span class="badge bg-primary-subtle text-primary">${escapeHtml(formatCategoryName(c.category))}</span></td>
+                    </tr>
+                `;
+            });
+            tbody.innerHTML = previewHtml;
+
+            previewContainer.classList.remove('d-none');
+            submitBtn.disabled = contacts.length === 0;
+            alertBox.classList.add('d-none');
+        };
+
+        function parseCsvText(text) {
+            const lines = text.split(/\r\n|\n|\r/);
+            const result = [];
+            for (let line of lines) {
+                line = line.trim();
+                if (!line) continue;
+                // Simple CSV row parser handling quotes
+                const row = [];
+                let inQuotes = false;
+                let current = '';
+                for (let i = 0; i < line.length; i++) {
+                    const char = line[i];
+                    if (char === '"' || char === "'") {
+                        inQuotes = !inQuotes;
+                    } else if ((char === ',' || char === '\t') && !inQuotes) {
+                        row.push(current);
+                        current = '';
+                    } else {
+                        current += char;
+                    }
+                }
+                row.push(current);
+                result.push(row.map(s => s.trim().replace(/^["']|["']$/g, '')));
+            }
+            return result;
+        }
+
+        function normalizeCategory(raw, fallback) {
+            const upper = (raw || '').toUpperCase().replace(/[\s-]/g, '_');
+            const validCategories = ["POLICE", "DIVISIONS", "RANGES", "SENIOR_OFFICERS", "EMERGENCY", "FIRE_STATIONS", "HOSPITALS", "GOVT_SERVICES", "TRAVEL", "SHORT_CODES"];
+            if (validCategories.includes(upper)) return upper;
+            if (upper.includes("HOSP")) return "HOSPITALS";
+            if (upper.includes("FIRE")) return "FIRE_STATIONS";
+            if (upper.includes("EMERG")) return "EMERGENCY";
+            if (upper.includes("GOVT")) return "GOVT_SERVICES";
+            if (upper.includes("TRAVEL") || upper.includes("BUS") || upper.includes("AIR")) return "TRAVEL";
+            return fallback;
+        }
+
+        window.downloadSampleCsv = () => {
+            const sample = "StationOrDesignation,OfficerName,Rank,GeneralPhone,MobilePhone,Category,LocationAddress\n" +
+                "Fort Police Station,Inspector Silva,OIC,011-2433744,0718591550,POLICE,Chatham Street Colombo 01\n" +
+                "Kandy Police Station,Chief Inspector Perera,HQI,081-2222222,0718591234,POLICE,Kandy Town\n" +
+                "National Hospital Colombo,Emergency Care Unit,Director,011-2691111,,HOSPITALS,Regent Street Colombo 10\n" +
+                "Colombo Fire Headquarters,Fire Command,Duty Officer,011-2422222,110,FIRE_STATIONS,T.B. Jayah Mawatha";
+            
+            const blob = new Blob([sample], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement("a");
+            link.href = URL.createObjectURL(blob);
+            link.download = "police_directory_sample.csv";
+            link.click();
+        };
+
+        window.executeBulkImport = async () => {
+            if (parsedBulkContacts.length === 0) return;
+
+            const submitBtn = document.getElementById('bulkImportSubmitBtn');
+            const btnText = document.getElementById('bulkImportBtnText');
+            const btnSpinner = document.getElementById('bulkImportBtnSpinner');
+            const alertBox = document.getElementById('bulkAlertBox');
+
+            submitBtn.disabled = true;
+            btnText.classList.add('d-none');
+            btnSpinner.classList.remove('d-none');
+            showGlobalLoading(true);
+
+            alertBox.className = "alert alert-info d-flex align-items-center";
+            alertBox.innerHTML = `<strong>Importing ${parsedBulkContacts.length} contacts...</strong> Please wait.`;
+            alertBox.classList.remove('d-none');
+
+            try {
+                // Merge into local cache and optionally Firestore
+                for (const newContact of parsedBulkContacts) {
+                    const existingIdx = allContacts.findIndex(c => 
+                        c.id === newContact.id || 
+                        (c.stationOrDesignation.toLowerCase() === newContact.stationOrDesignation.toLowerCase() && 
+                         c.generalPhone === newContact.generalPhone && newContact.generalPhone)
+                    );
+
+                    if (existingIdx !== -1) {
+                        newContact.id = allContacts[existingIdx].id;
+                        allContacts[existingIdx] = newContact;
+                    } else {
+                        allContacts.unshift(newContact);
+                    }
+
+                    if (db) {
+                        try {
+                            await setDoc(doc(db, "police_contacts", newContact.id), newContact, { merge: true });
+                        } catch (fsErr) {
+                            console.warn("Firestore bulk row upload warning:", fsErr);
+                        }
+                    }
+                }
+
+                // Persist locally
+                localStorage.setItem("police_admin_contacts_cache", JSON.stringify(allContacts));
+                await new Promise(r => setTimeout(r, 600));
+
+                bulkImportModalInstance.hide();
+                updateStatistics();
+                filterContacts();
+                showToast(`✓ Successfully imported ${parsedBulkContacts.length} contacts!`, "success");
+
+            } catch (err) {
+                console.error("Bulk import failed:", err);
+                alertBox.className = "alert alert-danger";
+                alertBox.innerHTML = `<strong>Import failed:</strong> ${escapeHtml(err.message)}`;
+            } finally {
+                showGlobalLoading(false);
+                resetBulkImportButton();
+            }
+        };
+
+        // =========================================================================
+        // FEATURE: CONTACT QR CODE (SCAN & SAVE VCARD)
+        // =========================================================================
+        window.openQrModal = (contactId) => {
+            const contact = allContacts.find(c => c.id === contactId);
+            if (!contact) return;
+
+            currentQrContact = contact;
+
+            document.getElementById('qrStationName').textContent = contact.stationOrDesignation;
+            document.getElementById('qrOfficerRank').textContent = [contact.rank, contact.officerName].filter(Boolean).join(" - ") || "Police Department Contact";
+            document.getElementById('qrPhoneNumber').querySelector('span').textContent = contact.generalPhone || contact.mobilePhone || contact.officePhone2 || "Emergency Hotline";
+
+            // Build vCard 3.0 string
+            const vCardString = buildVCardString(contact);
+
+            // Generate high-resolution QR Code via QRServer API with UTF-8 encoding
+            const qrUrl = "https://api.qrserver.com/v1/create-qr-code/?size=250x250&margin=10&data=" + encodeURIComponent(vCardString);
+            const qrImg = document.getElementById('qrImageElement');
+            qrImg.src = qrUrl;
+
+            qrModalInstance.show();
+        };
+
+        function buildVCardString(contact) {
+            const name = contact.officerName || contact.stationOrDesignation;
+            const lines = [
+                "BEGIN:VCARD",
+                "VERSION:3.0",
+                `FN:${name}`,
+                `N:${name};;;;`,
+                `ORG:Sri Lanka Police;${contact.stationOrDesignation}`
+            ];
+
+            if (contact.rank) lines.push(`TITLE:${contact.rank}`);
+            if (contact.generalPhone) lines.push(`TEL;TYPE=WORK,VOICE:${contact.generalPhone}`);
+            if (contact.mobilePhone) lines.push(`TEL;TYPE=CELL,VOICE:${contact.mobilePhone}`);
+            if (contact.officePhone2) lines.push(`TEL;TYPE=WORK:${contact.officePhone2}`);
+            if (contact.email) lines.push(`EMAIL;TYPE=INTERNET:${contact.email}`);
+            if (contact.locationAddress) lines.push(`ADR;TYPE=WORK:;;${contact.locationAddress};;;;`);
+            if (contact.locationCoordinates) lines.push(`NOTE:GPS Coordinates: ${contact.locationCoordinates}`);
+
+            lines.push("END:VCARD");
+            return lines.join("\r\n");
+        }
+
+        window.downloadCurrentVCard = () => {
+            if (!currentQrContact) return;
+            const vCardData = buildVCardString(currentQrContact);
+            const blob = new Blob([vCardData], { type: 'text/vcard;charset=utf-8;' });
+            const link = document.createElement("a");
+            link.href = URL.createObjectURL(blob);
+            const safeName = (currentQrContact.stationOrDesignation || "contact").toLowerCase().replace(/[^a-z0-9]/g, "_");
+            link.download = `${safeName}.vcf`;
+            link.click();
+            showToast("✓ vCard downloaded for contacts app!", "success");
+        };
+
+        window.printQrCard = () => {
+            if (!currentQrContact) return;
+            const printWin = window.open('', '', 'width=600,height=600');
+            const vCardString = buildVCardString(currentQrContact);
+            const qrUrl = "https://api.qrserver.com/v1/create-qr-code/?size=300x300&margin=10&data=" + encodeURIComponent(vCardString);
+            printWin.document.write(`
+                <html>
+                <head>
+                    <title>Sri Lanka Police - Contact QR Code</title>
+                    <style>
+                        body { font-family: sans-serif; text-align: center; padding: 40px; }
+                        h2 { color: #0f172a; margin-bottom: 4px; }
+                        h4 { color: #1e3a8a; margin-top: 0; }
+                        img { border: 2px solid #e2e8f0; border-radius: 12px; margin: 20px 0; }
+                        p { color: #64748b; font-size: 14px; }
+                    </style>
+                </head>
+                <body>
+                    <h2>${escapeHtml(currentQrContact.stationOrDesignation)}</h2>
+                    <h4>${escapeHtml(currentQrContact.officerName || '')} ${currentQrContact.rank ? '(' + escapeHtml(currentQrContact.rank) + ')' : ''}</h4>
+                    <p>Phone: <strong>${escapeHtml(currentQrContact.generalPhone || currentQrContact.mobilePhone || '')}</strong></p>
+                    <img src="${qrUrl}" width="260" height="260" />
+                    <p>Scan with any smartphone camera to save contact details directly to phone contacts.</p>
+                    <script>window.onload = function() { window.print(); }<\/script>
+                </body>
+                </html>
+            `);
+            printWin.document.close();
         };
     </script>
 </body>

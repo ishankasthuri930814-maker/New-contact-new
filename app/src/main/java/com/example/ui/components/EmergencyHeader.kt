@@ -246,7 +246,7 @@ private fun EmergencyHotlineCard(
                 text = title,
                 style = MaterialTheme.typography.titleMedium.copy(
                     fontWeight = FontWeight.ExtraBold,
-                    fontSize = 15.sp
+                    fontSize = 14.sp
                 ),
                 color = badgeColor
             )

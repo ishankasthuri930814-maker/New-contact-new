@@ -44,5 +44,39 @@ class ExampleUnitTest {
     assertEquals("Police Contacts", categories[0].displayName)
     assertEquals("පොලිස් ඇමතුම්", categories[0].sinhalaName)
   }
+
+  @Test
+  fun testContact_allShareFieldsIncluded() {
+    val contact = PoliceContact(
+      id = "test_full",
+      stationOrDesignation = "Colombo Central Police",
+      officerName = "Chief Inspector Silva",
+      rank = "CI",
+      generalPhone = "0112111111",
+      mobilePhone = "0771234567",
+      officePhone2 = "0112222222",
+      officePhone3 = "0112333333",
+      pvtNumber = "0719999999",
+      fax = "0112444444",
+      email = "colombo@police.lk",
+      category = ContactCategory.POLICE,
+      oicTraffic = "0711111111",
+      oicCrime = "0722222222",
+      oicVice = "0733333333",
+      oicCommunityPolicing = "0744444444",
+      locationAddress = "Colombo 01, Sri Lanka",
+      locationCoordinates = "6.9344, 79.8428"
+    )
+
+    assertTrue(contact.stationOrDesignation.isNotBlank())
+    assertTrue(contact.officePhone2.isNotBlank())
+    assertTrue(contact.officePhone3.isNotBlank())
+    assertTrue(contact.pvtNumber.isNotBlank())
+    assertTrue(contact.fax.isNotBlank())
+    assertTrue(contact.oicTraffic.isNotBlank())
+    assertTrue(contact.oicCrime.isNotBlank())
+    assertTrue(contact.oicVice.isNotBlank())
+    assertTrue(contact.oicCommunityPolicing.isNotBlank())
+  }
 }
 

@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.Print
+import androidx.compose.material.icons.filled.QrCode2
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.StarOutline
@@ -71,6 +72,7 @@ fun ContactDetailBottomSheet(
     onShareClick: (PoliceContact) -> Unit,
     onFavoriteToggle: (PoliceContact) -> Unit,
     onNavigationClick: (PoliceContact) -> Unit = {},
+    onQrCodeClick: ((PoliceContact) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -137,6 +139,16 @@ fun ContactDetailBottomSheet(
                         )
                     }
 
+                    if (onQrCodeClick != null) {
+                        IconButton(onClick = { onQrCodeClick(contact) }) {
+                            Icon(
+                                imageVector = Icons.Default.QrCode2,
+                                contentDescription = "Show QR Code",
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+
                     IconButton(onClick = { onShareClick(contact) }) {
                         Icon(
                             imageVector = Icons.Default.Share,
@@ -161,9 +173,9 @@ fun ContactDetailBottomSheet(
             Text(
                 text = contact.stationOrDesignation,
                 style = MaterialTheme.typography.titleLarge.copy(
-                    fontWeight = FontWeight.ExtraBold,
-                    fontSize = 19.sp,
-                    lineHeight = 26.sp
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp,
+                    lineHeight = 22.sp
                 ),
                 color = MaterialTheme.colorScheme.onSurface
             )
@@ -175,7 +187,7 @@ fun ContactDetailBottomSheet(
                     style = MaterialTheme.typography.titleMedium.copy(
                         fontWeight = FontWeight.Medium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 15.sp
+                        fontSize = 13.5.sp
                     )
                 )
             }
@@ -481,6 +493,61 @@ fun ContactDetailBottomSheet(
                             )
                         )
                     }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // Full Details Share Action Button
+                    Button(
+                        onClick = { onShareClick(contact) },
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0284C7)),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(44.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Share,
+                            contentDescription = "Share",
+                            tint = Color.White,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "සම්පූර්ණ තොරතුරු Share කරන්න (Share All)",
+                            style = MaterialTheme.typography.labelLarge.copy(
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                        )
+                    }
+
+                    if (onQrCodeClick != null) {
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Button(
+                            onClick = { onQrCodeClick(contact) },
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = PoliceNavy),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(46.dp)
+                                .testTag("detail_qr_code_button")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.QrCode2,
+                                contentDescription = "QR Code",
+                                tint = PoliceGold,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "QR කේතය සහ Phone එකේ Save කරන්න (QR & Save)",
+                                style = MaterialTheme.typography.labelLarge.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
+                                )
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -512,7 +579,7 @@ private fun ContactDetailActionRow(
             Spacer(modifier = Modifier.height(2.dp))
             Text(
                 text = value,
-                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold, fontSize = 16.sp),
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, fontSize = 14.sp),
                 color = MaterialTheme.colorScheme.onSurface
             )
             Spacer(modifier = Modifier.height(8.dp))

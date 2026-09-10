@@ -62,9 +62,14 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
+import android.content.Intent
+import android.net.Uri
+import android.widget.Toast
+import androidx.compose.material.icons.filled.AdminPanelSettings
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -88,10 +93,12 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.model.ContactCategory
+import com.example.data.model.PoliceContact
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import com.example.ui.components.ContactCard
 import com.example.ui.components.ContactDetailBottomSheet
+import com.example.ui.components.ContactQrDialog
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material.icons.filled.Person
@@ -107,7 +114,8 @@ fun PoliceScreen(
     modifier: Modifier = Modifier,
     currentUser: String? = null,
     onLogout: () -> Unit = {},
-    onOpenPhoneAuth: () -> Unit = {}
+    onOpenPhoneAuth: () -> Unit = {},
+    onOpenAdminPanel: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
@@ -118,6 +126,7 @@ fun PoliceScreen(
     var showUserDialog by remember { mutableStateOf(false) }
     var showAiSearchDialog by remember { mutableStateOf(false) }
     var aiSearchQuery by remember { mutableStateOf("") }
+    var contactForQrDialog by remember { mutableStateOf<PoliceContact?>(null) }
 
     // Handle user messages in Snackbar
     LaunchedEffect(uiState.userMessage) {
@@ -228,6 +237,16 @@ fun PoliceScreen(
                             imageVector = Icons.Default.Refresh,
                             contentDescription = "Sync Sheet Data",
                             modifier = Modifier.rotate(rotationAngle)
+                        )
+                    }
+                    IconButton(
+                        onClick = onOpenAdminPanel,
+                        modifier = Modifier.testTag("topbar_admin_panel_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.AdminPanelSettings,
+                            contentDescription = "Admin Dashboard",
+                            tint = PoliceGold
                         )
                     }
                     IconButton(
@@ -479,7 +498,8 @@ fun PoliceScreen(
                                     onFavoriteToggle = { c -> viewModel.toggleFavorite(c) },
                                     onShareClick = { c -> viewModel.shareContact(context, c) },
                                     onCardClick = { c -> viewModel.openContactDetail(c) },
-                                    onNavigationClick = { c -> viewModel.startNavigation(context, c) }
+                                    onNavigationClick = { c -> viewModel.startNavigation(context, c) },
+                                    onQrCodeClick = { c -> contactForQrDialog = c }
                                 )
                             }
                         }
@@ -499,7 +519,17 @@ fun PoliceScreen(
                     onCopyClick = { text, label -> viewModel.copyToClipboard(context, text, label) },
                     onShareClick = { c -> viewModel.shareContact(context, c) },
                     onFavoriteToggle = { c -> viewModel.toggleFavorite(c) },
-                    onNavigationClick = { c -> viewModel.startNavigation(context, c) }
+                    onNavigationClick = { c -> viewModel.startNavigation(context, c) },
+                    onQrCodeClick = { c -> contactForQrDialog = c }
+                )
+            }
+
+            // QR Code Scan & Save Dialog
+            val activeQrContact = contactForQrDialog
+            if (activeQrContact != null) {
+                ContactQrDialog(
+                    contact = activeQrContact,
+                    onDismiss = { contactForQrDialog = null }
                 )
             }
 
@@ -783,7 +813,42 @@ fun PoliceScreen(
 
                             Divider(color = Color(0xFFE2E8F0))
 
-                            Spacer(modifier = Modifier.height(16.dp))
+                            Spacer(modifier = Modifier.height(14.dp))
+
+                            // Admin Panel Dashboard Access Button
+                            OutlinedButton(
+                                onClick = {
+                                    showUserDialog = false
+                                    onOpenAdminPanel()
+                                },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(44.dp)
+                                    .testTag("admin_panel_button"),
+                                shape = RoundedCornerShape(12.dp),
+                                border = BorderStroke(1.5.dp, PoliceNavy),
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    contentColor = PoliceNavy
+                                )
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.AdminPanelSettings,
+                                    contentDescription = "Admin Panel",
+                                    tint = PoliceGold,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "පරිපාලක පුවරුව (Admin Dashboard)",
+                                    style = MaterialTheme.typography.bodyMedium.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        color = PoliceNavy,
+                                        fontSize = 13.sp
+                                    )
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(12.dp))
 
                             Button(
                                 onClick = {

@@ -333,6 +333,60 @@ class PoliceRepository(private val context: Context) {
         return prefs.getStringSet("favorites", emptySet()) ?: emptySet()
     }
 
+    suspend fun saveContact(contact: PoliceContact): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            val current = loadFromLocalCache().toMutableList()
+            val existingIdx = current.indexOfFirst { it.id == contact.id }
+            if (existingIdx >= 0) {
+                current[existingIdx] = contact
+            } else {
+                current.add(0, contact)
+            }
+            saveToLocalCache(current)
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Log.e("PoliceRepo", "Error saving contact to local cache", e)
+            Result.failure(e)
+        }
+    }
+
+    suspend fun saveContactsBulk(newContacts: List<PoliceContact>): Result<Int> = withContext(Dispatchers.IO) {
+        try {
+            val current = loadFromLocalCache().toMutableList()
+            var addedOrUpdated = 0
+            for (contact in newContacts) {
+                val existingIdx = current.indexOfFirst { 
+                    it.id == contact.id || 
+                    (it.stationOrDesignation.equals(contact.stationOrDesignation, ignoreCase = true) && 
+                     it.generalPhone == contact.generalPhone && contact.generalPhone.isNotBlank())
+                }
+                if (existingIdx >= 0) {
+                    current[existingIdx] = contact
+                } else {
+                    current.add(0, contact)
+                }
+                addedOrUpdated++
+            }
+            saveToLocalCache(current)
+            Result.success(addedOrUpdated)
+        } catch (e: Exception) {
+            Log.e("PoliceRepo", "Error bulk saving contacts to local cache", e)
+            Result.failure(e)
+        }
+    }
+
+    suspend fun deleteContact(contactId: String): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            val current = loadFromLocalCache().toMutableList()
+            current.removeAll { it.id == contactId }
+            saveToLocalCache(current)
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Log.e("PoliceRepo", "Error deleting contact from local cache", e)
+            Result.failure(e)
+        }
+    }
+
     private fun saveToLocalCache(contacts: List<PoliceContact>) {
         try {
             val cacheFile = File(context.cacheDir, "police_contacts_cache.json")
@@ -346,7 +400,7 @@ class PoliceRepository(private val context: Context) {
         }
     }
 
-    private fun loadFromLocalCache(): List<PoliceContact> {
+    fun loadFromLocalCache(): List<PoliceContact> {
         return try {
             val cacheFile = File(context.cacheDir, "police_contacts_cache.json")
             if (!cacheFile.exists()) return emptyList()

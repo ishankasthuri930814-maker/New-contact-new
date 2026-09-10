@@ -24,7 +24,9 @@ import com.example.service.MyFirebaseMessagingService
 import com.example.ui.AuthViewModel
 import com.example.ui.LoginScreen
 import com.example.ui.PoliceScreen
+import com.example.ui.AdminPanelScreen
 import com.example.ui.PoliceViewModel
+import com.example.ui.components.AdminPasswordDialog
 import com.example.ui.theme.PoliceDirectoryTheme
 import com.google.android.gms.common.ConnectionResult
 import com.google.android.gms.common.GoogleApiAvailability
@@ -113,12 +115,34 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
+                var showAdminPanel by remember { mutableStateOf(false) }
+                var showAdminPasswordDialog by remember { mutableStateOf(false) }
+
                 if (authUiState.isAuthenticated) {
-                    PoliceScreen(
-                        viewModel = policeViewModel,
-                        currentUser = authUiState.loggedInUsername,
-                        onLogout = { authViewModel.logout() }
-                    )
+                    if (showAdminPanel) {
+                        AdminPanelScreen(
+                            viewModel = policeViewModel,
+                            currentUser = authUiState.loggedInUsername ?: "Admin Ishan",
+                            onNavigateBack = { showAdminPanel = false }
+                        )
+                    } else {
+                        PoliceScreen(
+                            viewModel = policeViewModel,
+                            currentUser = authUiState.loggedInUsername,
+                            onLogout = { authViewModel.logout() },
+                            onOpenAdminPanel = { showAdminPasswordDialog = true }
+                        )
+                    }
+
+                    if (showAdminPasswordDialog) {
+                        AdminPasswordDialog(
+                            onDismiss = { showAdminPasswordDialog = false },
+                            onSuccess = {
+                                showAdminPasswordDialog = false
+                                showAdminPanel = true
+                            }
+                        )
+                    }
                 } else {
                     LoginScreen(
                         viewModel = authViewModel,
