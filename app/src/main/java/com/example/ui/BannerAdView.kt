@@ -106,83 +106,96 @@ fun BannerAdView(
                     fun loadRealBannerAd() {
                         if (isDestroyed) return
 
-                        val displayMetrics = ctx.resources.displayMetrics
-                        val adWidthPx = displayMetrics.widthPixels
-                        val density = displayMetrics.density
-                        val adWidth = (adWidthPx / density).toInt()
-                        val adSize = try {
-                            AdSize.getCurrentOrientationAnchoredAdaptiveBannerAdSize(ctx, adWidth)
-                        } catch (e: Exception) {
-                            AdSize.BANNER
-                        }
-
-                        // Destroy previous AdView if any
-                        currentAdView?.let { oldView ->
-                            try {
-                                oldView.destroy()
-                            } catch (e: Exception) {
-                                Log.w("AdMob", "Error destroying old AdView", e)
-                            }
-                        }
-                        frameLayout.removeAllViews()
-
-                        val adView = AdView(ctx).apply {
-                            setAdSize(adSize)
-                            this.adUnitId = adUnitId
-                        }
-                        currentAdView = adView
-
-                        adView.adListener = object : AdListener() {
-                            override fun onAdLoaded() {
-                                Log.i("AdMob", "Real AdMob banner loaded successfully! Unit: $adUnitId")
-                                isAdLoaded = true
-                                adView.visibility = View.VISIBLE
-                            }
-
-                            override fun onAdFailedToLoad(adError: LoadAdError) {
-                                val errorReason = when (adError.code) {
-                                    0 -> "ERROR_CODE_INTERNAL_ERROR (Account or AdMob verification pending)"
-                                    1 -> "ERROR_CODE_INVALID_REQUEST (Check ad unit configuration)"
-                                    2 -> "ERROR_CODE_NETWORK_ERROR (Check internet connectivity)"
-                                    3 -> "ERROR_CODE_NO_FILL (No ad inventory available yet / New ad unit warming up)"
-                                    else -> "Code: ${adError.code}"
-                                }
-                                Log.w("AdMob", "Real banner failed to load [$errorReason]: ${adError.message}")
-                                isAdLoaded = false
-                                adView.visibility = View.GONE
-
-                                // Retry requesting real ad after 30 seconds if still active
-                                if (!isDestroyed) {
-                                    retryHandler.removeCallbacksAndMessages(null)
-                                    retryHandler.postDelayed({
-                                        if (!isDestroyed) {
-                                            Log.d("AdMob", "Retrying real ad request for unit: $adUnitId")
-                                            loadRealBannerAd()
-                                        }
-                                    }, 30000L)
-                                }
-                            }
-
-                            override fun onAdOpened() {
-                                Log.d("AdMob", "Real Ad opened")
-                            }
-
-                            override fun onAdClosed() {
-                                Log.d("AdMob", "Real Ad closed")
-                            }
-                        }
-
-                        frameLayout.addView(adView)
-
                         try {
-                            val adRequest = AdRequest.Builder().build()
-                            adView.loadAd(adRequest)
+                            val displayMetrics = ctx.resources.displayMetrics
+                            val adWidthPx = displayMetrics.widthPixels
+                            val density = displayMetrics.density
+                            val adWidth = if (density > 0) (adWidthPx / density).toInt() else 320
+                            val adSize = if (adWidth > 0) {
+                                try {
+                                    AdSize.getCurrentOrientationAnchoredAdaptiveBannerAdSize(ctx, adWidth)
+                                } catch (e: Throwable) {
+                                    AdSize.BANNER
+                                }
+                            } else {
+                                AdSize.BANNER
+                            }
+
+                            // Destroy previous AdView if any
+                            currentAdView?.let { oldView ->
+                                try {
+                                    oldView.destroy()
+                                } catch (e: Throwable) {
+                                    Log.w("AdMob", "Error destroying old AdView", e)
+                                }
+                            }
+                            frameLayout.removeAllViews()
+
+                            val adView = AdView(ctx).apply {
+                                setAdSize(adSize)
+                                this.adUnitId = adUnitId
+                            }
+                            currentAdView = adView
+
+                            adView.adListener = object : AdListener() {
+                                override fun onAdLoaded() {
+                                    Log.i("AdMob", "Real AdMob banner loaded successfully! Unit: $adUnitId")
+                                    isAdLoaded = true
+                                    adView.visibility = View.VISIBLE
+                                }
+
+                                override fun onAdFailedToLoad(adError: LoadAdError) {
+                                    val errorReason = when (adError.code) {
+                                        0 -> "ERROR_CODE_INTERNAL_ERROR (Account or AdMob verification pending)"
+                                        1 -> "ERROR_CODE_INVALID_REQUEST (Check ad unit configuration)"
+                                        2 -> "ERROR_CODE_NETWORK_ERROR (Check internet connectivity)"
+                                        3 -> "ERROR_CODE_NO_FILL (No ad inventory available yet / New ad unit warming up)"
+                                        else -> "Code: ${adError.code}"
+                                    }
+                                    Log.w("AdMob", "Real banner failed to load [$errorReason]: ${adError.message}")
+                                    isAdLoaded = false
+                                    adView.visibility = View.GONE
+
+                                    // Retry requesting real ad after 30 seconds if still active
+                                    if (!isDestroyed) {
+                                        retryHandler.removeCallbacksAndMessages(null)
+                                        retryHandler.postDelayed({
+                                            if (!isDestroyed) {
+                                                Log.d("AdMob", "Retrying real ad request for unit: $adUnitId")
+                                                loadRealBannerAd()
+                                            }
+                                        }, 30000L)
+                                    }
+                                }
+
+                                override fun onAdOpened() {
+                                    Log.d("AdMob", "Real Ad opened")
+                                }
+
+                                override fun onAdClosed() {
+                                    Log.d("AdMob", "Real Ad closed")
+                                }
+                            }
+
+                            frameLayout.addView(adView)
+
+                            try {
+                                val adRequest = AdRequest.Builder().build()
+                                adView.loadAd(adRequest)
+                            } catch (t: Throwable) {
+                                Log.e("AdMob", "Error calling loadAd for real ad unit: $adUnitId", t)
+                            }
                         } catch (t: Throwable) {
-                            Log.e("AdMob", "Error calling loadAd for real ad unit: $adUnitId", t)
+                            Log.e("AdMob", "Error creating or loading banner ad", t)
+                            isAdLoaded = false
                         }
                     }
 
-                    loadRealBannerAd()
+                    try {
+                        loadRealBannerAd()
+                    } catch (t: Throwable) {
+                        Log.e("AdMob", "Initial banner load invocation failed", t)
+                    }
 
                     frameLayout.addOnAttachStateChangeListener(object : View.OnAttachStateChangeListener {
                         override fun onViewAttachedToWindow(v: View) {}

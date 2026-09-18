@@ -85,20 +85,28 @@ class MainActivity : ComponentActivity() {
             val isVirtualEnvironment = isEmulator()
 
             if (isGooglePlayServicesAvailable && !isVirtualEnvironment) {
-                FirebaseMessaging.getInstance().isAutoInitEnabled = true
-                FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
-                    if (task.isSuccessful) {
-                        val token = task.result
-                        Log.d("MainActivity", "FCM Device Token: $token")
+                try {
+                    FirebaseMessaging.getInstance().isAutoInitEnabled = true
+                    FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
                         try {
-                            FirebaseMessaging.getInstance().subscribeToTopic("all")
-                            FirebaseMessaging.getInstance().subscribeToTopic("police_alerts")
+                            if (task.isSuccessful) {
+                                val token = try { task.result } catch (e: Exception) { null }
+                                Log.d("MainActivity", "FCM Device Token: $token")
+                                try {
+                                    FirebaseMessaging.getInstance().subscribeToTopic("all")
+                                    FirebaseMessaging.getInstance().subscribeToTopic("police_alerts")
+                                } catch (t: Throwable) {
+                                    Log.w("MainActivity", "FCM subscribeToTopic error", t)
+                                }
+                            } else {
+                                Log.w("MainActivity", "FCM token retrieval failed: ${task.exception?.message}")
+                            }
                         } catch (t: Throwable) {
-                            Log.w("MainActivity", "FCM subscribeToTopic error", t)
+                            Log.w("MainActivity", "FCM onCompleteListener error", t)
                         }
-                    } else {
-                        Log.w("MainActivity", "FCM token retrieval failed: ${task.exception?.message}")
                     }
+                } catch (t: Throwable) {
+                    Log.w("MainActivity", "FirebaseMessaging getInstance or setup error", t)
                 }
             } else {
                 Log.i(
@@ -110,13 +118,24 @@ class MainActivity : ComponentActivity() {
             Log.e("MainActivity", "Notification / FCM initialization error", t)
         }
 
-        val authRepository = AuthRepository(applicationContext)
-        val authFactory = AuthViewModel.Factory(authRepository)
-        authViewModel = ViewModelProvider(this, authFactory)[AuthViewModel::class.java]
+        try {
+            val authRepository = AuthRepository(applicationContext)
+            val authFactory = AuthViewModel.Factory(authRepository)
+            authViewModel = ViewModelProvider(this, authFactory)[AuthViewModel::class.java]
+        } catch (t: Throwable) {
+            Log.e("MainActivity", "AuthViewModel initialization fallback", t)
+            authViewModel = ViewModelProvider(this)[AuthViewModel::class.java]
+        }
 
-        val repository = PoliceRepository(applicationContext)
-        val factory = PoliceViewModel.Factory(repository)
-        policeViewModel = ViewModelProvider(this, factory)[PoliceViewModel::class.java]
+        try {
+            val repository = PoliceRepository(applicationContext)
+            val factory = PoliceViewModel.Factory(repository)
+            policeViewModel = ViewModelProvider(this, factory)[PoliceViewModel::class.java]
+        } catch (t: Throwable) {
+            Log.e("MainActivity", "PoliceViewModel initialization fallback", t)
+            val fallbackRepo = PoliceRepository(applicationContext)
+            policeViewModel = PoliceViewModel(fallbackRepo)
+        }
 
         setContent {
             PoliceDirectoryTheme {

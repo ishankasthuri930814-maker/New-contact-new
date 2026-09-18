@@ -8,6 +8,8 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -120,11 +122,15 @@ fun LoginScreen(
                     .background(Color.White),
                 contentAlignment = Alignment.Center
             ) {
-                Image(
-                    painter = painterResource(id = R.drawable.police_app_icon_1785650919319),
+                AsyncImage(
+                    model = ImageRequest.Builder(LocalContext.current)
+                        .data(R.drawable.police_app_icon_1785650919319)
+                        .crossfade(true)
+                        .build(),
                     contentDescription = "Sri Lanka Police Logo",
                     modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop
+                    contentScale = ContentScale.Crop,
+                    error = painterResource(id = R.drawable.ic_notification)
                 )
             }
 

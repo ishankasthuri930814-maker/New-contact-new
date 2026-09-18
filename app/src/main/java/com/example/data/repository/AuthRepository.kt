@@ -26,17 +26,26 @@ sealed class AutoLoginResult {
 
 class AuthRepository(
     private val context: Context? = null,
-    private val firebaseAuth: FirebaseAuth = FirebaseAuth.getInstance()
+    private val injectedFirebaseAuth: FirebaseAuth? = null
 ) {
 
-    constructor(firebaseAuth: FirebaseAuth) : this(context = null, firebaseAuth = firebaseAuth)
+    constructor(firebaseAuth: FirebaseAuth) : this(context = null, injectedFirebaseAuth = firebaseAuth)
 
-    val currentUser: FirebaseUser? get() = firebaseAuth.currentUser
+    private val firebaseAuth: FirebaseAuth?
+        get() = injectedFirebaseAuth ?: try {
+            FirebaseAuth.getInstance()
+        } catch (t: Throwable) {
+            Log.e("AuthRepo", "Failed to get FirebaseAuth instance", t)
+            null
+        }
+
+    val currentUser: FirebaseUser? get() = try { firebaseAuth?.currentUser } catch (t: Throwable) { null }
 
     // Email සහ Password මගින් නව පරිශීලකයෙකු ලියාපදිංචි කිරීම (Firebase Auth)
     suspend fun signUpWithEmail(email: String, pass: String): Result<FirebaseUser?> {
+        val auth = firebaseAuth ?: return Result.failure(IllegalStateException("Firebase Auth සේවාව ක්‍රියාත්මක නොවේ"))
         return try {
-            val result = firebaseAuth.createUserWithEmailAndPassword(email, pass).await()
+            val result = auth.createUserWithEmailAndPassword(email, pass).await()
             val user = result.user
             if (user?.email != null) {
                 saveCredentials(user.email!!, pass)
@@ -49,8 +58,9 @@ class AuthRepository(
 
     // Email සහ Password මගින් ඇතුළු වීම (Firebase Auth)
     suspend fun signInWithEmail(email: String, pass: String): Result<FirebaseUser?> {
+        val auth = firebaseAuth ?: return Result.failure(IllegalStateException("Firebase Auth සේවාව ක්‍රියාත්මක නොවේ"))
         return try {
-            val result = firebaseAuth.signInWithEmailAndPassword(email, pass).await()
+            val result = auth.signInWithEmailAndPassword(email, pass).await()
             val user = result.user
             if (user?.email != null) {
                 saveCredentials(user.email!!, pass)
@@ -63,9 +73,10 @@ class AuthRepository(
 
     // Google මගින් ඇතුළු වීම / Sign Up වීම (Firebase Auth Google Credential)
     suspend fun signInWithGoogle(idToken: String): Result<FirebaseUser?> {
+        val auth = firebaseAuth ?: return Result.failure(IllegalStateException("Firebase Auth සේවාව ක්‍රියාත්මක නොවේ"))
         return try {
             val credential = GoogleAuthProvider.getCredential(idToken, null)
-            val result = firebaseAuth.signInWithCredential(credential).await()
+            val result = auth.signInWithCredential(credential).await()
             val user = result.user
             if (user?.email != null) {
                 saveCredentials(user.email!!, "GOOGLE_AUTH")
@@ -79,7 +90,7 @@ class AuthRepository(
     // Sign Out වීම
     fun signOut() {
         try {
-            firebaseAuth.signOut()
+            firebaseAuth?.signOut()
         } catch (e: Exception) {
             Log.e("AuthRepo", "Firebase signOut error", e)
         }
@@ -116,8 +127,9 @@ class AuthRepository(
             return@withContext AuthResult.Error("කරුණාකර මුරපදය ඇතුළත් කරන්න (Enter Password)")
         }
 
+        val auth = firebaseAuth ?: return@withContext AuthResult.Error("Firebase Auth සේවාව ක්‍රියාත්මක නොවේ")
         try {
-            val result = firebaseAuth.signInWithEmailAndPassword(uInput, pInput).await()
+            val result = auth.signInWithEmailAndPassword(uInput, pInput).await()
             val user = result.user
             val email = user?.email ?: uInput
             saveCredentials(email, pInput)
