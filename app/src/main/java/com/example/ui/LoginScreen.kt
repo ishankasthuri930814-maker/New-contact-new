@@ -1,21 +1,16 @@
 package com.example.ui
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -23,41 +18,28 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Clear
-import androidx.compose.material.icons.filled.Error
+import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.Login
+import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Divider
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -66,455 +48,439 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.aistudio.policedirectory.zxklm.R
+import com.example.ui.theme.PoliceBlueAccent
 import com.example.ui.theme.PoliceGold
+import com.example.ui.theme.PoliceGoldLight
 import com.example.ui.theme.PoliceNavy
+import com.example.ui.theme.PoliceNavyLight
 
-@OptIn(ExperimentalMaterial3Api::class)
+enum class AuthMode {
+    SIGN_IN,
+    SIGN_UP
+}
+
 @Composable
 fun LoginScreen(
-    viewModel: AuthViewModel,
+    authViewModel: AuthViewModel = viewModel(),
     onLoginSuccess: () -> Unit
 ) {
-    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val keyboardController = LocalSoftwareKeyboardController.current
-    val snackbarHostState = remember { SnackbarHostState() }
+    val context = LocalContext.current
+    val focusManager = LocalFocusManager.current
+    val scrollState = rememberScrollState()
 
-    LaunchedEffect(uiState.isAuthenticated) {
-        if (uiState.isAuthenticated) {
+    var authMode by remember { mutableStateOf(AuthMode.SIGN_IN) }
+    var email by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    var confirmPassword by remember { mutableStateOf("") }
+    var isPasswordVisible by remember { mutableStateOf(false) }
+    var localValidationError by remember { mutableStateOf<String?>(null) }
+
+    val authState by authViewModel.authState.collectAsState()
+    val isLoading = authState is AuthState.Loading
+
+    LaunchedEffect(authState) {
+        if (authState is AuthState.Success) {
             onLoginSuccess()
         }
     }
 
-    LaunchedEffect(uiState.errorMessage) {
-        uiState.errorMessage?.let { msg ->
-            snackbarHostState.showSnackbar(msg)
-        }
-    }
+    // Gradient background matching official Sri Lanka Police theme
+    val headerGradient = Brush.verticalGradient(
+        colors = listOf(
+            Color(0xFF071426),
+            Color(0xFF0F2A4A),
+            Color(0xFF1E3A5F)
+        )
+    )
 
-    Scaffold(
-        snackbarHost = { SnackbarHost(snackbarHostState) },
-        bottomBar = { BannerAdView() },
-        containerColor = Color(0xFFF1F5F9)
-    ) { paddingValues ->
-        if (uiState.isCheckingAutoLogin) {
-            // Auto-login checking splash loader
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(headerGradient)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(scrollState)
+                .imePadding()
+                .navigationBarsPadding(),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Spacer(modifier = Modifier.height(36.dp))
+
+            // Brand Header: Police Emblem & Official Title
             Box(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues)
-                    .background(PoliceNavy),
+                    .size(88.dp)
+                    .shadow(12.dp, CircleShape)
+                    .border(2.5.dp, Brush.linearGradient(listOf(PoliceGoldLight, PoliceGold)), CircleShape)
+                    .clip(CircleShape)
+                    .background(Color.White),
                 contentAlignment = Alignment.Center
             ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center,
-                    modifier = Modifier.padding(24.dp)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(90.dp)
-                            .clip(CircleShape)
-                            .background(
-                                Brush.radialGradient(
-                                    listOf(PoliceGold, Color(0xFFB8860B))
-                                )
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Shield,
-                            contentDescription = "Police Shield",
-                            tint = PoliceNavy,
-                            modifier = Modifier.size(54.dp)
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(24.dp))
-
-                    Text(
-                        text = "ශ්‍රී ලංකා පොලිස් තොරතුරු පද්ධතිය",
-                        style = MaterialTheme.typography.titleMedium.copy(
-                            fontWeight = FontWeight.Bold,
-                            color = PoliceGold,
-                            fontSize = 17.sp
-                        ),
-                        textAlign = TextAlign.Center
-                    )
-
-                    Spacer(modifier = Modifier.height(6.dp))
-
-                    Text(
-                        text = "පරිශීලක ගිණුම සත්‍යාපනය කරමින්... / Verifying Session...",
-                        style = MaterialTheme.typography.bodySmall.copy(
-                            color = Color.White.copy(alpha = 0.85f),
-                            fontSize = 13.sp
-                        ),
-                        textAlign = TextAlign.Center
-                    )
-
-                    Spacer(modifier = Modifier.height(28.dp))
-
-                    CircularProgressIndicator(
-                        color = PoliceGold,
-                        modifier = Modifier.size(36.dp),
-                        strokeWidth = 3.dp
-                    )
-                }
+                Image(
+                    painter = painterResource(id = R.drawable.police_app_icon_1785650919319),
+                    contentDescription = "Sri Lanka Police Logo",
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
             }
-        } else {
-            // Main Login Screen
-            Box(
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            Text(
+                text = "ශ්‍රී ලංකා පොලිස් නාමාවලිය",
+                style = MaterialTheme.typography.titleLarge.copy(
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 22.sp,
+                    letterSpacing = 0.5.sp
+                ),
+                color = Color.White,
+                textAlign = TextAlign.Center
+            )
+
+            Text(
+                text = "Sri Lanka Police Official Directory",
+                style = MaterialTheme.typography.bodySmall.copy(
+                    fontWeight = FontWeight.Normal,
+                    fontSize = 13.sp
+                ),
+                color = PoliceGoldLight.copy(alpha = 0.9f),
+                textAlign = TextAlign.Center
+            )
+
+            Spacer(modifier = Modifier.height(26.dp))
+
+            // Main Authentication Card Container
+            Card(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues)
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp),
+                shape = RoundedCornerShape(26.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                ),
+                elevation = CardDefaults.cardElevation(defaultElevation = 10.dp)
             ) {
                 Column(
                     modifier = Modifier
-                        .fillMaxSize()
-                        .verticalScroll(rememberScrollState())
-                        .padding(horizontal = 20.dp, vertical = 24.dp),
+                        .fillMaxWidth()
+                        .padding(24.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    // Police Emblem Banner Card
+                    // Segmented Mode Selector: Sign In vs Sign Up
                     Surface(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(24.dp),
-                        color = PoliceNavy,
-                        shadowElevation = 6.dp
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp),
+                        shape = RoundedCornerShape(14.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
                     ) {
-                        Column(
+                        Row(
                             modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 24.dp, horizontal = 16.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
+                                .fillMaxSize()
+                                .padding(4.dp)
                         ) {
+                            // Sign In Tab
+                            val isSignIn = authMode == AuthMode.SIGN_IN
+                            val signInBg by animateColorAsState(
+                                targetValue = if (isSignIn) PoliceNavy else Color.Transparent,
+                                animationSpec = tween(250),
+                                label = "signInBg"
+                            )
+                            val signInTextColor by animateColorAsState(
+                                targetValue = if (isSignIn) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
+                                animationSpec = tween(250),
+                                label = "signInTextColor"
+                            )
+
                             Box(
                                 modifier = Modifier
-                                    .size(72.dp)
-                                    .clip(CircleShape)
-                                    .background(
-                                        Brush.radialGradient(
-                                            listOf(PoliceGold, Color(0xFFB8860B))
-                                        )
-                                    ),
+                                    .weight(1f)
+                                    .fillMaxHeight()
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(signInBg)
+                                    .clickable(enabled = !isLoading) {
+                                        authMode = AuthMode.SIGN_IN
+                                        localValidationError = null
+                                        authViewModel.resetAuthState()
+                                    }
+                                    .testTag("tab_sign_in"),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Icon(
-                                    imageVector = Icons.Default.Shield,
-                                    contentDescription = "Police Shield Emblem",
-                                    tint = PoliceNavy,
-                                    modifier = Modifier.size(44.dp)
+                                Text(
+                                    text = "ඇතුළු වන්න",
+                                    fontWeight = if (isSignIn) FontWeight.Bold else FontWeight.Medium,
+                                    fontSize = 14.sp,
+                                    color = signInTextColor
                                 )
                             }
 
-                            Spacer(modifier = Modifier.height(14.dp))
-
-                            Text(
-                                text = "ශ්‍රී ලංකා පොලිස් තොරතුරු පද්ධතිය",
-                                style = MaterialTheme.typography.titleMedium.copy(
-                                    fontWeight = FontWeight.Bold,
-                                    color = PoliceGold,
-                                    fontSize = 17.sp
-                                ),
-                                textAlign = TextAlign.Center
+                            // Sign Up Tab
+                            val isSignUp = authMode == AuthMode.SIGN_UP
+                            val signUpBg by animateColorAsState(
+                                targetValue = if (isSignUp) PoliceNavy else Color.Transparent,
+                                animationSpec = tween(250),
+                                label = "signUpBg"
+                            )
+                            val signUpTextColor by animateColorAsState(
+                                targetValue = if (isSignUp) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
+                                animationSpec = tween(250),
+                                label = "signUpTextColor"
                             )
 
-                            Spacer(modifier = Modifier.height(4.dp))
-
-                            Text(
-                                text = "ALL POLICE DIRECTORY & EMERGENCY PORTAL",
-                                style = MaterialTheme.typography.labelSmall.copy(
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = Color.White.copy(alpha = 0.9f),
-                                    letterSpacing = 1.sp,
-                                    fontSize = 10.5.sp
-                                ),
-                                textAlign = TextAlign.Center
-                            )
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxHeight()
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(signUpBg)
+                                    .clickable(enabled = !isLoading) {
+                                        authMode = AuthMode.SIGN_UP
+                                        localValidationError = null
+                                        authViewModel.resetAuthState()
+                                    }
+                                    .testTag("tab_sign_up"),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "ලියාපදිංචි වන්න",
+                                    fontWeight = if (isSignUp) FontWeight.Bold else FontWeight.Medium,
+                                    fontSize = 14.sp,
+                                    color = signUpTextColor
+                                )
+                            }
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(20.dp))
+                    Spacer(modifier = Modifier.height(22.dp))
 
-                    // Login Form Card
-                    Surface(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(20.dp),
-                        color = Color.White,
-                        shadowElevation = 3.dp,
-                        border = BorderStroke(1.dp, Color(0xFFE2E8F0))
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(22.dp)
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(34.dp)
-                                        .clip(CircleShape)
-                                        .background(Color(0xFFEFF6FF)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Security,
-                                        contentDescription = null,
-                                        tint = PoliceNavy,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                }
-                                Spacer(modifier = Modifier.width(10.dp))
-                                Column {
-                                    Text(
-                                        text = "ගිණුමට ඇතුළු වන්න / Sign In",
-                                        style = MaterialTheme.typography.titleMedium.copy(
-                                            fontWeight = FontWeight.Bold,
-                                            color = PoliceNavy,
-                                            fontSize = 16.sp
-                                        )
-                                    )
-                                    Text(
-                                        text = "පළමු වරට ප්‍රවේශ වීමට තොරතුරු ඇතුළත් කරන්න",
-                                        style = MaterialTheme.typography.labelSmall.copy(
-                                            color = Color(0xFF64748B),
-                                            fontSize = 11.sp
-                                        )
-                                    )
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.height(18.dp))
-
-                            // Error banner if any
-                            AnimatedVisibility(
-                                visible = uiState.errorMessage != null,
-                                enter = fadeIn(),
-                                exit = fadeOut()
-                            ) {
-                                uiState.errorMessage?.let { errorText ->
-                                    Surface(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(bottom = 14.dp),
-                                        shape = RoundedCornerShape(10.dp),
-                                        color = Color(0xFFFEF2F2),
-                                        border = BorderStroke(1.dp, Color(0xFFFECACA))
-                                    ) {
-                                        Row(
-                                            modifier = Modifier.padding(10.dp),
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Default.Error,
-                                                contentDescription = null,
-                                                tint = Color(0xFFDC2626),
-                                                modifier = Modifier.size(20.dp)
-                                            )
-                                            Spacer(modifier = Modifier.width(8.dp))
-                                            Text(
-                                                text = errorText,
-                                                style = MaterialTheme.typography.bodySmall.copy(
-                                                    color = Color(0xFF991B1B),
-                                                    fontWeight = FontWeight.Medium,
-                                                    fontSize = 12.sp
-                                                )
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-
-                            // Username Input Field
-                            Text(
-                                text = "පරිශීලක නාමය (Username)",
-                                style = MaterialTheme.typography.labelMedium.copy(
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF1E293B)
-                                )
+                    // Email Field
+                    OutlinedTextField(
+                        value = email,
+                        onValueChange = {
+                            email = it
+                            localValidationError = null
+                        },
+                        label = { Text("ඊමේල් ලිපිනය (Email)") },
+                        placeholder = { Text("ඔබගේ ඊමේල් ලිපිනය ඇතුළත් කරන්න") },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Filled.Email,
+                                contentDescription = "Email Icon",
+                                tint = PoliceNavyLight
                             )
-                            Spacer(modifier = Modifier.height(6.dp))
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("email_input"),
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Email,
+                            imeAction = ImeAction.Next
+                        ),
+                        keyboardActions = KeyboardActions(
+                            onNext = { focusManager.moveFocus(FocusDirection.Down) }
+                        ),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = PoliceNavy,
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+                            focusedLabelColor = PoliceNavy
+                        )
+                    )
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // Password Field
+                    OutlinedTextField(
+                        value = password,
+                        onValueChange = {
+                            password = it
+                            localValidationError = null
+                        },
+                        label = { Text("මුරපදය (Password)") },
+                        placeholder = { Text("අවම අකුරු 6 ක්") },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Filled.Lock,
+                                contentDescription = "Password Icon",
+                                tint = PoliceNavyLight
+                            )
+                        },
+                        trailingIcon = {
+                            IconButton(
+                                onClick = { isPasswordVisible = !isPasswordVisible },
+                                modifier = Modifier.testTag("toggle_password_visibility")
+                            ) {
+                                Icon(
+                                    imageVector = if (isPasswordVisible) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
+                                    contentDescription = if (isPasswordVisible) "Hide Password" else "Show Password",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        },
+                        visualTransformation = if (isPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("password_input"),
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Password,
+                            imeAction = if (authMode == AuthMode.SIGN_UP) ImeAction.Next else ImeAction.Done
+                        ),
+                        keyboardActions = KeyboardActions(
+                            onNext = { focusManager.moveFocus(FocusDirection.Down) },
+                            onDone = {
+                                focusManager.clearFocus()
+                                submitForm(authMode, email, password, confirmPassword, authViewModel) {
+                                    localValidationError = it
+                                }
+                            }
+                        ),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = PoliceNavy,
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+                            focusedLabelColor = PoliceNavy
+                        )
+                    )
+
+                    // Confirm Password Field (Sign Up Only)
+                    AnimatedVisibility(
+                        visible = authMode == AuthMode.SIGN_UP,
+                        enter = fadeIn() + androidx.compose.animation.expandVertically(),
+                        exit = fadeOut() + androidx.compose.animation.shrinkVertically()
+                    ) {
+                        Column {
+                            Spacer(modifier = Modifier.height(14.dp))
                             OutlinedTextField(
-                                value = uiState.usernameInput,
-                                onValueChange = { viewModel.onUsernameChange(it) },
-                                placeholder = { Text("Username ඇතුළත් කරන්න...") },
-                                singleLine = true,
+                                value = confirmPassword,
+                                onValueChange = {
+                                    confirmPassword = it
+                                    localValidationError = null
+                                },
+                                label = { Text("මුරපදය තහවුරු කරන්න (Confirm Password)") },
+                                placeholder = { Text("මුරපදය නැවත ඇතුළත් කරන්න") },
                                 leadingIcon = {
                                     Icon(
-                                        imageVector = Icons.Default.Person,
-                                        contentDescription = "Username Icon",
-                                        tint = PoliceNavy
+                                        imageVector = Icons.Filled.Lock,
+                                        contentDescription = "Confirm Password Icon",
+                                        tint = PoliceNavyLight
                                     )
                                 },
-                                trailingIcon = {
-                                    if (uiState.usernameInput.isNotEmpty()) {
-                                        IconButton(onClick = { viewModel.onUsernameChange("") }) {
-                                            Icon(
-                                                imageVector = Icons.Default.Clear,
-                                                contentDescription = "Clear Username",
-                                                tint = Color(0xFF94A3B8)
-                                            )
-                                        }
-                                    }
-                                },
-                                keyboardOptions = KeyboardOptions(
-                                    keyboardType = KeyboardType.Text,
-                                    imeAction = ImeAction.Next
-                                ),
-                                textStyle = MaterialTheme.typography.bodyMedium.copy(
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = PoliceNavy
-                                ),
-                                shape = RoundedCornerShape(12.dp),
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedContainerColor = Color(0xFFF8FAFC),
-                                    unfocusedContainerColor = Color(0xFFF8FAFC),
-                                    focusedBorderColor = PoliceNavy,
-                                    unfocusedBorderColor = Color(0xFFCBD5E1)
-                                ),
+                                visualTransformation = if (isPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .testTag("login_username_input")
-                            )
-
-                            Spacer(modifier = Modifier.height(16.dp))
-
-                            // Password Input Field
-                            Text(
-                                text = "මුරපදය (Password)",
-                                style = MaterialTheme.typography.labelMedium.copy(
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF1E293B)
-                                )
-                            )
-                            Spacer(modifier = Modifier.height(6.dp))
-                            OutlinedTextField(
-                                value = uiState.passwordInput,
-                                onValueChange = { viewModel.onPasswordChange(it) },
-                                placeholder = { Text("Password ඇතුළත් කරන්න...") },
+                                    .testTag("confirm_password_input"),
                                 singleLine = true,
-                                leadingIcon = {
-                                    Icon(
-                                        imageVector = Icons.Default.Lock,
-                                        contentDescription = "Password Icon",
-                                        tint = PoliceNavy
-                                    )
-                                },
-                                trailingIcon = {
-                                    IconButton(onClick = { viewModel.togglePasswordVisibility() }) {
-                                        Icon(
-                                            imageVector = if (uiState.isPasswordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
-                                            contentDescription = "Toggle password visibility",
-                                            tint = PoliceNavy
-                                        )
-                                    }
-                                },
-                                visualTransformation = if (uiState.isPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                                 keyboardOptions = KeyboardOptions(
                                     keyboardType = KeyboardType.Password,
                                     imeAction = ImeAction.Done
                                 ),
                                 keyboardActions = KeyboardActions(
                                     onDone = {
-                                        keyboardController?.hide()
-                                        viewModel.login()
+                                        focusManager.clearFocus()
+                                        submitForm(authMode, email, password, confirmPassword, authViewModel) {
+                                            localValidationError = it
+                                        }
                                     }
                                 ),
-                                textStyle = MaterialTheme.typography.bodyMedium.copy(
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = PoliceNavy
-                                ),
-                                shape = RoundedCornerShape(12.dp),
+                                shape = RoundedCornerShape(14.dp),
                                 colors = OutlinedTextFieldDefaults.colors(
-                                    focusedContainerColor = Color(0xFFF8FAFC),
-                                    unfocusedContainerColor = Color(0xFFF8FAFC),
                                     focusedBorderColor = PoliceNavy,
-                                    unfocusedBorderColor = Color(0xFFCBD5E1)
-                                ),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .testTag("login_password_input")
+                                    unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+                                    focusedLabelColor = PoliceNavy
+                                )
                             )
+                        }
+                    }
 
-                            Spacer(modifier = Modifier.height(20.dp))
-
-                            // Login Action Button
-                            Button(
-                                onClick = {
-                                    keyboardController?.hide()
-                                    viewModel.login()
-                                },
-                                enabled = !uiState.isLoading && uiState.usernameInput.isNotBlank() && uiState.passwordInput.isNotBlank(),
-                                shape = RoundedCornerShape(12.dp),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = PoliceNavy,
-                                    disabledContainerColor = PoliceNavy.copy(alpha = 0.5f)
-                                ),
+                    // Error Message Banner (Local validation or Firebase Auth Error)
+                    val activeError = localValidationError ?: (authState as? AuthState.Error)?.message
+                    AnimatedVisibility(
+                        visible = !activeError.isNullOrBlank(),
+                        enter = fadeIn(),
+                        exit = fadeOut()
+                    ) {
+                        if (!activeError.isNullOrBlank()) {
+                            Card(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .height(50.dp)
-                                    .testTag("login_submit_button")
+                                    .padding(top = 14.dp),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.85f)
+                                ),
+                                shape = RoundedCornerShape(12.dp)
                             ) {
-                                if (uiState.isLoading) {
-                                    CircularProgressIndicator(
-                                        color = PoliceGold,
-                                        modifier = Modifier.size(22.dp),
-                                        strokeWidth = 2.5.dp
-                                    )
-                                    Spacer(modifier = Modifier.width(10.dp))
-                                    Text(
-                                        text = "සත්‍යාපනය කරමින්... / Verifying...",
-                                        style = MaterialTheme.typography.bodyMedium.copy(
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color.White
-                                        )
-                                    )
-                                } else {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
                                     Icon(
-                                        imageVector = Icons.Default.CheckCircle,
-                                        contentDescription = null,
-                                        tint = PoliceGold,
+                                        imageVector = Icons.Filled.ErrorOutline,
+                                        contentDescription = "Error",
+                                        tint = MaterialTheme.colorScheme.error,
                                         modifier = Modifier.size(20.dp)
                                     )
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Text(
-                                        text = "ප්‍රවේශ වන්න (Sign In)",
-                                        style = MaterialTheme.typography.titleSmall.copy(
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color.White,
-                                            fontSize = 15.sp
-                                        )
+                                        text = activeError,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onErrorContainer
                                     )
                                 }
                             }
+                        }
+                    }
 
-                            Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(20.dp))
 
-                            Divider(color = Color(0xFFE2E8F0))
-
-                            Spacer(modifier = Modifier.height(14.dp))
-
-                            // Auto-Remember & Sheet Verification Info
+                    // Primary Action Button (Sign In / Sign Up)
+                    Button(
+                        onClick = {
+                            focusManager.clearFocus()
+                            submitForm(authMode, email, password, confirmPassword, authViewModel) {
+                                localValidationError = it
+                            }
+                        },
+                        enabled = !isLoading,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(50.dp)
+                            .testTag(if (authMode == AuthMode.SIGN_IN) "sign_in_button" else "sign_up_button"),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = PoliceNavy,
+                            contentColor = Color.White
+                        ),
+                        elevation = ButtonDefaults.buttonElevation(defaultElevation = 3.dp)
+                    ) {
+                        if (isLoading) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(22.dp),
+                                color = Color.White,
+                                strokeWidth = 2.5.dp
+                            )
+                        } else {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.fillMaxWidth()
+                                horizontalArrangement = Arrangement.Center
                             ) {
                                 Icon(
-                                    imageVector = Icons.Default.Shield,
+                                    imageVector = if (authMode == AuthMode.SIGN_IN) Icons.Filled.Login else Icons.Filled.PersonAdd,
                                     contentDescription = null,
-                                    tint = Color(0xFF16A34A),
-                                    modifier = Modifier.size(16.dp)
+                                    modifier = Modifier.size(20.dp)
                                 )
-                                Spacer(modifier = Modifier.width(6.dp))
+                                Spacer(modifier = Modifier.width(10.dp))
                                 Text(
-                                    text = "එක් වරක් ඇතුළු වූ පසු දුරකථනයේ මතක තබා ගනී (Auto-Login Enabled)",
-                                    style = MaterialTheme.typography.labelSmall.copy(
-                                        color = Color(0xFF475569),
-                                        fontSize = 10.5.sp
-                                    )
+                                    text = if (authMode == AuthMode.SIGN_IN) "ඇතුළු වන්න (Sign In)" else "ගිණුම සාදන්න (Sign Up)",
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Bold
                                 )
                             }
                         }
@@ -522,16 +488,142 @@ fun LoginScreen(
 
                     Spacer(modifier = Modifier.height(18.dp))
 
-                    // Footer notice
-                    Text(
-                        text = "Official Police Directory System v3.5",
-                        style = MaterialTheme.typography.labelSmall.copy(
-                            color = Color(0xFF94A3B8),
-                            fontSize = 11.sp
+                    // "OR" Divider
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        HorizontalDivider(
+                            modifier = Modifier.weight(1f),
+                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f)
                         )
-                    )
+                        Text(
+                            text = "හෝ (OR)",
+                            modifier = Modifier.padding(horizontal = 14.dp),
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontWeight = FontWeight.SemiBold,
+                                letterSpacing = 1.sp
+                            ),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        HorizontalDivider(
+                            modifier = Modifier.weight(1f),
+                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(18.dp))
+
+                    // Google Sign In / Sign Up Button
+                    OutlinedButton(
+                        onClick = {
+                            localValidationError = null
+                            authViewModel.signInWithGoogle(context)
+                        },
+                        enabled = !isLoading,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(50.dp)
+                            .testTag("google_signup_button"),
+                        shape = RoundedCornerShape(14.dp),
+                        border = BorderStroke(1.2.dp, MaterialTheme.colorScheme.outlineVariant),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            containerColor = MaterialTheme.colorScheme.surface
+                        )
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Icon(
+                                painter = painterResource(id = R.drawable.ic_google),
+                                contentDescription = "Google Logo",
+                                modifier = Modifier.size(22.dp),
+                                tint = Color.Unspecified
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Text(
+                                text = "Google සමඟ සම්බන්ධ වන්න",
+                                style = MaterialTheme.typography.bodyMedium.copy(
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 14.sp
+                                ),
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    }
                 }
             }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // Official Trust & Security Badge at Bottom
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center,
+                modifier = Modifier
+                    .padding(horizontal = 24.dp)
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(Color.White.copy(alpha = 0.08f))
+                    .padding(horizontal = 14.dp, vertical = 8.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Shield,
+                    contentDescription = "Shield",
+                    tint = PoliceGoldLight,
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "ශ්‍රී ලංකා පොලිස් නිල නාමාවලිය • 119 හදිසි ඇමතුම්",
+                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                    color = Color.White.copy(alpha = 0.85f),
+                    textAlign = TextAlign.Center
+                )
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
         }
+    }
+}
+
+private fun submitForm(
+    mode: AuthMode,
+    email: String,
+    pass: String,
+    confirmPass: String,
+    viewModel: AuthViewModel,
+    onError: (String?) -> Unit
+) {
+    val trimmedEmail = email.trim()
+    val trimmedPass = pass.trim()
+
+    if (trimmedEmail.isBlank()) {
+        onError("කරුණාකර ඔබගේ ඊමේල් ලිපිනය ඇතුළත් කරන්න")
+        return
+    }
+    if (!android.util.Patterns.EMAIL_ADDRESS.matcher(trimmedEmail).matches()) {
+        onError("වලංගු ඊමේල් ලිපිනයක් ඇතුළත් කරන්න (උදා: name@gmail.com)")
+        return
+    }
+    if (trimmedPass.isBlank()) {
+        onError("කරුණාකර මුරපදය ඇතුළත් කරන්න")
+        return
+    }
+    if (trimmedPass.length < 6) {
+        onError("මුරපදයේ අවම වශයෙන් අක්ෂර 6ක් තිබිය යුතුය")
+        return
+    }
+
+    if (mode == AuthMode.SIGN_UP) {
+        if (confirmPass.trim() != trimmedPass) {
+            onError("මුරපද දෙක එකිනෙකට නොගැළපේ (Passwords do not match)")
+            return
+        }
+        onError(null)
+        viewModel.registerUser(trimmedEmail, trimmedPass)
+    } else {
+        onError(null)
+        viewModel.loginUser(trimmedEmail, trimmedPass)
     }
 }

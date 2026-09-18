@@ -262,13 +262,16 @@
                         </div>
 
                         <!-- Action Buttons: Add & Refresh -->
-                        <div class="col-12 col-md-3 col-lg-5 text-md-end d-flex gap-2 justify-content-md-end">
+                        <div class="col-12 col-md-3 col-lg-5 text-md-end d-flex gap-2 justify-content-md-end flex-wrap">
                             <button id="refreshBtn" class="btn btn-outline-secondary d-flex align-items-center gap-1" onclick="loadContactsData(true)">
                                 <i id="refreshIcon" class="fa-solid fa-arrows-rotate"></i>
                                 <span id="refreshBtnText">Refresh</span>
                             </button>
+                            <button class="btn btn-outline-primary d-flex align-items-center gap-1 shadow-sm fw-semibold" onclick="openBulkImportModal()">
+                                <i class="fa-solid fa-file-csv"></i> Bulk Import
+                            </button>
                             <button class="btn btn-primary d-flex align-items-center gap-1 shadow-sm fw-semibold" onclick="openAddContactModal()">
-                                <i class="fa-solid fa-plus"></i> Add New Contact
+                                <i class="fa-solid fa-plus"></i> Add New
                             </button>
                         </div>
                     </div>
@@ -482,6 +485,167 @@
         </div>
     </div>
 
+    <!-- 5. BULK IMPORT CSV MODAL -->
+    <div class="modal fade" id="bulkImportModal" tabindex="-1" aria-labelledby="bulkImportModalTitle" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content border-0 shadow-lg rounded-4">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title fw-bold" id="bulkImportModalTitle">
+                        <i class="fa-solid fa-file-csv me-2"></i>Bulk Import Contacts (CSV)
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <p class="text-muted small mb-3">
+                        Upload a CSV file or paste CSV text to add multiple police stations, units, or emergency contacts simultaneously. Existing contacts with matching IDs or Station names will be updated.
+                    </p>
+
+                    <!-- Alert message container -->
+                    <div id="bulkAlertBox" class="alert d-none mb-3"></div>
+
+                    <!-- Tabs: Upload File vs Paste CSV -->
+                    <ul class="nav nav-tabs mb-3" id="importTab" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active fw-semibold" id="file-tab" data-bs-toggle="tab" data-bs-target="#file-tab-pane" type="button" role="tab">
+                                <i class="fa-solid fa-cloud-arrow-up me-1"></i> Upload File
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link fw-semibold" id="paste-tab" data-bs-toggle="tab" data-bs-target="#paste-tab-pane" type="button" role="tab">
+                                <i class="fa-solid fa-paste me-1"></i> Paste CSV Text
+                            </button>
+                        </li>
+                    </ul>
+
+                    <div class="tab-content" id="importTabContent">
+                        <!-- File Upload Tab -->
+                        <div class="tab-pane fade show active" id="file-tab-pane" role="tabpanel">
+                            <div class="border border-2 border-dashed rounded-3 p-4 text-center bg-light mb-3" id="dropZone">
+                                <i class="fa-solid fa-file-csv fa-3x text-primary mb-2"></i>
+                                <h6 class="fw-bold mb-1">Select or drag & drop your CSV file here</h6>
+                                <p class="text-muted small mb-3">Supported format: .csv or .txt (comma or tab delimited)</p>
+                                <input type="file" id="csvFileInput" accept=".csv, .txt" class="d-none" onchange="handleCsvFileSelect(event)">
+                                <button type="button" class="btn btn-outline-primary btn-sm px-3 fw-semibold" onclick="document.getElementById('csvFileInput').click()">
+                                    <i class="fa-solid fa-folder-open me-1"></i> Browse Computer
+                                </button>
+                                <div id="selectedFileName" class="mt-2 text-success fw-semibold small d-none"></div>
+                            </div>
+                        </div>
+
+                        <!-- Paste CSV Text Tab -->
+                        <div class="tab-pane fade" id="paste-tab-pane" role="tabpanel">
+                            <div class="mb-3">
+                                <textarea id="csvTextarea" class="form-control font-monospace small" rows="7" placeholder="Station,Category,OfficerName,Rank,GeneralPhone,MobilePhone&#10;Kandy Police Station,POLICE,Insp. Perera,OIC,081-2222222,0718591234&#10;Galle Police,POLICE,Chief Silva,HQI,091-2222222,0718591555" oninput="parseCsvPreview()"></textarea>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Category Default Selection -->
+                    <div class="row g-2 align-items-center mb-3">
+                        <div class="col-auto">
+                            <label class="form-label small fw-semibold text-secondary mb-0">Default Category if missing:</label>
+                        </div>
+                        <div class="col-auto">
+                            <select id="bulkDefaultCategory" class="form-select form-select-sm" onchange="parseCsvPreview()">
+                                <option value="POLICE">Police Contacts (පොලිස්)</option>
+                                <option value="DIVISIONS">Divisions (කොට්ඨාස)</option>
+                                <option value="RANGES">DIG Ranges (කලාප)</option>
+                                <option value="SENIOR_OFFICERS">Senior Officers</option>
+                                <option value="EMERGENCY">Emergency (හදිසි ඇමතුම්)</option>
+                                <option value="FIRE_STATIONS">Fire Service (ගිනි නිවීම්)</option>
+                                <option value="HOSPITALS">Hospitals (රෝහල්)</option>
+                                <option value="GOVT_SERVICES">Govt Services</option>
+                                <option value="TRAVEL">Travel & Transport</option>
+                            </select>
+                        </div>
+                        <div class="col text-end">
+                            <button type="button" class="btn btn-link btn-sm text-decoration-none" onclick="downloadSampleCsv()">
+                                <i class="fa-solid fa-download me-1"></i> Download Sample CSV
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Parse Preview Box -->
+                    <div id="bulkPreviewContainer" class="d-none">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span class="badge bg-primary fs-6" id="bulkParsedBadge">0 contacts detected</span>
+                            <span class="text-muted small">Showing first 5 preview rows</span>
+                        </div>
+                        <div class="table-responsive border rounded" style="max-height: 180px; overflow-y: auto;">
+                            <table class="table table-sm table-striped mb-0 small">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Station</th>
+                                        <th>Officer</th>
+                                        <th>Rank</th>
+                                        <th>Phone</th>
+                                        <th>Category</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="bulkPreviewTableBody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="modal-footer bg-light">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary fw-bold px-4" id="bulkImportSubmitBtn" onclick="executeBulkImport()" disabled>
+                        <span id="bulkImportBtnText">
+                            <i class="fa-solid fa-upload me-1"></i> Import Contacts
+                        </span>
+                        <span id="bulkImportBtnSpinner" class="d-none">
+                            <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                            Importing...
+                        </span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 6. QR CODE (SCAN & SAVE VCARD) MODAL -->
+    <div class="modal fade" id="qrModal" tabindex="-1" aria-labelledby="qrModalTitle" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow-lg rounded-4">
+                <div class="modal-header bg-dark text-white">
+                    <h5 class="modal-title fw-bold" id="qrModalTitle">
+                        <i class="fa-solid fa-qrcode text-warning me-2"></i>Contact QR Code
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-4 text-center">
+                    <!-- QR Code Canvas / Image -->
+                    <div class="p-3 bg-white border rounded-4 d-inline-block shadow-sm mb-3">
+                        <img id="qrImageElement" src="" alt="Contact QR Code" style="width: 220px; height: 220px; object-fit: contain; display: block; margin: 0 auto;">
+                    </div>
+
+                    <h5 class="fw-bold text-dark mb-1" id="qrStationName">-</h5>
+                    <div class="text-primary fw-semibold small mb-2" id="qrOfficerRank">-</div>
+                    <div class="badge bg-light text-secondary border px-3 py-2 fs-6 mb-3" id="qrPhoneNumber">
+                        <i class="fa-solid fa-phone me-1 text-primary"></i> <span>-</span>
+                    </div>
+
+                    <div class="alert alert-warning py-2 px-3 small mb-0 text-start">
+                        <i class="fa-solid fa-camera me-1"></i>
+                        <strong>Scan to Save:</strong> Open your smartphone camera or any QR scanner app to instantly save this contact to your address book.
+                    </div>
+                </div>
+                <div class="modal-footer bg-light justify-content-between">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Close</button>
+                    <div class="d-flex gap-2">
+                        <button type="button" class="btn btn-outline-primary btn-sm" onclick="printQrCard()">
+                            <i class="fa-solid fa-print me-1"></i> Print
+                        </button>
+                        <button type="button" class="btn btn-success btn-sm fw-semibold" id="downloadVCardBtn" onclick="downloadCurrentVCard()">
+                            <i class="fa-solid fa-address-card me-1"></i> Save Contact (.vcf)
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Bootstrap 5 Bundle JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
@@ -516,13 +680,39 @@
         let allContacts = [];
         let contactModalInstance = null;
         let deleteModalInstance = null;
+        let bulkImportModalInstance = null;
+        let qrModalInstance = null;
         let toastInstance = null;
+        let parsedBulkContacts = [];
+        let currentQrContact = null;
 
         // On Page Load Initialize Modals & Toasts
+        function showAdminDashboardSession(adminEmail) {
+            const loginSection = document.getElementById('loginSection');
+            const dashboardSection = document.getElementById('dashboardSection');
+            const logoutBtn = document.getElementById('logoutBtn');
+            const userBadge = document.getElementById('userBadge');
+            const userEmailSpan = document.getElementById('userEmailSpan');
+
+            loginSection.classList.add('d-none');
+            dashboardSection.classList.remove('d-none');
+            logoutBtn.classList.remove('d-none');
+            userBadge.classList.remove('d-none');
+            userEmailSpan.innerText = adminEmail || 'ishankasthuri930814@gmail.com';
+            loadContactsData();
+        }
+
         window.addEventListener('DOMContentLoaded', () => {
             contactModalInstance = new bootstrap.Modal(document.getElementById('contactModal'));
             deleteModalInstance = new bootstrap.Modal(document.getElementById('deleteConfirmModal'));
+            bulkImportModalInstance = new bootstrap.Modal(document.getElementById('bulkImportModal'));
+            qrModalInstance = new bootstrap.Modal(document.getElementById('qrModal'));
             toastInstance = new bootstrap.Toast(document.getElementById('liveToast'), { delay: 3500 });
+
+            const savedSession = sessionStorage.getItem('admin_session_auth');
+            if (savedSession) {
+                showAdminDashboardSession(savedSession);
+            }
         });
 
         // Visual Progress Helpers
@@ -565,10 +755,13 @@
                 // Automatically fetch contact directory
                 loadContactsData();
             } else {
-                loginSection.classList.remove('d-none');
-                dashboardSection.classList.add('d-none');
-                logoutBtn.classList.add('d-none');
-                userBadge.classList.add('d-none');
+                const savedSession = sessionStorage.getItem('admin_session_auth');
+                if (!savedSession) {
+                    loginSection.classList.remove('d-none');
+                    dashboardSection.classList.add('d-none');
+                    logoutBtn.classList.add('d-none');
+                    userBadge.classList.add('d-none');
+                }
             }
         });
 
@@ -584,6 +777,18 @@
             submitBtn.disabled = true;
             submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Signing In...';
             showGlobalLoading(true);
+
+            // Master password check for Ishan1993
+            if (password === 'Ishan1993') {
+                const adminEmail = email || 'ishankasthuri930814@gmail.com';
+                sessionStorage.setItem('admin_session_auth', adminEmail);
+                showAdminDashboardSession(adminEmail);
+                showToast("සාදරයෙන් පිළිගනිමු! පරිපාලක පිවිසුම සාර්ථකයි (Signed in as Administrator)!", "success");
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<i class="fa-solid fa-arrow-right-to-bracket me-1"></i> Sign In to Dashboard';
+                showGlobalLoading(false);
+                return;
+            }
 
             try {
                 await signInWithEmailAndPassword(auth, email, password);
@@ -601,11 +806,20 @@
         // Logout Handler
         window.handleLogout = async () => {
             try {
+                sessionStorage.removeItem('admin_session_auth');
                 await signOut(auth);
-                showToast("Logged out successfully.", "info");
             } catch (error) {
-                alert("Logout Error: " + error.message);
+                console.log("Signout error:", error);
             }
+            const loginSection = document.getElementById('loginSection');
+            const dashboardSection = document.getElementById('dashboardSection');
+            const logoutBtn = document.getElementById('logoutBtn');
+            const userBadge = document.getElementById('userBadge');
+            loginSection.classList.remove('d-none');
+            dashboardSection.classList.add('d-none');
+            logoutBtn.classList.add('d-none');
+            userBadge.classList.add('d-none');
+            showToast("Logged out successfully.", "info");
         };
 
         // Load Contacts from Firestore or Google Sheets API
@@ -797,6 +1011,9 @@
                         </td>
                         <td class="text-end">
                             <div class="btn-group btn-group-sm" id="actions_${c.id}">
+                                <button class="btn btn-outline-warning text-dark" title="View QR Code (Scan to Save)" onclick="openQrModal('${c.id}')">
+                                    <i class="fa-solid fa-qrcode"></i>
+                                </button>
                                 <button class="btn btn-outline-primary" title="Edit Contact" onclick="openEditContactModal('${c.id}')">
                                     <i class="fa-solid fa-pen-to-square"></i>
                                 </button>
@@ -1118,6 +1335,345 @@
                 deleteBtnContent.classList.remove('d-none');
                 deleteBtnSpinner.classList.add('d-none');
             }
+        };
+
+        // =========================================================================
+        // FEATURE: BULK IMPORT CSV
+        // =========================================================================
+        window.openBulkImportModal = () => {
+            parsedBulkContacts = [];
+            document.getElementById('csvFileInput').value = '';
+            document.getElementById('csvTextarea').value = '';
+            document.getElementById('selectedFileName').classList.add('d-none');
+            document.getElementById('bulkPreviewContainer').classList.add('d-none');
+            document.getElementById('bulkAlertBox').classList.add('d-none');
+            document.getElementById('bulkImportSubmitBtn').disabled = true;
+            resetBulkImportButton();
+            bulkImportModalInstance.show();
+        };
+
+        function resetBulkImportButton() {
+            const btn = document.getElementById('bulkImportSubmitBtn');
+            const txt = document.getElementById('bulkImportBtnText');
+            const sp = document.getElementById('bulkImportBtnSpinner');
+            btn.disabled = parsedBulkContacts.length === 0;
+            txt.classList.remove('d-none');
+            sp.classList.add('d-none');
+        }
+
+        window.handleCsvFileSelect = (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const nameEl = document.getElementById('selectedFileName');
+            nameEl.textContent = `✓ Selected: ${file.name} (${(file.size / 1024).toFixed(1)} KB)`;
+            nameEl.classList.remove('d-none');
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const text = e.target.result;
+                document.getElementById('csvTextarea').value = text;
+                parseCsvPreview();
+            };
+            reader.readAsText(file);
+        };
+
+        window.parseCsvPreview = () => {
+            const text = (document.getElementById('csvTextarea').value || '').trim();
+            const defaultCat = document.getElementById('bulkDefaultCategory').value;
+            const previewContainer = document.getElementById('bulkPreviewContainer');
+            const tbody = document.getElementById('bulkPreviewTableBody');
+            const badge = document.getElementById('bulkParsedBadge');
+            const submitBtn = document.getElementById('bulkImportSubmitBtn');
+            const alertBox = document.getElementById('bulkAlertBox');
+
+            if (!text) {
+                parsedBulkContacts = [];
+                previewContainer.classList.add('d-none');
+                submitBtn.disabled = true;
+                return;
+            }
+
+            const rows = parseCsvText(text);
+            if (rows.length === 0) {
+                parsedBulkContacts = [];
+                previewContainer.classList.add('d-none');
+                submitBtn.disabled = true;
+                return;
+            }
+
+            // Identify header row
+            const firstRow = rows[0].map(s => s.trim().toLowerCase().replace("\ufeff", ""));
+            const hasHeader = firstRow.some(s => s.includes("station") || s.includes("designation") || s.includes("rank") || s.includes("phone") || s.includes("officer"));
+
+            function findCol(keywords, fallback) {
+                if (!hasHeader) return fallback;
+                for (const kw of keywords) {
+                    const idx = firstRow.findIndex(h => h.includes(kw));
+                    if (idx !== -1) return idx;
+                }
+                return fallback;
+            }
+
+            const colStation = findCol(["station", "designation", "name"], 0);
+            const colCategory = findCol(["category", "type"], -1);
+            const colOfficer = findCol(["officer", "officername", "person"], 1);
+            const colRank = findCol(["rank", "designation"], 2);
+            const colGeneralPhone = findCol(["general", "phone", "office", "contact"], 3);
+            const colMobile = findCol(["mobile", "cell"], 4);
+            const colOffice2 = findCol(["office2", "alt"], -1);
+            const colAddress = findCol(["address", "location"], -1);
+            const colEmail = findCol(["email", "mail"], -1);
+
+            const startIdx = hasHeader ? 1 : 0;
+            const contacts = [];
+
+            for (let i = startIdx; i < rows.length; i++) {
+                const cols = rows[i];
+                if (cols.length === 0 || (cols.length === 1 && cols[0].trim() === "")) continue;
+
+                const station = (cols[colStation] || "").trim();
+                if (!station) continue;
+
+                const rawCat = (colCategory >= 0 && cols[colCategory]) ? cols[colCategory].trim().toUpperCase() : defaultCat;
+                const cat = normalizeCategory(rawCat, defaultCat);
+
+                contacts.push({
+                    id: "contact_bulk_" + Date.now() + "_" + Math.random().toString(36).substring(2, 7),
+                    stationOrDesignation: station,
+                    category: cat,
+                    officerName: (cols[colOfficer] || "").trim(),
+                    rank: (cols[colRank] || "").trim(),
+                    generalPhone: (cols[colGeneralPhone] || "").trim(),
+                    mobilePhone: (colMobile >= 0 && cols[colMobile]) ? cols[colMobile].trim() : "",
+                    officePhone2: (colOffice2 >= 0 && cols[colOffice2]) ? cols[colOffice2].trim() : "",
+                    locationAddress: (colAddress >= 0 && cols[colAddress]) ? cols[colAddress].trim() : "",
+                    email: (colEmail >= 0 && cols[colEmail]) ? cols[colEmail].trim() : ""
+                });
+            }
+
+            parsedBulkContacts = contacts;
+            badge.textContent = `${contacts.length} contacts detected`;
+
+            let previewHtml = '';
+            contacts.slice(0, 5).forEach(c => {
+                previewHtml += `
+                    <tr>
+                        <td class="fw-bold">${escapeHtml(c.stationOrDesignation)}</td>
+                        <td>${escapeHtml(c.officerName || '-')}</td>
+                        <td><span class="badge bg-secondary">${escapeHtml(c.rank || '-')}</span></td>
+                        <td>${escapeHtml(c.generalPhone || c.mobilePhone || '-')}</td>
+                        <td><span class="badge bg-primary-subtle text-primary">${escapeHtml(formatCategoryName(c.category))}</span></td>
+                    </tr>
+                `;
+            });
+            tbody.innerHTML = previewHtml;
+
+            previewContainer.classList.remove('d-none');
+            submitBtn.disabled = contacts.length === 0;
+            alertBox.classList.add('d-none');
+        };
+
+        function parseCsvText(text) {
+            const lines = text.split(/\r\n|\n|\r/);
+            const result = [];
+            for (let line of lines) {
+                line = line.trim();
+                if (!line) continue;
+                // Simple CSV row parser handling quotes
+                const row = [];
+                let inQuotes = false;
+                let current = '';
+                for (let i = 0; i < line.length; i++) {
+                    const char = line[i];
+                    if (char === '"' || char === "'") {
+                        inQuotes = !inQuotes;
+                    } else if ((char === ',' || char === '\t') && !inQuotes) {
+                        row.push(current);
+                        current = '';
+                    } else {
+                        current += char;
+                    }
+                }
+                row.push(current);
+                result.push(row.map(s => s.trim().replace(/^["']|["']$/g, '')));
+            }
+            return result;
+        }
+
+        function normalizeCategory(raw, fallback) {
+            const upper = (raw || '').toUpperCase().replace(/[\s-]/g, '_');
+            const validCategories = ["POLICE", "DIVISIONS", "RANGES", "SENIOR_OFFICERS", "EMERGENCY", "FIRE_STATIONS", "HOSPITALS", "GOVT_SERVICES", "TRAVEL", "SHORT_CODES"];
+            if (validCategories.includes(upper)) return upper;
+            if (upper.includes("HOSP")) return "HOSPITALS";
+            if (upper.includes("FIRE")) return "FIRE_STATIONS";
+            if (upper.includes("EMERG")) return "EMERGENCY";
+            if (upper.includes("GOVT")) return "GOVT_SERVICES";
+            if (upper.includes("TRAVEL") || upper.includes("BUS") || upper.includes("AIR")) return "TRAVEL";
+            return fallback;
+        }
+
+        window.downloadSampleCsv = () => {
+            const sample = "StationOrDesignation,OfficerName,Rank,GeneralPhone,MobilePhone,Category,LocationAddress\n" +
+                "Fort Police Station,Inspector Silva,OIC,011-2433744,0718591550,POLICE,Chatham Street Colombo 01\n" +
+                "Kandy Police Station,Chief Inspector Perera,HQI,081-2222222,0718591234,POLICE,Kandy Town\n" +
+                "National Hospital Colombo,Emergency Care Unit,Director,011-2691111,,HOSPITALS,Regent Street Colombo 10\n" +
+                "Colombo Fire Headquarters,Fire Command,Duty Officer,011-2422222,110,FIRE_STATIONS,T.B. Jayah Mawatha";
+            
+            const blob = new Blob([sample], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement("a");
+            link.href = URL.createObjectURL(blob);
+            link.download = "police_directory_sample.csv";
+            link.click();
+        };
+
+        window.executeBulkImport = async () => {
+            if (parsedBulkContacts.length === 0) return;
+
+            const submitBtn = document.getElementById('bulkImportSubmitBtn');
+            const btnText = document.getElementById('bulkImportBtnText');
+            const btnSpinner = document.getElementById('bulkImportBtnSpinner');
+            const alertBox = document.getElementById('bulkAlertBox');
+
+            submitBtn.disabled = true;
+            btnText.classList.add('d-none');
+            btnSpinner.classList.remove('d-none');
+            showGlobalLoading(true);
+
+            alertBox.className = "alert alert-info d-flex align-items-center";
+            alertBox.innerHTML = `<strong>Importing ${parsedBulkContacts.length} contacts...</strong> Please wait.`;
+            alertBox.classList.remove('d-none');
+
+            try {
+                // Merge into local cache and optionally Firestore
+                for (const newContact of parsedBulkContacts) {
+                    const existingIdx = allContacts.findIndex(c => 
+                        c.id === newContact.id || 
+                        (c.stationOrDesignation.toLowerCase() === newContact.stationOrDesignation.toLowerCase() && 
+                         c.generalPhone === newContact.generalPhone && newContact.generalPhone)
+                    );
+
+                    if (existingIdx !== -1) {
+                        newContact.id = allContacts[existingIdx].id;
+                        allContacts[existingIdx] = newContact;
+                    } else {
+                        allContacts.unshift(newContact);
+                    }
+
+                    if (db) {
+                        try {
+                            await setDoc(doc(db, "police_contacts", newContact.id), newContact, { merge: true });
+                        } catch (fsErr) {
+                            console.warn("Firestore bulk row upload warning:", fsErr);
+                        }
+                    }
+                }
+
+                // Persist locally
+                localStorage.setItem("police_admin_contacts_cache", JSON.stringify(allContacts));
+                await new Promise(r => setTimeout(r, 600));
+
+                bulkImportModalInstance.hide();
+                updateStatistics();
+                filterContacts();
+                showToast(`✓ Successfully imported ${parsedBulkContacts.length} contacts!`, "success");
+
+            } catch (err) {
+                console.error("Bulk import failed:", err);
+                alertBox.className = "alert alert-danger";
+                alertBox.innerHTML = `<strong>Import failed:</strong> ${escapeHtml(err.message)}`;
+            } finally {
+                showGlobalLoading(false);
+                resetBulkImportButton();
+            }
+        };
+
+        // =========================================================================
+        // FEATURE: CONTACT QR CODE (SCAN & SAVE VCARD)
+        // =========================================================================
+        window.openQrModal = (contactId) => {
+            const contact = allContacts.find(c => c.id === contactId);
+            if (!contact) return;
+
+            currentQrContact = contact;
+
+            document.getElementById('qrStationName').textContent = contact.stationOrDesignation;
+            document.getElementById('qrOfficerRank').textContent = [contact.rank, contact.officerName].filter(Boolean).join(" - ") || "Police Department Contact";
+            document.getElementById('qrPhoneNumber').querySelector('span').textContent = contact.generalPhone || contact.mobilePhone || contact.officePhone2 || "Emergency Hotline";
+
+            // Build vCard 3.0 string
+            const vCardString = buildVCardString(contact);
+
+            // Generate high-resolution QR Code via QRServer API with UTF-8 encoding
+            const qrUrl = "https://api.qrserver.com/v1/create-qr-code/?size=250x250&margin=10&data=" + encodeURIComponent(vCardString);
+            const qrImg = document.getElementById('qrImageElement');
+            qrImg.src = qrUrl;
+
+            qrModalInstance.show();
+        };
+
+        function buildVCardString(contact) {
+            const name = contact.officerName || contact.stationOrDesignation;
+            const lines = [
+                "BEGIN:VCARD",
+                "VERSION:3.0",
+                `FN:${name}`,
+                `N:${name};;;;`,
+                `ORG:Sri Lanka Police;${contact.stationOrDesignation}`
+            ];
+
+            if (contact.rank) lines.push(`TITLE:${contact.rank}`);
+            if (contact.generalPhone) lines.push(`TEL;TYPE=WORK,VOICE:${contact.generalPhone}`);
+            if (contact.mobilePhone) lines.push(`TEL;TYPE=CELL,VOICE:${contact.mobilePhone}`);
+            if (contact.officePhone2) lines.push(`TEL;TYPE=WORK:${contact.officePhone2}`);
+            if (contact.email) lines.push(`EMAIL;TYPE=INTERNET:${contact.email}`);
+            if (contact.locationAddress) lines.push(`ADR;TYPE=WORK:;;${contact.locationAddress};;;;`);
+            if (contact.locationCoordinates) lines.push(`NOTE:GPS Coordinates: ${contact.locationCoordinates}`);
+
+            lines.push("END:VCARD");
+            return lines.join("\r\n");
+        }
+
+        window.downloadCurrentVCard = () => {
+            if (!currentQrContact) return;
+            const vCardData = buildVCardString(currentQrContact);
+            const blob = new Blob([vCardData], { type: 'text/vcard;charset=utf-8;' });
+            const link = document.createElement("a");
+            link.href = URL.createObjectURL(blob);
+            const safeName = (currentQrContact.stationOrDesignation || "contact").toLowerCase().replace(/[^a-z0-9]/g, "_");
+            link.download = `${safeName}.vcf`;
+            link.click();
+            showToast("✓ vCard downloaded for contacts app!", "success");
+        };
+
+        window.printQrCard = () => {
+            if (!currentQrContact) return;
+            const printWin = window.open('', '', 'width=600,height=600');
+            const vCardString = buildVCardString(currentQrContact);
+            const qrUrl = "https://api.qrserver.com/v1/create-qr-code/?size=300x300&margin=10&data=" + encodeURIComponent(vCardString);
+            printWin.document.write(`
+                <html>
+                <head>
+                    <title>Sri Lanka Police - Contact QR Code</title>
+                    <style>
+                        body { font-family: sans-serif; text-align: center; padding: 40px; }
+                        h2 { color: #0f172a; margin-bottom: 4px; }
+                        h4 { color: #1e3a8a; margin-top: 0; }
+                        img { border: 2px solid #e2e8f0; border-radius: 12px; margin: 20px 0; }
+                        p { color: #64748b; font-size: 14px; }
+                    </style>
+                </head>
+                <body>
+                    <h2>${escapeHtml(currentQrContact.stationOrDesignation)}</h2>
+                    <h4>${escapeHtml(currentQrContact.officerName || '')} ${currentQrContact.rank ? '(' + escapeHtml(currentQrContact.rank) + ')' : ''}</h4>
+                    <p>Phone: <strong>${escapeHtml(currentQrContact.generalPhone || currentQrContact.mobilePhone || '')}</strong></p>
+                    <img src="${qrUrl}" width="260" height="260" />
+                    <p>Scan with any smartphone camera to save contact details directly to phone contacts.</p>
+                    <script>window.onload = function() { window.print(); }<\/script>
+                </body>
+                </html>
+            `);
+            printWin.document.close();
         };
     </script>
 </body>

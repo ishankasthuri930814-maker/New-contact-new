@@ -1,16 +1,30 @@
 package com.example.ui
 
+import android.content.Context
+import androidx.credentials.CredentialManager
+import androidx.credentials.CustomCredential
+import androidx.credentials.GetCredentialRequest
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.data.repository.AuthRepository
 import com.example.data.repository.AuthResult
 import com.example.data.repository.AutoLoginResult
+import com.google.android.libraries.identity.googleid.GetGoogleIdOption
+import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
+import com.google.firebase.auth.FirebaseUser
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+
+sealed class AuthState {
+    object Idle : AuthState()
+    object Loading : AuthState()
+    data class Success(val user: FirebaseUser?) : AuthState()
+    data class Error(val message: String) : AuthState()
+}
 
 data class AuthUiState(
     val usernameInput: String = "",
@@ -24,13 +38,144 @@ data class AuthUiState(
     val successMessage: String? = null
 )
 
-class AuthViewModel(private val repository: AuthRepository) : ViewModel() {
+class AuthViewModel(
+    private val repository: AuthRepository = AuthRepository()
+) : ViewModel() {
+
+    private val _authState = MutableStateFlow<AuthState>(AuthState.Idle)
+    val authState: StateFlow<AuthState> = _authState.asStateFlow()
 
     private val _uiState = MutableStateFlow(AuthUiState())
     val uiState: StateFlow<AuthUiState> = _uiState.asStateFlow()
 
     init {
         checkAutoLogin()
+    }
+
+    // Sign Up ක්‍රියාවලිය
+    fun registerUser(email: String, pass: String) {
+        if (email.isBlank() || pass.isBlank()) {
+            _authState.value = AuthState.Error("කරුණාකර Email සහ Password ඇතුළත් කරන්න")
+            return
+        }
+        viewModelScope.launch {
+            _authState.value = AuthState.Loading
+            val result = repository.signUpWithEmail(email, pass)
+            result.onSuccess { user ->
+                _authState.value = AuthState.Success(user)
+                _uiState.update {
+                    it.copy(
+                        isAuthenticated = true,
+                        loggedInUsername = user?.email,
+                        successMessage = "සාර්ථකව ලියාපදිංචි විය (Registered Successfully)"
+                    )
+                }
+            }.onFailure { exception ->
+                _authState.value = AuthState.Error(exception.localizedMessage ?: "ලියාපදිංචි වීමේ දෝෂයක් සිදු විය")
+            }
+        }
+    }
+
+    // Sign In ක්‍රියාවලිය
+    fun loginUser(email: String, pass: String) {
+        if (email.isBlank() || pass.isBlank()) {
+            _authState.value = AuthState.Error("කරුණාකර Email සහ Password ඇතුළත් කරන්න")
+            return
+        }
+        viewModelScope.launch {
+            _authState.value = AuthState.Loading
+            val result = repository.signInWithEmail(email, pass)
+            result.onSuccess { user ->
+                _authState.value = AuthState.Success(user)
+                _uiState.update {
+                    it.copy(
+                        isAuthenticated = true,
+                        loggedInUsername = user?.email,
+                        successMessage = "සාර්ථකව ඇතුළු විය (Login Successful)"
+                    )
+                }
+            }.onFailure { exception ->
+                _authState.value = AuthState.Error(exception.localizedMessage ?: "ඇතුළු වීමේ දෝෂයක් සිදු විය")
+            }
+        }
+    }
+
+    // Google මගින් ඇතුළු වීම / Sign Up වීම (Credential Manager)
+    fun signInWithGoogle(context: Context) {
+        viewModelScope.launch {
+            _authState.value = AuthState.Loading
+            try {
+                val credentialManager = CredentialManager.create(context)
+
+                val serverClientId = try {
+                    val resId = context.resources.getIdentifier("default_web_client_id", "string", context.packageName)
+                    if (resId != 0) context.getString(resId) else "880156476376-web-client.apps.googleusercontent.com"
+                } catch (e: Exception) {
+                    "880156476376-web-client.apps.googleusercontent.com"
+                }
+
+                val googleIdOption = GetGoogleIdOption.Builder()
+                    .setFilterByAuthorizedAccounts(false)
+                    .setServerClientId(serverClientId)
+                    .setAutoSelectEnabled(false)
+                    .build()
+
+                val request = GetCredentialRequest.Builder()
+                    .addCredentialOption(googleIdOption)
+                    .build()
+
+                val result = credentialManager.getCredential(context, request)
+                val credential = result.credential
+
+                if (credential is CustomCredential && credential.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL) {
+                    val googleIdToken = GoogleIdTokenCredential.createFrom(credential.data)
+                    val idToken = googleIdToken.idToken
+
+                    val authResult = repository.signInWithGoogle(idToken)
+                    authResult.onSuccess { user ->
+                        _authState.value = AuthState.Success(user)
+                        _uiState.update {
+                            it.copy(
+                                isAuthenticated = true,
+                                loggedInUsername = user?.email ?: user?.displayName,
+                                successMessage = "Google මගින් සාර්ථකව ඇතුළු විය (Google Sign-In Successful)"
+                            )
+                        }
+                    }.onFailure { ex ->
+                        _authState.value = AuthState.Error(ex.localizedMessage ?: "Google මගින් ඇතුළු වීමේ දෝෂයක් සිදු විය")
+                    }
+                } else {
+                    _authState.value = AuthState.Error("Google ගිණුම් විස්තර ලබාගත නොහැකි විය")
+                }
+            } catch (e: Exception) {
+                val errorMsg = e.message ?: ""
+                val msg = if (errorMsg.contains("cancel", ignoreCase = true) || errorMsg.contains("USER_CANCELED", ignoreCase = true)) {
+                    "Google පිවිසුම අවලංගු කරන ලදී"
+                } else {
+                    e.localizedMessage ?: "Google මගින් ඇතුළු වීමේ දෝෂයක් සිදු විය"
+                }
+                _authState.value = AuthState.Error(msg)
+            }
+        }
+    }
+
+    fun signInWithGoogleIdToken(idToken: String) {
+        viewModelScope.launch {
+            _authState.value = AuthState.Loading
+            val result = repository.signInWithGoogle(idToken)
+            result.onSuccess { user ->
+                _authState.value = AuthState.Success(user)
+                _uiState.update {
+                    it.copy(
+                        isAuthenticated = true,
+                        loggedInUsername = user?.email ?: user?.displayName,
+                        successMessage = "Google මගින් සාර්ථකව ඇතුළු විය"
+                    )
+                }
+            }.onFailure { ex ->
+                _authState.value = AuthState.Error(ex.localizedMessage ?: "Google මගින් ඇතුළු වීමේ දෝෂයක් සිදු විය")
+            }
+        }
     }
 
     fun checkAutoLogin() {
@@ -123,7 +268,8 @@ class AuthViewModel(private val repository: AuthRepository) : ViewModel() {
     }
 
     fun logout() {
-        repository.logout()
+        repository.signOut()
+        _authState.value = AuthState.Idle
         _uiState.update {
             it.copy(
                 isAuthenticated = false,
@@ -134,6 +280,10 @@ class AuthViewModel(private val repository: AuthRepository) : ViewModel() {
                 successMessage = null
             )
         }
+    }
+
+    fun resetAuthState() {
+        _authState.value = AuthState.Idle
     }
 
     fun clearMessages() {

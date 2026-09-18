@@ -38,7 +38,7 @@ robolectric = "4.16.1"
 roborazzi = "1.59.0"
 firebaseBom = "34.15.0"
 secretsGradlePlugin = "2.0.1"
-googleServices = "4.5.0"
+googleServices = "4.4.2"
 credentials = "1.5.0"
 playServicesAds = "23.6.0"
 googleid = "1.1.1"
@@ -76,6 +76,7 @@ retrofit = { group = "com.squareup.retrofit2", name = "retrofit", version.ref = 
 converter-moshi = { group = "com.squareup.retrofit2", name = "converter-moshi", version.ref = "converterMoshi" }
 kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "kotlinxCoroutinesAndroid" }
 kotlinx-coroutines-core = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-core", version.ref = "kotlinxCoroutinesCore" }
+kotlinx-coroutines-play-services = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-play-services", version.ref = "kotlinxCoroutinesCore" }
 accompanist-permissions = { group = "com.google.accompanist", name = "accompanist-permissions", version.ref = "accompanistPermissions" }
 play-services-location = { group = "com.google.android.gms", name = "play-services-location", version.ref = "playServicesLocation" }
 androidx-camera-camera2 = { group = "androidx.camera", name = "camera-camera2", version.ref = "cameraCamera2" }

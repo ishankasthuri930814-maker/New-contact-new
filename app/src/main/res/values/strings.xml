@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">ALL Police Contact</string>
+    <string name="default_web_client_id">880156476376-web-client.apps.googleusercontent.com</string>
 </resources>

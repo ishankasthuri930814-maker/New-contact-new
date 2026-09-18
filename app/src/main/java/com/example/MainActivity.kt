@@ -1,10 +1,12 @@
 package com.example
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -30,6 +32,7 @@ import com.example.ui.components.AdminPasswordDialog
 import com.example.ui.theme.PoliceDirectoryTheme
 import com.google.android.gms.common.ConnectionResult
 import com.google.android.gms.common.GoogleApiAvailability
+import com.google.firebase.FirebaseApp
 import com.google.firebase.messaging.FirebaseMessaging
 import java.io.File
 
@@ -54,7 +57,8 @@ class MainActivity : ComponentActivity() {
 
         // 2. Initialize Firebase safely
         try {
-            com.google.firebase.FirebaseApp.initializeApp(this)
+            FirebaseApp.initializeApp(this)
+            Log.d("MainActivity", "FirebaseApp initialized successfully")
         } catch (t: Throwable) {
             Log.e("MainActivity", "FirebaseApp initialization error", t)
         }
@@ -72,11 +76,38 @@ class MainActivity : ComponentActivity() {
             Log.e("MainActivity", "MobileAds initialization error", t)
         }
 
-        // 4. Initialize Notification Channel (FCM auto-init kept false to prevent registration failures)
+        // 4. Initialize Notification Channel and Firebase Cloud Messaging safely
         try {
             MyFirebaseMessagingService.createNotificationChannel(applicationContext)
+
+            val gmsAvailability = GoogleApiAvailability.getInstance().isGooglePlayServicesAvailable(this)
+            val isGooglePlayServicesAvailable = (gmsAvailability == ConnectionResult.SUCCESS)
+            val isVirtualEnvironment = isEmulator()
+
+            if (isGooglePlayServicesAvailable && !isVirtualEnvironment) {
+                FirebaseMessaging.getInstance().isAutoInitEnabled = true
+                FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
+                    if (task.isSuccessful) {
+                        val token = task.result
+                        Log.d("MainActivity", "FCM Device Token: $token")
+                        try {
+                            FirebaseMessaging.getInstance().subscribeToTopic("all")
+                            FirebaseMessaging.getInstance().subscribeToTopic("police_alerts")
+                        } catch (t: Throwable) {
+                            Log.w("MainActivity", "FCM subscribeToTopic error", t)
+                        }
+                    } else {
+                        Log.w("MainActivity", "FCM token retrieval failed: ${task.exception?.message}")
+                    }
+                }
+            } else {
+                Log.i(
+                    "MainActivity",
+                    "FCM registration deferred (GMS Status: $gmsAvailability, isEmulator: $isVirtualEnvironment)"
+                )
+            }
         } catch (t: Throwable) {
-            Log.e("MainActivity", "NotificationChannel creation error", t)
+            Log.e("MainActivity", "Notification / FCM initialization error", t)
         }
 
         val authRepository = AuthRepository(applicationContext)
@@ -113,6 +144,13 @@ class MainActivity : ComponentActivity() {
                             permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                         }
                     }
+
+                    val notifTitle = intent?.getStringExtra("extra_notification_title")
+                    val notifBody = intent?.getStringExtra("extra_notification_body")
+                    if (!notifTitle.isNullOrBlank() || !notifBody.isNullOrBlank()) {
+                        val displayMsg = listOfNotNull(notifTitle, notifBody).joinToString(": ")
+                        Toast.makeText(this@MainActivity, displayMsg, Toast.LENGTH_LONG).show()
+                    }
                 }
 
                 var showAdminPanel by remember { mutableStateOf(false) }
@@ -145,11 +183,24 @@ class MainActivity : ComponentActivity() {
                     }
                 } else {
                     LoginScreen(
-                        viewModel = authViewModel,
-                        onLoginSuccess = { /* Automatically navigates due to auth state */ }
+                        authViewModel = authViewModel,
+                        onLoginSuccess = {
+                            Toast.makeText(this@MainActivity, "සාර්ථකව ඇතුළු විය!", Toast.LENGTH_SHORT).show()
+                        }
                     )
                 }
             }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        val notifTitle = intent.getStringExtra("extra_notification_title")
+        val notifBody = intent.getStringExtra("extra_notification_body")
+        if (!notifTitle.isNullOrBlank() || !notifBody.isNullOrBlank()) {
+            val displayMsg = listOfNotNull(notifTitle, notifBody).joinToString(": ")
+            Toast.makeText(this, displayMsg, Toast.LENGTH_LONG).show()
         }
     }
 
@@ -160,10 +211,10 @@ class MainActivity : ComponentActivity() {
             val manufacturer = Build.MANUFACTURER.lowercase()
             val hardware = Build.HARDWARE.lowercase()
             val product = Build.PRODUCT.lowercase()
-            val hasDri = File("/dev/dri").exists()
+            val brand = Build.BRAND.lowercase()
+            val device = Build.DEVICE.lowercase()
 
-            return !hasDri ||
-                    fingerprint.startsWith("generic") ||
+            return fingerprint.startsWith("generic") ||
                     fingerprint.startsWith("unknown") ||
                     model.contains("google_sdk") ||
                     model.contains("emulator") ||
@@ -174,7 +225,9 @@ class MainActivity : ComponentActivity() {
                     hardware.contains("cutf") ||
                     product.contains("sdk") ||
                     product.contains("google_sdk") ||
-                    product.contains("emulator")
+                    product.contains("emulator") ||
+                    brand.startsWith("generic") ||
+                    device.startsWith("generic")
         }
     }
 }
