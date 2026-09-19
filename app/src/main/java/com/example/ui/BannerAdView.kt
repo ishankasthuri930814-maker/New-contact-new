@@ -1,5 +1,7 @@
 package com.example.ui
 
+import android.app.Activity
+import android.content.ContextWrapper
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
@@ -35,16 +37,17 @@ import com.google.android.gms.ads.AdView
 import com.google.android.gms.ads.LoadAdError
 import com.google.android.gms.ads.MobileAds
 
+private const val GOOGLE_TEST_BANNER_ID = "ca-app-pub-3940256099942544/6300978111"
+
 @Composable
 fun BannerAdView(
     adUnitId: String = "ca-app-pub-7472113156561687/7428861005",
     modifier: Modifier = Modifier
 ) {
-    val context = LocalContext.current
     val isEmulator = remember { MainActivity.isEmulator() }
 
     if (isEmulator) {
-        // Safe placeholder for emulator/test preview environment to avoid DRI issues
+        // Safe placeholder for web container preview to prevent OpenGL/DRI headless crashes
         Surface(
             modifier = modifier
                 .fillMaxWidth()
@@ -60,7 +63,7 @@ fun BannerAdView(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = "📢 AdMob Banner Space",
+                    text = "📢 AdMob Banner Space (Preview)",
                     style = MaterialTheme.typography.labelSmall.copy(
                         color = Color.Gray,
                         fontSize = 11.sp,
@@ -72,19 +75,19 @@ fun BannerAdView(
         return
     }
 
-    var isAdLoaded by remember { mutableStateOf(false) }
+    var isAdVisible by remember { mutableStateOf(false) }
 
     Surface(
         modifier = modifier
             .fillMaxWidth()
             .testTag("admob_banner_view"),
-        color = Color(0xFFF1F5F9),
-        shadowElevation = if (isAdLoaded) 2.dp else 0.dp
+        color = Color(0xFFF8FAFC),
+        shadowElevation = if (isAdVisible) 2.dp else 0.dp
     ) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = if (isAdLoaded) 4.dp else 0.dp),
+                .padding(vertical = if (isAdVisible) 4.dp else 0.dp),
             contentAlignment = Alignment.Center
         ) {
             AndroidView(
@@ -96,24 +99,30 @@ fun BannerAdView(
                     var currentAdView: AdView? = null
                     val retryHandler = Handler(Looper.getMainLooper())
                     var isDestroyed = false
+                    var isShowingFallbackTestAd = false
+
+                    val hostActivity: Activity? = generateSequence(ctx) {
+                        if (it is ContextWrapper) it.baseContext else null
+                    }.filterIsInstance<Activity>().firstOrNull()
+                    val activityContext = hostActivity ?: ctx
 
                     try {
-                        MobileAds.initialize(ctx)
+                        MobileAds.initialize(activityContext)
                     } catch (t: Throwable) {
                         Log.e("AdMob", "Error initializing MobileAds", t)
                     }
 
-                    fun loadRealBannerAd() {
+                    fun requestAd(targetAdUnitId: String, isFallback: Boolean) {
                         if (isDestroyed) return
 
                         try {
-                            val displayMetrics = ctx.resources.displayMetrics
+                            val displayMetrics = activityContext.resources.displayMetrics
                             val adWidthPx = displayMetrics.widthPixels
                             val density = displayMetrics.density
                             val adWidth = if (density > 0) (adWidthPx / density).toInt() else 320
                             val adSize = if (adWidth > 0) {
                                 try {
-                                    AdSize.getCurrentOrientationAnchoredAdaptiveBannerAdSize(ctx, adWidth)
+                                    AdSize.getCurrentOrientationAnchoredAdaptiveBannerAdSize(activityContext, adWidth)
                                 } catch (e: Throwable) {
                                     AdSize.BANNER
                                 }
@@ -121,7 +130,6 @@ fun BannerAdView(
                                 AdSize.BANNER
                             }
 
-                            // Destroy previous AdView if any
                             currentAdView?.let { oldView ->
                                 try {
                                     oldView.destroy()
@@ -131,70 +139,75 @@ fun BannerAdView(
                             }
                             frameLayout.removeAllViews()
 
-                            val adView = AdView(ctx).apply {
+                            val adView = AdView(activityContext).apply {
                                 setAdSize(adSize)
-                                this.adUnitId = adUnitId
+                                this.adUnitId = targetAdUnitId
                             }
                             currentAdView = adView
 
                             adView.adListener = object : AdListener() {
                                 override fun onAdLoaded() {
-                                    Log.i("AdMob", "Real AdMob banner loaded successfully! Unit: $adUnitId")
-                                    isAdLoaded = true
+                                    Log.i("AdMob", "Banner loaded successfully! Unit: $targetAdUnitId (Fallback: $isFallback)")
+                                    isAdVisible = true
                                     adView.visibility = View.VISIBLE
                                 }
 
                                 override fun onAdFailedToLoad(adError: LoadAdError) {
                                     val errorReason = when (adError.code) {
-                                        0 -> "ERROR_CODE_INTERNAL_ERROR (Account or AdMob verification pending)"
+                                        0 -> "ERROR_CODE_INTERNAL_ERROR (Account verification or AdMob approval pending)"
                                         1 -> "ERROR_CODE_INVALID_REQUEST (Check ad unit configuration)"
                                         2 -> "ERROR_CODE_NETWORK_ERROR (Check internet connectivity)"
-                                        3 -> "ERROR_CODE_NO_FILL (No ad inventory available yet / New ad unit warming up)"
+                                        3 -> "ERROR_CODE_NO_FILL (No live inventory available yet / New ad unit warming up)"
                                         else -> "Code: ${adError.code}"
                                     }
-                                    Log.w("AdMob", "Real banner failed to load [$errorReason]: ${adError.message}")
-                                    isAdLoaded = false
-                                    adView.visibility = View.GONE
+                                    Log.w("AdMob", "Ad failed to load [$errorReason] for $targetAdUnitId: ${adError.message}")
 
-                                    // Retry requesting real ad after 30 seconds if still active
-                                    if (!isDestroyed) {
+                                    // If real ad unit fails to load due to NO_FILL or INTERNAL_ERROR (common on new units),
+                                    // load the official Google Test Banner so ads are immediately visible to verify integration.
+                                    if (!isFallback && !isDestroyed) {
+                                        Log.d("AdMob", "Loading official Google Test Banner as fallback while real ad warms up...")
+                                        isShowingFallbackTestAd = true
+                                        requestAd(GOOGLE_TEST_BANNER_ID, isFallback = true)
+                                    } else if (isFallback) {
+                                        isAdVisible = false
+                                        adView.visibility = View.GONE
+                                    }
+
+                                    // Schedule periodic retry for real ad unit (every 30 seconds)
+                                    if (!isDestroyed && !isFallback) {
                                         retryHandler.removeCallbacksAndMessages(null)
                                         retryHandler.postDelayed({
                                             if (!isDestroyed) {
-                                                Log.d("AdMob", "Retrying real ad request for unit: $adUnitId")
-                                                loadRealBannerAd()
+                                                Log.d("AdMob", "Retrying real ad unit: $adUnitId")
+                                                requestAd(adUnitId, isFallback = false)
                                             }
                                         }, 30000L)
                                     }
                                 }
 
                                 override fun onAdOpened() {
-                                    Log.d("AdMob", "Real Ad opened")
+                                    Log.d("AdMob", "Ad opened: $targetAdUnitId")
                                 }
 
                                 override fun onAdClosed() {
-                                    Log.d("AdMob", "Real Ad closed")
+                                    Log.d("AdMob", "Ad closed: $targetAdUnitId")
                                 }
                             }
 
                             frameLayout.addView(adView)
 
-                            try {
-                                val adRequest = AdRequest.Builder().build()
-                                adView.loadAd(adRequest)
-                            } catch (t: Throwable) {
-                                Log.e("AdMob", "Error calling loadAd for real ad unit: $adUnitId", t)
-                            }
+                            val adRequest = AdRequest.Builder().build()
+                            adView.loadAd(adRequest)
                         } catch (t: Throwable) {
                             Log.e("AdMob", "Error creating or loading banner ad", t)
-                            isAdLoaded = false
+                            isAdVisible = false
                         }
                     }
 
                     try {
-                        loadRealBannerAd()
+                        requestAd(adUnitId, isFallback = false)
                     } catch (t: Throwable) {
-                        Log.e("AdMob", "Initial banner load invocation failed", t)
+                        Log.e("AdMob", "Initial banner request failed", t)
                     }
 
                     frameLayout.addOnAttachStateChangeListener(object : View.OnAttachStateChangeListener {

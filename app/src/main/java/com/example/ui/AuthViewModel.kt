@@ -1,6 +1,8 @@
 package com.example.ui
 
+import android.app.Activity
 import android.content.Context
+import android.content.ContextWrapper
 import androidx.credentials.CredentialManager
 import androidx.credentials.CustomCredential
 import androidx.credentials.GetCredentialRequest
@@ -66,7 +68,7 @@ class AuthViewModel(
                 _uiState.update {
                     it.copy(
                         isAuthenticated = true,
-                        loggedInUsername = user?.email,
+                        loggedInUsername = user?.email ?: email,
                         successMessage = "සාර්ථකව ලියාපදිංචි විය (Registered Successfully)"
                     )
                 }
@@ -90,7 +92,7 @@ class AuthViewModel(
                 _uiState.update {
                     it.copy(
                         isAuthenticated = true,
-                        loggedInUsername = user?.email,
+                        loggedInUsername = user?.email ?: email,
                         successMessage = "සාර්ථකව ඇතුළු විය (Login Successful)"
                     )
                 }
@@ -105,13 +107,18 @@ class AuthViewModel(
         viewModelScope.launch {
             _authState.value = AuthState.Loading
             try {
-                val credentialManager = CredentialManager.create(context)
+                val hostActivity: Activity? = generateSequence(context) {
+                    if (it is ContextWrapper) it.baseContext else null
+                }.filterIsInstance<Activity>().firstOrNull()
+
+                val credentialContext = hostActivity ?: context
+                val credentialManager = CredentialManager.create(credentialContext)
 
                 val serverClientId = try {
                     val resId = context.resources.getIdentifier("default_web_client_id", "string", context.packageName)
-                    if (resId != 0) context.getString(resId) else "880156476376-web-client.apps.googleusercontent.com"
+                    if (resId != 0) context.getString(resId) else "880156476376-m6jm67tkk7u5h5d4ikmvmclh0mmbdgj9.apps.googleusercontent.com"
                 } catch (e: Exception) {
-                    "880156476376-web-client.apps.googleusercontent.com"
+                    "880156476376-m6jm67tkk7u5h5d4ikmvmclh0mmbdgj9.apps.googleusercontent.com"
                 }
 
                 val googleIdOption = GetGoogleIdOption.Builder()
@@ -124,7 +131,7 @@ class AuthViewModel(
                     .addCredentialOption(googleIdOption)
                     .build()
 
-                val result = credentialManager.getCredential(context, request)
+                val result = credentialManager.getCredential(credentialContext, request)
                 val credential = result.credential
 
                 if (credential is CustomCredential && credential.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL) {
@@ -137,7 +144,7 @@ class AuthViewModel(
                         _uiState.update {
                             it.copy(
                                 isAuthenticated = true,
-                                loggedInUsername = user?.email ?: user?.displayName,
+                                loggedInUsername = user?.email ?: user?.displayName ?: "Google User",
                                 successMessage = "Google මගින් සාර්ථකව ඇතුළු විය (Google Sign-In Successful)"
                             )
                         }
@@ -150,7 +157,9 @@ class AuthViewModel(
             } catch (e: Exception) {
                 val errorMsg = e.message ?: ""
                 val msg = if (errorMsg.contains("cancel", ignoreCase = true) || errorMsg.contains("USER_CANCELED", ignoreCase = true)) {
-                    "Google පිවිසුම අවලංගු කරන ලදී"
+                    "Google පිවිසුම අවලංගු කරන ලදී (Cancelled)"
+                } else if (errorMsg.contains("No credentials", ignoreCase = true)) {
+                    "දුරකථනයේ Google ගිණුමක් සොයාගත නොහැකි විය. කරුණාකර ඔබගේ Google ගිණුම තහවුරු කර නැවත උත්සාහ කරන්න."
                 } else {
                     e.localizedMessage ?: "Google මගින් ඇතුළු වීමේ දෝෂයක් සිදු විය"
                 }

@@ -137,7 +137,7 @@ fun LoginScreen(
             Spacer(modifier = Modifier.height(14.dp))
 
             Text(
-                text = "ශ්‍රී ලංකා පොලිස් නාමාවලිය",
+                text = "ශ්‍රී ලංකා පොලිස් දුරකථන නාමාවලිය",
                 style = MaterialTheme.typography.titleLarge.copy(
                     fontWeight = FontWeight.Bold,
                     fontSize = 22.sp,
@@ -148,7 +148,7 @@ fun LoginScreen(
             )
 
             Text(
-                text = "Sri Lanka Police Official Directory",
+                text = "Sri Lanka Police Telephone Directory",
                 style = MaterialTheme.typography.bodySmall.copy(
                     fontWeight = FontWeight.Normal,
                     fontSize = 13.sp

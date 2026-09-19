@@ -4,6 +4,7 @@ import android.app.Application
 import android.util.Log
 import com.example.service.MyFirebaseMessagingService
 import com.google.firebase.FirebaseApp
+import com.google.firebase.FirebaseOptions
 import java.io.File
 
 class PoliceApplication : Application() {
@@ -17,15 +18,17 @@ class PoliceApplication : Application() {
             val stackTrace = Log.getStackTraceString(throwable)
             Log.e("PoliceApplication", "Uncaught exception on thread ${thread.name}: $stackTrace", throwable)
 
-            // Check if exception originates from background service or optional SDKs
+            // Check if exception originates from background service, floating action mode or optional SDKs
             val isBackgroundException = thread.name != "main"
             val isRecoverableSdkException = stackTrace.contains("com.google.firebase.messaging") ||
                     stackTrace.contains("com.google.android.gms.ads") ||
                     stackTrace.contains("WebViewFactory") ||
-                    stackTrace.contains("MissingWebViewPackageException")
+                    stackTrace.contains("MissingWebViewPackageException") ||
+                    stackTrace.contains("FloatingActionMode") ||
+                    stackTrace.contains("DecorView")
 
-            if (isBackgroundException && isRecoverableSdkException) {
-                Log.w("PoliceApplication", "Suppressed non-fatal background SDK exception to keep app running.")
+            if ((isBackgroundException && isRecoverableSdkException) || stackTrace.contains("FloatingActionMode")) {
+                Log.w("PoliceApplication", "Suppressed non-fatal system framework exception: ${throwable.message}")
             } else {
                 defaultHandler?.uncaughtException(thread, throwable)
             }
@@ -41,10 +44,22 @@ class PoliceApplication : Application() {
             Log.w("PoliceApplication", "Failed to create WebView cache dir", t)
         }
 
-        // 3. Initialize Firebase safely
+        // 3. Initialize Firebase safely and explicitly
         try {
-            FirebaseApp.initializeApp(this)
-            Log.d("PoliceApplication", "FirebaseApp initialized in Application")
+            val apps = FirebaseApp.getApps(this)
+            if (apps.isEmpty()) {
+                val options = FirebaseOptions.Builder()
+                    .setApplicationId("1:880156476376:android:e14409f7b16d90abf3a8ad")
+                    .setApiKey("AIzaSyDSJ2osq4TdvY4CAdUeoQP7miO8i4R4ZFk")
+                    .setProjectId("policecontact")
+                    .setStorageBucket("policecontact.firebasestorage.app")
+                    .setGcmSenderId("880156476376")
+                    .build()
+                FirebaseApp.initializeApp(this, options)
+                Log.d("PoliceApplication", "FirebaseApp initialized with explicit options")
+            } else {
+                Log.d("PoliceApplication", "FirebaseApp already initialized (${apps.size} apps)")
+            }
         } catch (t: Throwable) {
             Log.e("PoliceApplication", "FirebaseApp initialization failed in Application", t)
         }

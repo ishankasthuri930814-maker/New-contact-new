@@ -7,6 +7,8 @@ import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import android.widget.Toast
+import android.view.ActionMode
+import android.view.Window
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -223,6 +225,37 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private var activeActionMode: ActionMode? = null
+
+    override fun onActionModeStarted(mode: ActionMode?) {
+        try {
+            activeActionMode = mode
+            super.onActionModeStarted(mode)
+        } catch (t: Throwable) {
+            Log.w("MainActivity", "ActionMode started exception caught safely: ${t.message}")
+        }
+    }
+
+    override fun onActionModeFinished(mode: ActionMode?) {
+        try {
+            if (activeActionMode == mode) {
+                activeActionMode = null
+            }
+            super.onActionModeFinished(mode)
+        } catch (t: Throwable) {
+            Log.w("MainActivity", "ActionMode finished exception caught safely: ${t.message}")
+        }
+    }
+
+    override fun onWindowStartingActionMode(callback: ActionMode.Callback?, type: Int): ActionMode? {
+        return try {
+            super.onWindowStartingActionMode(callback, type)
+        } catch (t: Throwable) {
+            Log.w("MainActivity", "Window starting action mode exception handled: ${t.message}")
+            null
+        }
+    }
+
     companion object {
         fun isEmulator(): Boolean {
             val fingerprint = Build.FINGERPRINT.lowercase()
@@ -233,8 +266,7 @@ class MainActivity : ComponentActivity() {
             val brand = Build.BRAND.lowercase()
             val device = Build.DEVICE.lowercase()
 
-            return fingerprint.startsWith("generic") ||
-                    fingerprint.startsWith("unknown") ||
+            return (fingerprint.startsWith("generic") && brand.startsWith("generic")) ||
                     model.contains("google_sdk") ||
                     model.contains("emulator") ||
                     model.contains("android sdk built for") ||
@@ -242,11 +274,9 @@ class MainActivity : ComponentActivity() {
                     hardware.contains("goldfish") ||
                     hardware.contains("ranchu") ||
                     hardware.contains("cutf") ||
-                    product.contains("sdk") ||
+                    product.contains("sdk_gphone") ||
                     product.contains("google_sdk") ||
-                    product.contains("emulator") ||
-                    brand.startsWith("generic") ||
-                    device.startsWith("generic")
+                    (brand.startsWith("generic") && device.startsWith("generic"))
         }
     }
 }

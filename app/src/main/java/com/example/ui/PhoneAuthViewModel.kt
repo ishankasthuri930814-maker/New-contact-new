@@ -69,7 +69,7 @@ class PhoneAuthViewModel : ViewModel() {
         }
     }
 
-    private val webClientId = "850829172957-33g48lgqt370ur24han9smj5obvp32tr.apps.googleusercontent.com"
+    private val webClientId = "880156476376-m6jm67tkk7u5h5d4ikmvmclh0mmbdgj9.apps.googleusercontent.com"
 
     private val _uiState = MutableStateFlow(PhoneAuthState())
     val uiState: StateFlow<PhoneAuthState> = _uiState.asStateFlow()

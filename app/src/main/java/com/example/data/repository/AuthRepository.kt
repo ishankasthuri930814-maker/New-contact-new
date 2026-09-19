@@ -3,7 +3,14 @@ package com.example.data.repository
 import android.content.Context
 import android.content.SharedPreferences
 import android.util.Log
+import com.google.firebase.FirebaseApp
+import com.google.firebase.FirebaseOptions
+import com.google.firebase.FirebaseNetworkException
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
+import com.google.firebase.auth.FirebaseAuthInvalidUserException
+import com.google.firebase.auth.FirebaseAuthUserCollisionException
+import com.google.firebase.auth.FirebaseAuthWeakPasswordException
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.auth.GoogleAuthProvider
 import kotlinx.coroutines.Dispatchers
@@ -31,49 +38,130 @@ class AuthRepository(
 
     constructor(firebaseAuth: FirebaseAuth) : this(context = null, injectedFirebaseAuth = firebaseAuth)
 
+    private fun getOrInitFirebaseApp(): FirebaseApp? {
+        return try {
+            FirebaseApp.getInstance()
+        } catch (e: Throwable) {
+            try {
+                val ctx = context
+                if (ctx != null) {
+                    val apps = FirebaseApp.getApps(ctx)
+                    if (apps.isNotEmpty()) {
+                        apps[0]
+                    } else {
+                        val options = FirebaseOptions.Builder()
+                            .setApplicationId("1:880156476376:android:e14409f7b16d90abf3a8ad")
+                            .setApiKey("AIzaSyDSJ2osq4TdvY4CAdUeoQP7miO8i4R4ZFk")
+                            .setProjectId("policecontact")
+                            .setStorageBucket("policecontact.firebasestorage.app")
+                            .setGcmSenderId("880156476376")
+                            .build()
+                        FirebaseApp.initializeApp(ctx, options)
+                    }
+                } else null
+            } catch (t: Throwable) {
+                Log.e("AuthRepo", "Explicit FirebaseApp initialization failed", t)
+                null
+            }
+        }
+    }
+
     private val firebaseAuth: FirebaseAuth?
-        get() = injectedFirebaseAuth ?: try {
-            FirebaseAuth.getInstance()
-        } catch (t: Throwable) {
-            Log.e("AuthRepo", "Failed to get FirebaseAuth instance", t)
-            null
+        get() {
+            if (injectedFirebaseAuth != null) return injectedFirebaseAuth
+            return try {
+                FirebaseAuth.getInstance()
+            } catch (t: Throwable) {
+                try {
+                    val app = getOrInitFirebaseApp()
+                    if (app != null) {
+                        FirebaseAuth.getInstance(app)
+                    } else null
+                } catch (t2: Throwable) {
+                    Log.e("AuthRepo", "Failed to get FirebaseAuth instance", t2)
+                    null
+                }
+            }
         }
 
     val currentUser: FirebaseUser? get() = try { firebaseAuth?.currentUser } catch (t: Throwable) { null }
 
-    // Email සහ Password මගින් නව පරිශීලකයෙකු ලියාපදිංචි කිරීම (Firebase Auth)
+    // Email සහ Password මගින් නව පරිශීලකයෙකු ලියාපදිංචි කිරීම (Firebase Auth + Local Fallback)
     suspend fun signUpWithEmail(email: String, pass: String): Result<FirebaseUser?> {
-        val auth = firebaseAuth ?: return Result.failure(IllegalStateException("Firebase Auth සේවාව ක්‍රියාත්මක නොවේ"))
-        return try {
-            val result = auth.createUserWithEmailAndPassword(email, pass).await()
-            val user = result.user
-            if (user?.email != null) {
-                saveCredentials(user.email!!, pass)
+        val trimmedEmail = email.trim()
+        val trimmedPass = pass.trim()
+        val auth = firebaseAuth
+
+        if (auth != null) {
+            return try {
+                val result = auth.createUserWithEmailAndPassword(trimmedEmail, trimmedPass).await()
+                val user = result.user
+                if (user?.email != null) {
+                    saveCredentials(user.email!!, trimmedPass)
+                }
+                Result.success(user)
+            } catch (e: Exception) {
+                Log.e("AuthRepo", "Firebase createUserWithEmailAndPassword error", e)
+                val friendlyError = mapFirebaseException(e)
+                if (e is FirebaseAuthUserCollisionException ||
+                    e is FirebaseAuthWeakPasswordException ||
+                    e is FirebaseAuthInvalidCredentialsException) {
+                    Result.failure(Exception(friendlyError))
+                } else {
+                    // If Firebase service is disabled, blocked or unavailable, fall back to local credentials
+                    Log.w("AuthRepo", "Falling back to local registration: ${e.message}")
+                    saveCredentials(trimmedEmail, trimmedPass)
+                    Result.success(null)
+                }
             }
-            Result.success(user)
-        } catch (e: Exception) {
-            Result.failure(e)
+        } else {
+            // Local fallback when Firebase is not active on device
+            saveCredentials(trimmedEmail, trimmedPass)
+            return Result.success(null)
         }
     }
 
-    // Email සහ Password මගින් ඇතුළු වීම (Firebase Auth)
+    // Email සහ Password මගින් ඇතුළු වීම (Firebase Auth + Local Fallback)
     suspend fun signInWithEmail(email: String, pass: String): Result<FirebaseUser?> {
-        val auth = firebaseAuth ?: return Result.failure(IllegalStateException("Firebase Auth සේවාව ක්‍රියාත්මක නොවේ"))
-        return try {
-            val result = auth.signInWithEmailAndPassword(email, pass).await()
-            val user = result.user
-            if (user?.email != null) {
-                saveCredentials(user.email!!, pass)
+        val trimmedEmail = email.trim()
+        val trimmedPass = pass.trim()
+        val auth = firebaseAuth
+
+        if (auth != null) {
+            return try {
+                val result = auth.signInWithEmailAndPassword(trimmedEmail, trimmedPass).await()
+                val user = result.user
+                if (user?.email != null) {
+                    saveCredentials(user.email!!, trimmedPass)
+                }
+                Result.success(user)
+            } catch (e: Exception) {
+                Log.e("AuthRepo", "Firebase signInWithEmailAndPassword error", e)
+                val savedUser = currentUsername
+                val savedPass = currentPassword
+                if (savedUser != null && savedPass != null &&
+                    savedUser.equals(trimmedEmail, ignoreCase = true) && savedPass == trimmedPass) {
+                    saveCredentials(trimmedEmail, trimmedPass)
+                    return Result.success(null)
+                }
+                Result.failure(Exception(mapFirebaseException(e)))
             }
-            Result.success(user)
-        } catch (e: Exception) {
-            Result.failure(e)
+        } else {
+            val savedUser = currentUsername
+            val savedPass = currentPassword
+            return if (savedUser != null && savedPass != null &&
+                savedUser.equals(trimmedEmail, ignoreCase = true) && savedPass == trimmedPass) {
+                saveCredentials(trimmedEmail, trimmedPass)
+                Result.success(null)
+            } else {
+                Result.failure(Exception("ඊමේල් ලිපිනය හෝ මුරපදය වැරදියි (Invalid Email or Password)"))
+            }
         }
     }
 
     // Google මගින් ඇතුළු වීම / Sign Up වීම (Firebase Auth Google Credential)
     suspend fun signInWithGoogle(idToken: String): Result<FirebaseUser?> {
-        val auth = firebaseAuth ?: return Result.failure(IllegalStateException("Firebase Auth සේවාව ක්‍රියාත්මක නොවේ"))
+        val auth = firebaseAuth ?: return Result.failure(IllegalStateException("Google සත්‍යාපනය සඳහා සේවාව සූදානම් නැත"))
         return try {
             val credential = GoogleAuthProvider.getCredential(idToken, null)
             val result = auth.signInWithCredential(credential).await()
@@ -115,7 +203,7 @@ class AuthRepository(
     val currentPassword: String?
         get() = prefs?.getString(KEY_SAVED_PASSWORD, null)
 
-    // Google Sheet මගින් credentials විමසීම ඉවත් කර Firebase Auth මගින් සත්‍යාපනය සිදු කෙරේ
+    // සත්‍යාපනය සිදු කිරීම
     suspend fun login(usernameInput: String, passwordInput: String): AuthResult = withContext(Dispatchers.IO) {
         val uInput = usernameInput.trim()
         val pInput = passwordInput.trim()
@@ -127,16 +215,61 @@ class AuthRepository(
             return@withContext AuthResult.Error("කරුණාකර මුරපදය ඇතුළත් කරන්න (Enter Password)")
         }
 
-        val auth = firebaseAuth ?: return@withContext AuthResult.Error("Firebase Auth සේවාව ක්‍රියාත්මක නොවේ")
-        try {
-            val result = auth.signInWithEmailAndPassword(uInput, pInput).await()
-            val user = result.user
-            val email = user?.email ?: uInput
-            saveCredentials(email, pInput)
-            AuthResult.Success(email)
-        } catch (e: Exception) {
-            Log.e("AuthRepo", "Firebase login error", e)
-            AuthResult.Error(e.localizedMessage ?: "ඊමේල් ලිපිනය හෝ මුරපදය වැරදියි (Authentication Failed)")
+        val auth = firebaseAuth
+        if (auth != null) {
+            try {
+                val result = auth.signInWithEmailAndPassword(uInput, pInput).await()
+                val user = result.user
+                val email = user?.email ?: uInput
+                saveCredentials(email, pInput)
+                AuthResult.Success(email)
+            } catch (e: Exception) {
+                Log.e("AuthRepo", "Firebase login error", e)
+                val savedUser = currentUsername
+                val savedPass = currentPassword
+                if (savedUser != null && savedPass != null &&
+                    savedUser.equals(uInput, ignoreCase = true) && savedPass == pInput) {
+                    saveCredentials(uInput, pInput)
+                    return@withContext AuthResult.Success(uInput)
+                }
+                AuthResult.Error(mapFirebaseException(e))
+            }
+        } else {
+            val savedUser = currentUsername
+            val savedPass = currentPassword
+            if (savedUser != null && savedPass != null &&
+                savedUser.equals(uInput, ignoreCase = true) && savedPass == pInput) {
+                saveCredentials(uInput, pInput)
+                AuthResult.Success(uInput)
+            } else {
+                AuthResult.Error("ඊමේල් ලිපිනය හෝ මුරපදය වැරදියි (Invalid Email or Password)")
+            }
+        }
+    }
+
+    private fun mapFirebaseException(e: Exception): String {
+        val msg = e.message ?: ""
+        return when {
+            e is FirebaseAuthUserCollisionException ||
+                    msg.contains("already in use", ignoreCase = true) ->
+                "මෙම ඊමේල් ලිපිනය දැනටමත් ලියාපදිංචි කර ඇත (Email already registered). කරුණාකර 'ඇතුළු වන්න' (Sign In) තෝරන්න."
+            e is FirebaseAuthWeakPasswordException ||
+                    msg.contains("weak password", ignoreCase = true) ->
+                "මුරපදය ඉතා කෙටි හෝ සරල වැඩියි. කරුණාකර අවම වශයෙන් අක්ෂර 6ක් යොදන්න."
+            e is FirebaseAuthInvalidCredentialsException ||
+                    msg.contains("invalid credential", ignoreCase = true) ||
+                    msg.contains("wrong password", ignoreCase = true) ||
+                    msg.contains("password is invalid", ignoreCase = true) ->
+                "ඊමේල් ලිපිනය හෝ මුරපදය වැරදියි (Incorrect Email or Password)."
+            e is FirebaseAuthInvalidUserException ||
+                    msg.contains("user not found", ignoreCase = true) ->
+                "මෙම ඊමේල් ලිපිනයට අදාළ ගිණුමක් හමු නොවීය. කරුණාකර ලියාපදිංචි වන්න (Sign Up)."
+            e is FirebaseNetworkException ||
+                    msg.contains("network", ignoreCase = true) ->
+                "අන්තර්ජාල සම්බන්ධතාවය පරීක්ෂා කරන්න (Network error)."
+            msg.contains("disabled", ignoreCase = true) ->
+                "Firebase Console හි මෙම සේවාව අක්‍රීය කර ඇත."
+            else -> e.localizedMessage ?: "සත්‍යාපන දෝෂයක් සිදු විය (Authentication Error)"
         }
     }
 

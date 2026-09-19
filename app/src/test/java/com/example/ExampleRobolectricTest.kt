@@ -18,5 +18,12 @@ class ExampleRobolectricTest {
     val context = ApplicationProvider.getApplicationContext<Context>()
     val appName = context.getString(R.string.app_name)
     assertEquals("ALL Police Contact", appName)
+    try {
+      val auth = com.google.firebase.auth.FirebaseAuth.getInstance()
+      println("FirebaseAuth instance: $auth")
+    } catch (t: Throwable) {
+      println("FirebaseAuth failed with: ${t.javaClass.name}: ${t.message}")
+      t.printStackTrace()
+    }
   }
 }
