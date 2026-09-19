@@ -127,7 +127,6 @@ fun PhoneAuthScreen(
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
-        bottomBar = { BannerAdView() },
         topBar = {
             TopAppBar(
                 title = {

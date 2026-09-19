@@ -52,7 +52,10 @@ object AdMobManager : Application.ActivityLifecycleCallbacks, DefaultLifecycleOb
     private var interstitialAd: InterstitialAd? = null
     private var isLoadingInterstitial = false
     private var lastInterstitialShownTime: Long = 0
-    private const val INTERSTITIAL_INTERVAL_MS = 12000L // 12 seconds cooldown to prevent rapid spam
+    private const val INTERSTITIAL_INTERVAL_MS = 5000L // 5 seconds cooldown
+
+    // Authentication screen awareness: strictly NO ads on Login/Signup
+    var isUserAuthenticated: Boolean = false
 
     private val mainHandler = Handler(Looper.getMainLooper())
 
@@ -140,6 +143,12 @@ object AdMobManager : Application.ActivityLifecycleCallbacks, DefaultLifecycleOb
 
     fun showAppOpenAdIfAvailable(activity: Activity, onComplete: () -> Unit = {}) {
         if (MainActivity.isEmulator()) {
+            onComplete()
+            return
+        }
+
+        if (!isUserAuthenticated) {
+            Log.d(TAG, "User is on login/signup screen; skipping App Open Ad.")
             onComplete()
             return
         }
@@ -261,6 +270,12 @@ object AdMobManager : Application.ActivityLifecycleCallbacks, DefaultLifecycleOb
             return
         }
 
+        if (!isUserAuthenticated) {
+            Log.d(TAG, "User is on login/signup screen; skipping Interstitial Ad.")
+            onAdDismissed()
+            return
+        }
+
         val currentTime = System.currentTimeMillis()
         if (!ignoreCooldown && (currentTime - lastInterstitialShownTime < INTERSTITIAL_INTERVAL_MS)) {
             Log.d(TAG, "Interstitial ad skipped due to frequency cooldown.")
@@ -324,6 +339,10 @@ object AdMobManager : Application.ActivityLifecycleCallbacks, DefaultLifecycleOb
     override fun onStart(owner: LifecycleOwner) {
         super.onStart(owner)
         // Triggered when app moves to foreground from background
+        if (!isUserAuthenticated) {
+            Log.d(TAG, "App resumed but user is on login/signup screen; skipping App Open Ad.")
+            return
+        }
         currentActivity?.let { act ->
             if (!act.isFinishing && !act.isDestroyed && !isShowingAd) {
                 Log.d(TAG, "App moved to foreground; presenting App Open Ad if available")

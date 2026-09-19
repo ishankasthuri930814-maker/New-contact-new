@@ -133,8 +133,16 @@ fun PoliceScreen(
     var aiSearchQuery by remember { mutableStateOf("") }
     var contactForQrDialog by remember { mutableStateOf<PoliceContact?>(null) }
 
+    // Interstitial Ad when user was viewing contact details popup and presses Back
+    BackHandler(enabled = uiState.selectedContactForDetail != null) {
+        viewModel.closeContactDetail()
+        activity?.let { act ->
+            com.example.ads.AdMobManager.showInterstitialAd(act)
+        }
+    }
+
     // Interstitial Ad when user was searching a contact and presses Back
-    BackHandler(enabled = uiState.searchQuery.isNotEmpty()) {
+    BackHandler(enabled = uiState.searchQuery.isNotEmpty() && uiState.selectedContactForDetail == null) {
         viewModel.onSearchQueryChange("")
         keyboardController?.hide()
         activity?.let { act ->
@@ -148,6 +156,7 @@ fun PoliceScreen(
                 uiState.selectedContactForDetail == null &&
                 !showAiSearchDialog &&
                 !showUserDialog &&
+                !showInfoDialog &&
                 contactForQrDialog == null
     ) {
         if (activity != null && com.example.ads.AdMobManager.hasInterstitialAd()) {
@@ -550,12 +559,9 @@ fun PoliceScreen(
                     contact = selectedContact,
                     sheetState = sheetState,
                     onDismiss = {
-                        val wasSearching = uiState.searchQuery.isNotEmpty()
                         viewModel.closeContactDetail()
-                        if (wasSearching) {
-                            activity?.let { act ->
-                                com.example.ads.AdMobManager.showInterstitialAd(act)
-                            }
+                        activity?.let { act ->
+                            com.example.ads.AdMobManager.showInterstitialAd(act)
                         }
                     },
                     onCallClick = { phone -> viewModel.makePhoneCall(context, phone) },

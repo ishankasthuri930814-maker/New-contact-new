@@ -173,8 +173,14 @@ class MainActivity : ComponentActivity() {
                         Toast.makeText(this@MainActivity, displayMsg, Toast.LENGTH_LONG).show()
                     }
 
-                    // Attempt showing App Open Ad on cold launch once view is active
-                    com.example.ads.AdMobManager.showAppOpenAdIfAvailable(this@MainActivity)
+                    // Attempt showing App Open Ad on cold launch once view is active ONLY if authenticated
+                    if (authUiState.isAuthenticated) {
+                        com.example.ads.AdMobManager.showAppOpenAdIfAvailable(this@MainActivity)
+                    }
+                }
+
+                LaunchedEffect(authUiState.isAuthenticated) {
+                    com.example.ads.AdMobManager.isUserAuthenticated = authUiState.isAuthenticated
                 }
 
                 var showAdminPanel by remember { mutableStateOf(false) }
@@ -191,7 +197,10 @@ class MainActivity : ComponentActivity() {
                         PoliceScreen(
                             viewModel = policeViewModel,
                             currentUser = authUiState.loggedInUsername,
-                            onLogout = { authViewModel.logout() },
+                            onLogout = {
+                                com.example.ads.AdMobManager.isUserAuthenticated = false
+                                authViewModel.logout()
+                            },
                             onOpenAdminPanel = { showAdminPasswordDialog = true }
                         )
                     }
