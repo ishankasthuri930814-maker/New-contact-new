@@ -71,5 +71,13 @@ class PoliceApplication : Application() {
         } catch (t: Throwable) {
             Log.e("PoliceApplication", "Notification channel creation failed", t)
         }
+
+        // 5. Initialize AdMob Manager for App Open Ads & Interstitial Ads
+        try {
+            com.example.ads.AdMobManager.initialize(this)
+            Log.d("PoliceApplication", "AdMobManager initialized")
+        } catch (t: Throwable) {
+            Log.e("PoliceApplication", "AdMobManager initialization failed", t)
+        }
     }
 }

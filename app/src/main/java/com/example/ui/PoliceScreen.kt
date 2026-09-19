@@ -66,9 +66,13 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.compose.material.icons.filled.AdminPanelSettings
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -119,6 +123,7 @@ fun PoliceScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val activity = remember(context) { context.findActivity() }
     val keyboardController = LocalSoftwareKeyboardController.current
     val snackbarHostState = remember { SnackbarHostState() }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -127,6 +132,32 @@ fun PoliceScreen(
     var showAiSearchDialog by remember { mutableStateOf(false) }
     var aiSearchQuery by remember { mutableStateOf("") }
     var contactForQrDialog by remember { mutableStateOf<PoliceContact?>(null) }
+
+    // Interstitial Ad when user was searching a contact and presses Back
+    BackHandler(enabled = uiState.searchQuery.isNotEmpty()) {
+        viewModel.onSearchQueryChange("")
+        keyboardController?.hide()
+        activity?.let { act ->
+            com.example.ads.AdMobManager.showInterstitialAd(act)
+        }
+    }
+
+    // Interstitial Ad when user presses back to close the app from the main screen
+    BackHandler(
+        enabled = uiState.searchQuery.isEmpty() &&
+                uiState.selectedContactForDetail == null &&
+                !showAiSearchDialog &&
+                !showUserDialog &&
+                contactForQrDialog == null
+    ) {
+        if (activity != null && com.example.ads.AdMobManager.hasInterstitialAd()) {
+            com.example.ads.AdMobManager.showInterstitialAd(activity, ignoreCooldown = true) {
+                activity.finish()
+            }
+        } else {
+            activity?.finish()
+        }
+    }
 
     // Handle user messages in Snackbar
     LaunchedEffect(uiState.userMessage) {
@@ -302,7 +333,13 @@ fun PoliceScreen(
                             },
                             trailingIcon = {
                                 if (uiState.searchQuery.isNotEmpty()) {
-                                    IconButton(onClick = { viewModel.onSearchQueryChange("") }) {
+                                    IconButton(onClick = {
+                                        viewModel.onSearchQueryChange("")
+                                        keyboardController?.hide()
+                                        activity?.let { act ->
+                                            com.example.ads.AdMobManager.showInterstitialAd(act)
+                                        }
+                                    }) {
                                         Icon(
                                             imageVector = Icons.Default.Clear,
                                             contentDescription = "Clear search",
@@ -512,7 +549,15 @@ fun PoliceScreen(
                 ContactDetailBottomSheet(
                     contact = selectedContact,
                     sheetState = sheetState,
-                    onDismiss = { viewModel.closeContactDetail() },
+                    onDismiss = {
+                        val wasSearching = uiState.searchQuery.isNotEmpty()
+                        viewModel.closeContactDetail()
+                        if (wasSearching) {
+                            activity?.let { act ->
+                                com.example.ads.AdMobManager.showInterstitialAd(act)
+                            }
+                        }
+                    },
                     onCallClick = { phone -> viewModel.makePhoneCall(context, phone) },
                     onWhatsAppClick = { phone -> viewModel.openWhatsApp(context, phone) },
                     onEmailClick = { email, station -> viewModel.sendEmail(context, email, station) },
@@ -1163,3 +1208,13 @@ private fun WelcomeFeatureRow(
         }
     }
 }
+
+private fun Context.findActivity(): Activity? {
+    var cur = this
+    while (cur is ContextWrapper) {
+        if (cur is Activity) return cur
+        cur = cur.baseContext
+    }
+    return null
+}
+

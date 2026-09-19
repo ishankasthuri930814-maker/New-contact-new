@@ -172,6 +172,9 @@ class MainActivity : ComponentActivity() {
                         val displayMsg = listOfNotNull(notifTitle, notifBody).joinToString(": ")
                         Toast.makeText(this@MainActivity, displayMsg, Toast.LENGTH_LONG).show()
                     }
+
+                    // Attempt showing App Open Ad on cold launch once view is active
+                    com.example.ads.AdMobManager.showAppOpenAdIfAvailable(this@MainActivity)
                 }
 
                 var showAdminPanel by remember { mutableStateOf(false) }
