@@ -785,7 +785,7 @@ fun PoliceScreen(
                                         )
                                     }
                                     Text(
-                                        text = "v3.5",
+                                        text = "v${AppUpdateManager.getCurrentVersionName()}",
                                         style = MaterialTheme.typography.labelSmall.copy(
                                             color = Color(0xFF94A3B8),
                                             fontSize = 10.sp
