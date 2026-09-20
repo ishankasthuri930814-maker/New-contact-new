@@ -22,7 +22,7 @@ workflows:
           unzip -q gradle-9.3.1-bin.zip -d $HOME
           export PATH=$HOME/gradle-9.3.1/bin:$PATH
           
-          gradle assembleRelease
+          gradle assembleRelease -Pandroid.injected.signing.store.file=$(pwd)/my-upload-key.jks -Pandroid.injected.signing.store.password=$CM_KEYSTORE_PASSWORD -Pandroid.injected.signing.key.alias=$CM_KEY_ALIAS -Pandroid.injected.signing.key.password=$CM_KEY_PASSWORD
 
     artifacts:
       - app/build/outputs/apk/release/*.apk
