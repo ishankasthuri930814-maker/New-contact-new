@@ -5,20 +5,25 @@ workflows:
     instance_type: mac_mini_m1
     environment:
       groups:
+        - keystore_credentials
         - android_ndk
       java: 17
     scripts:
       - name: Set up local.properties
         script: |
           echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
-      - name: Generate Dummy Keystore
+
+      - name: Set up Release Keystore
         script: |
-          keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+          echo $CM_KEYSTORE_BASE64 | base64 --decode > android/app/my-release-key.jks
+
       - name: Download and Use Gradle 9.3.1
         script: |
           wget -q https://services.gradle.org/distributions/gradle-9.3.1-bin.zip
           unzip -q gradle-9.3.1-bin.zip -d $HOME
           export PATH=$HOME/gradle-9.3.1/bin:$PATH
-          gradle assembleDebug
+          
+          gradle assembleRelease
+
     artifacts:
-      - app/build/outputs/apk/**/*.apk
+      - app/build/outputs/apk/release/*.apk
