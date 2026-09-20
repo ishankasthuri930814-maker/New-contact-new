@@ -79,7 +79,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -103,6 +105,10 @@ import androidx.compose.foundation.layout.FlowRow
 import com.example.ui.components.ContactCard
 import com.example.ui.components.ContactDetailBottomSheet
 import com.example.ui.components.ContactQrDialog
+import com.example.ui.components.AppUpdateDialog
+import com.example.util.AppUpdateManager
+import com.example.util.UpdateStatus
+import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material.icons.filled.Person
@@ -132,6 +138,14 @@ fun PoliceScreen(
     var showAiSearchDialog by remember { mutableStateOf(false) }
     var aiSearchQuery by remember { mutableStateOf("") }
     var contactForQrDialog by remember { mutableStateOf<PoliceContact?>(null) }
+    var showManualUpdateDialog by remember { mutableStateOf(false) }
+    val coroutineScope = rememberCoroutineScope()
+    val updateStatus by AppUpdateManager.updateStatus.collectAsStateWithLifecycle()
+
+    // Silently check for GitHub app updates in background on launch
+    LaunchedEffect(Unit) {
+        AppUpdateManager.checkForUpdates(context, isManualCheck = false)
+    }
 
     // Interstitial Ad when user was viewing contact details popup and presses Back
     BackHandler(enabled = uiState.selectedContactForDetail != null) {
@@ -584,6 +598,21 @@ fun PoliceScreen(
                 )
             }
 
+            // GitHub In-App Update Dialog
+            if (updateStatus is UpdateStatus.UpdateAvailable ||
+                updateStatus is UpdateStatus.Downloading ||
+                updateStatus is UpdateStatus.ReadyToInstall ||
+                (updateStatus is UpdateStatus.Error && showManualUpdateDialog)
+            ) {
+                AppUpdateDialog(
+                    status = updateStatus,
+                    onDismiss = {
+                        showManualUpdateDialog = false
+                        AppUpdateManager.resetStatus()
+                    }
+                )
+            }
+
             // Creator Info / Welcome Dialog
             if (showInfoDialog) {
                 Dialog(
@@ -760,6 +789,41 @@ fun PoliceScreen(
                                         style = MaterialTheme.typography.labelSmall.copy(
                                             color = Color(0xFF94A3B8),
                                             fontSize = 10.sp
+                                        )
+                                    )
+                                }
+
+                                OutlinedButton(
+                                    onClick = {
+                                        showInfoDialog = false
+                                        showManualUpdateDialog = true
+                                        coroutineScope.launch {
+                                            val res = AppUpdateManager.checkForUpdates(context, isManualCheck = true)
+                                            if (res is UpdateStatus.NoUpdate) {
+                                                snackbarHostState.showSnackbar("ඔබ දැනටමත් නවතම සංස්කරණය (v${AppUpdateManager.getCurrentVersionName()}) භාවිත කරයි!")
+                                            }
+                                        }
+                                    },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(38.dp)
+                                        .testTag("check_updates_info_button"),
+                                    shape = RoundedCornerShape(10.dp),
+                                    border = BorderStroke(1.dp, PoliceNavy.copy(alpha = 0.5f))
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.SystemUpdate,
+                                        contentDescription = null,
+                                        tint = PoliceNavy,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = "නව Updates පරීක්ෂා කරන්න (Check Updates)",
+                                        style = MaterialTheme.typography.labelMedium.copy(
+                                            fontWeight = FontWeight.Bold,
+                                            color = PoliceNavy,
+                                            fontSize = 11.sp
                                         )
                                     )
                                 }

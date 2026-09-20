@@ -90,6 +90,7 @@ import com.example.data.model.ContactCategory
 import com.example.data.model.PoliceContact
 import com.example.ui.components.BulkImportDialog
 import com.example.ui.components.ContactQrDialog
+import com.example.ui.components.AdminUpdateSettingsCard
 import com.example.ui.theme.PoliceGold
 import com.example.ui.theme.PoliceNavy
 import kotlinx.coroutines.delay
@@ -301,7 +302,18 @@ fun AdminPanelScreen(
                     }
                 }
 
-                // 2. Action & Filter Bar Header
+                // 2. GitHub In-App Auto-Update Settings & Management Card
+                item {
+                    AdminUpdateSettingsCard(
+                        onShowMessage = { msg ->
+                            scope.launch {
+                                snackbarHostState.showSnackbar(msg)
+                            }
+                        }
+                    )
+                }
+
+                // 3. Action & Filter Bar Header
                 item {
                     Surface(
                         color = Color.White,

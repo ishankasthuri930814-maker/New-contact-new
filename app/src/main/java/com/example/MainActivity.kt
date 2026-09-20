@@ -175,7 +175,7 @@ class MainActivity : ComponentActivity() {
 
                     // Attempt showing App Open Ad on cold launch once view is active ONLY if authenticated
                     if (authUiState.isAuthenticated) {
-                        com.example.ads.AdMobManager.showAppOpenAdIfAvailable(this@MainActivity)
+                        com.example.ads.AdMobManager.showAppOpenAdIfAvailable(this@MainActivity, isColdStart = true)
                     }
                 }
 
