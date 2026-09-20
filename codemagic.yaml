@@ -14,7 +14,7 @@ workflows:
 
       - name: Set up Release Keystore
         script: |
-          echo $CM_KEYSTORE_BASE64 | base64 --decode > my-upload-key.jks
+          echo "$CM_KEYSTORE_BASE64" | base64 --decode > my-upload-key.jks
 
       - name: Download and Use Gradle 9.3.1
         script: |
