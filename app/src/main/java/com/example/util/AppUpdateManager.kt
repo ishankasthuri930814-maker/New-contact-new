@@ -134,7 +134,8 @@ object AppUpdateManager {
                     val json = JSONObject(responseBody)
                     val tagName = json.optString("tag_name", "")
                     val releaseTitle = json.optString("name", tagName)
-                    val releaseNotes = json.optString("body", "නව යාවත්කාලීනයක් නිකුත් කර ඇත.")
+                    val bodyRaw = if (json.has("body") && !json.isNull("body")) json.optString("body", "") else ""
+                    val releaseNotes = if (bodyRaw.isNotBlank()) bodyRaw.trim() else "නව විශේෂාංග සහ වැඩිදියුණු කිරීම් ඇතුළත් කර ඇත."
                     val publishedAt = json.optString("published_at", "")
                     val htmlUrl = json.optString("html_url", "https://github.com/$repo/releases")
 
@@ -285,6 +286,18 @@ object AppUpdateManager {
                             }
                             output.flush()
                         }
+                    }
+
+                    // Also make a copy in public Downloads folder so if user uninstalls, the APK is still in Downloads/
+                    try {
+                        val publicDownloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+                        if (publicDownloadsDir != null && publicDownloadsDir.exists()) {
+                            val publicApk = File(publicDownloadsDir, fileName)
+                            apkFile.copyTo(publicApk, overwrite = true)
+                            Log.d(TAG, "Copied APK to public Downloads folder: ${publicApk.absolutePath}")
+                        }
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Could not copy to public Downloads folder: ${e.message}")
                     }
 
                     downloadedApkFile = apkFile

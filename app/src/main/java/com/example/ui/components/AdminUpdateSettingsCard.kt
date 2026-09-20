@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Campaign
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
@@ -57,6 +58,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.ui.theme.PoliceGold
 import com.example.ui.theme.PoliceNavy
 import com.example.util.AppUpdateManager
+import com.example.util.AppNoticeManager
 import com.example.util.UpdateStatus
 import kotlinx.coroutines.launch
 
@@ -432,6 +434,113 @@ fun AdminUpdateSettingsCard(
                                 title = "'Publish release' ක්ලික් කරන්න",
                                 desc = "එපමණයි! සියලුම Users ලා App එක Open කරන විට නව Update එක Screen එක මත Popup වී කෙලින්ම Install කරගත හැක."
                             )
+                        }
+                    }
+                }
+            }
+
+            // GitHub Instant Announcement / Notice Guide & Controls
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Color(0xFFFDF4FF)),
+                shape = RoundedCornerShape(12.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFF0ABFC)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier.padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(28.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFF86198F)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Campaign,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Column {
+                            Text(
+                                text = "GitHub ක්ෂණික නිවේදන (Instant Notices)",
+                                style = MaterialTheme.typography.titleSmall.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF701A75),
+                                    fontSize = 13.sp
+                                )
+                            )
+                            Text(
+                                text = "APK එකක් නැතුව පරිශීලකයින්ට Popup පණිවිඩ යැවීම",
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    color = Color(0xFF86198F),
+                                    fontSize = 10.5.sp
+                                )
+                            )
+                        }
+                    }
+
+                    Text(
+                        text = "ඔබගේ GitHub Repo එක තුළ 'notice.json' නමින් file එකක් සාදා එහි පහත ආකාරයට සටහන් කළ විට සියලුම App users ලාට එය Popup එකක් ලෙස ලැබේ:\n\n{\n  \"id\": \"notice_1\",\n  \"active\": true,\n  \"title\": \"විශේෂ නිවේදනයයි\",\n  \"message\": \"ඔබගේ පණිවිඩය මෙහි ලියන්න...\",\n  \"type\": \"info\",\n  \"date\": \"2026-09-20\"\n}",
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            color = Color(0xFF3B0764),
+                            fontSize = 11.sp,
+                            lineHeight = 16.sp
+                        )
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedButton(
+                            onClick = {
+                                scope.launch {
+                                    AppNoticeManager.clearDismissedNotice(context)
+                                    AppNoticeManager.checkForNotices(context, forceShow = true)
+                                    onShowMessage("Notice පරීක්ෂා කරමින් පවතී...")
+                                }
+                            },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(8.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF86198F))
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Refresh,
+                                contentDescription = null,
+                                tint = Color(0xFF86198F),
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "Notice Check",
+                                fontSize = 11.sp,
+                                color = Color(0xFF86198F)
+                            )
+                        }
+
+                        Button(
+                            onClick = {
+                                val repo = AppUpdateManager.getGitHubRepo(context)
+                                AppUpdateManager.openInBrowser(context, "https://github.com/$repo")
+                            },
+                            modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF86198F)),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.OpenInBrowser,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Open GitHub", fontSize = 11.sp, color = Color.White)
                         }
                     }
                 }

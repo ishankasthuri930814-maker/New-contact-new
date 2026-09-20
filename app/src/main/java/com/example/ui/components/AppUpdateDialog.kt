@@ -127,7 +127,7 @@ fun AppUpdateDialog(
                                 )
                             )
                             Text(
-                                text = "New Version Available on GitHub",
+                                text = "යෙදුමේ නව සංස්කරණයක් නිකුත් කර ඇත",
                                 style = MaterialTheme.typography.labelSmall.copy(
                                     color = PoliceGold,
                                     fontSize = 11.sp
@@ -171,9 +171,6 @@ fun AppUpdateDialog(
                                         AppUpdateManager.downloadApk(context, release)
                                     }
                                 },
-                                onOpenBrowser = {
-                                    AppUpdateManager.openInBrowser(context, release.htmlUrl)
-                                },
                                 onLater = onDismiss
                             )
                         }
@@ -192,9 +189,6 @@ fun AppUpdateDialog(
                                     if (activity != null) {
                                         AppUpdateManager.installApk(activity, status.apkFile)
                                     }
-                                },
-                                onOpenBrowser = {
-                                    AppUpdateManager.openInBrowser(context, status.release.htmlUrl)
                                 }
                             )
                         }
@@ -205,10 +199,6 @@ fun AppUpdateDialog(
                                     scope.launch {
                                         AppUpdateManager.checkForUpdates(context, isManualCheck = true)
                                     }
-                                },
-                                onOpenGitHub = {
-                                    val repo = AppUpdateManager.getGitHubRepo(context)
-                                    AppUpdateManager.openInBrowser(context, "https://github.com/$repo/releases")
                                 },
                                 onDismiss = onDismiss
                             )
@@ -225,7 +215,6 @@ fun AppUpdateDialog(
 private fun UpdateAvailableContent(
     release: GitHubRelease,
     onUpdateNow: () -> Unit,
-    onOpenBrowser: () -> Unit,
     onLater: () -> Unit
 ) {
     val currentVer = AppUpdateManager.getCurrentVersionName()
@@ -306,46 +295,85 @@ private fun UpdateAvailableContent(
         }
     }
 
-    // Release Notes
-    if (release.releaseNotes.isNotBlank()) {
-        Column(modifier = Modifier.fillMaxWidth()) {
-            Text(
-                text = "නව වෙනස්කම් (What's New):",
-                style = MaterialTheme.typography.labelMedium.copy(
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFF0F172A),
-                    fontSize = 12.sp
-                )
+    // Release Notes / Description from GitHub
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            text = "නව සංස්කරණයේ වෙනස්කම් (What's New):",
+            style = MaterialTheme.typography.labelMedium.copy(
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFF0F172A),
+                fontSize = 12.sp
             )
-            Spacer(modifier = Modifier.height(4.dp))
-            Card(
-                colors = CardDefaults.cardColors(containerColor = Color(0xFFF8FAFC)),
-                shape = RoundedCornerShape(12.dp),
-                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0)),
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Card(
+            colors = CardDefaults.cardColors(containerColor = Color(0xFFF8FAFC)),
+            shape = RoundedCornerShape(12.dp),
+            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0)),
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 60.dp, max = 150.dp)
+        ) {
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(max = 140.dp)
+                    .padding(12.dp)
+                    .verticalScroll(rememberScrollState())
             ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(10.dp)
-                        .verticalScroll(rememberScrollState())
-                ) {
-                    Text(
-                        text = release.releaseNotes,
-                        style = MaterialTheme.typography.bodySmall.copy(
-                            color = Color(0xFF334155),
-                            lineHeight = 18.sp,
-                            fontSize = 12.sp
-                        )
+                Text(
+                    text = if (release.releaseNotes.isNotBlank()) release.releaseNotes else "නව විශේෂාංග සහ වැඩිදියුණු කිරීම් ඇතුළත් කර ඇත.",
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        color = Color(0xFF334155),
+                        lineHeight = 18.sp,
+                        fontSize = 12.sp
                     )
-                }
+                )
             }
         }
     }
 
-    // Buttons
+    // Special User Note: If update fails, uninstall current app and install the downloaded APK
+    Card(
+        colors = CardDefaults.cardColors(containerColor = Color(0xFFEFF6FF)),
+        shape = RoundedCornerShape(12.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFBFDBFE)),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier.padding(10.dp),
+            verticalAlignment = Alignment.Top
+        ) {
+            Icon(
+                imageVector = Icons.Default.Warning,
+                contentDescription = null,
+                tint = Color(0xFF1D4ED8),
+                modifier = Modifier
+                    .size(18.dp)
+                    .padding(top = 1.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Column {
+                Text(
+                    text = "විශේෂ සටහන:",
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF1E40AF),
+                        fontSize = 11.sp
+                    )
+                )
+                Text(
+                    text = "යම් හෙයකින් App එක කෙලින්ම Update නොවුවහොත්, දැනට ඇති App එක Uninstall කර ඔබගේ Download ෆෝල්ඩරයේ බාගත වී ඇති නව APK එක Install කරගන්න.",
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        color = Color(0xFF1E3A8A),
+                        lineHeight = 16.sp,
+                        fontSize = 11.sp
+                    )
+                )
+            }
+        }
+    }
+
+    // Buttons: Direct Update button & Later text button (removed GitHub / Browser buttons)
     Column(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -378,51 +406,21 @@ private fun UpdateAvailableContent(
             )
         }
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        TextButton(
+            onClick = onLater,
+            shape = RoundedCornerShape(12.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(38.dp)
+                .testTag("update_later_button")
         ) {
-            OutlinedButton(
-                onClick = onOpenBrowser,
-                shape = RoundedCornerShape(12.dp),
-                modifier = Modifier
-                    .weight(1f)
-                    .height(40.dp)
-                    .testTag("update_browser_button")
-            ) {
-                Icon(
-                    imageVector = Icons.Default.OpenInBrowser,
-                    contentDescription = null,
-                    modifier = Modifier.size(16.dp),
-                    tint = PoliceNavy
+            Text(
+                text = "පසුව (Later)",
+                style = MaterialTheme.typography.labelMedium.copy(
+                    color = Color(0xFF64748B),
+                    fontWeight = FontWeight.Normal
                 )
-                Spacer(modifier = Modifier.width(4.dp))
-                Text(
-                    text = "GitHub Releases",
-                    style = MaterialTheme.typography.labelMedium.copy(
-                        color = PoliceNavy,
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize = 11.sp
-                    )
-                )
-            }
-
-            TextButton(
-                onClick = onLater,
-                shape = RoundedCornerShape(12.dp),
-                modifier = Modifier
-                    .weight(0.7f)
-                    .height(40.dp)
-                    .testTag("update_later_button")
-            ) {
-                Text(
-                    text = "පසුව (Later)",
-                    style = MaterialTheme.typography.labelMedium.copy(
-                        color = Color(0xFF64748B),
-                        fontWeight = FontWeight.Normal
-                    )
-                )
-            }
+            )
         }
     }
 }
@@ -490,11 +488,41 @@ private fun DownloadingContent(
         Text(
             text = "බාගත වූ වහාම Package Installer එක ස්වයංක්‍රීයව විවෘත වනු ඇත.",
             style = MaterialTheme.typography.labelSmall.copy(
-                color = Color(0xFF94A3B8),
+                color = Color(0xFF64748B),
                 textAlign = TextAlign.Center,
                 fontSize = 11.sp
             )
         )
+
+        Card(
+            colors = CardDefaults.cardColors(containerColor = Color(0xFFEFF6FF)),
+            shape = RoundedCornerShape(10.dp),
+            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFBFDBFE)),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Row(
+                modifier = Modifier.padding(10.dp),
+                verticalAlignment = Alignment.Top
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Warning,
+                    contentDescription = null,
+                    tint = Color(0xFF1D4ED8),
+                    modifier = Modifier
+                        .size(16.dp)
+                        .padding(top = 1.dp)
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = "සටහන: App එක update නොවුවහොත්, පැරණි app එක uninstall කර Download ෆෝල්ඩරයේ ඇති අලුත් apk එක install කරගන්න.",
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        color = Color(0xFF1E3A8A),
+                        lineHeight = 15.sp,
+                        fontSize = 11.sp
+                    )
+                )
+            }
+        }
     }
 }
 
@@ -502,8 +530,7 @@ private fun DownloadingContent(
 private fun ReadyToInstallContent(
     apkFile: java.io.File,
     release: GitHubRelease,
-    onInstall: () -> Unit,
-    onOpenBrowser: () -> Unit
+    onInstall: () -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -539,6 +566,46 @@ private fun ReadyToInstallContent(
                 text = "${release.tagName} ස්ථාපනය කිරීමට සූදානම්.",
                 style = MaterialTheme.typography.bodySmall.copy(color = Color(0xFF64748B))
             )
+        }
+
+        Card(
+            colors = CardDefaults.cardColors(containerColor = Color(0xFFEFF6FF)),
+            shape = RoundedCornerShape(12.dp),
+            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFBFDBFE)),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Row(
+                modifier = Modifier.padding(12.dp),
+                verticalAlignment = Alignment.Top
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Warning,
+                    contentDescription = null,
+                    tint = Color(0xFF1D4ED8),
+                    modifier = Modifier
+                        .size(20.dp)
+                        .padding(top = 1.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Column {
+                    Text(
+                        text = "වැදගත් සටහන:",
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF1E40AF),
+                            fontSize = 11.sp
+                        )
+                    )
+                    Text(
+                        text = "යම් හෙයකින් App එක Update නොවී දෝෂයක් ආවහොත්, දැනට ඇති App එක Uninstall කර ඔබගේ Download ෆෝල්ඩරයේ ඇති අලුත් APK එක Install කරගන්න.",
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            color = Color(0xFF1E3A8A),
+                            lineHeight = 16.sp,
+                            fontSize = 11.sp
+                        )
+                    )
+                }
+            }
         }
 
         Card(
@@ -594,17 +661,6 @@ private fun ReadyToInstallContent(
                 )
             )
         }
-
-        OutlinedButton(
-            onClick = onOpenBrowser,
-            shape = RoundedCornerShape(12.dp),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text(
-                text = "ගැටලුවක් වුවහොත් Browser එකෙන් බාගත කරන්න",
-                style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp)
-            )
-        }
     }
 }
 
@@ -612,7 +668,6 @@ private fun ReadyToInstallContent(
 private fun ErrorContent(
     message: String,
     onRetry: () -> Unit,
-    onOpenGitHub: () -> Unit,
     onDismiss: () -> Unit
 ) {
     Column(
@@ -653,26 +708,13 @@ private fun ErrorContent(
             )
         )
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        Button(
+            onClick = onRetry,
+            colors = ButtonDefaults.buttonColors(containerColor = PoliceNavy),
+            shape = RoundedCornerShape(12.dp),
+            modifier = Modifier.fillMaxWidth()
         ) {
-            Button(
-                onClick = onRetry,
-                colors = ButtonDefaults.buttonColors(containerColor = PoliceNavy),
-                shape = RoundedCornerShape(12.dp),
-                modifier = Modifier.weight(1f)
-            ) {
-                Text("නැවත උත්සාහ කරන්න")
-            }
-
-            OutlinedButton(
-                onClick = onOpenGitHub,
-                shape = RoundedCornerShape(12.dp),
-                modifier = Modifier.weight(1f)
-            ) {
-                Text("GitHub බලන්න")
-            }
+            Text("නැවත උත්සාහ කරන්න")
         }
 
         TextButton(onClick = onDismiss) {

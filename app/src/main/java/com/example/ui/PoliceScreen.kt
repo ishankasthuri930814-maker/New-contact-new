@@ -106,7 +106,9 @@ import com.example.ui.components.ContactCard
 import com.example.ui.components.ContactDetailBottomSheet
 import com.example.ui.components.ContactQrDialog
 import com.example.ui.components.AppUpdateDialog
+import com.example.ui.components.AppNoticeDialog
 import com.example.util.AppUpdateManager
+import com.example.util.AppNoticeManager
 import com.example.util.UpdateStatus
 import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material.icons.filled.AccountCircle
@@ -141,10 +143,12 @@ fun PoliceScreen(
     var showManualUpdateDialog by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
     val updateStatus by AppUpdateManager.updateStatus.collectAsStateWithLifecycle()
+    val currentNotice by AppNoticeManager.currentNotice.collectAsStateWithLifecycle()
 
-    // Silently check for GitHub app updates in background on launch
+    // Silently check for GitHub app updates and announcements in background on launch
     LaunchedEffect(Unit) {
         AppUpdateManager.checkForUpdates(context, isManualCheck = false)
+        AppNoticeManager.checkForNotices(context, forceShow = false)
     }
 
     // Interstitial Ad when user was viewing contact details popup and presses Back
@@ -609,6 +613,17 @@ fun PoliceScreen(
                     onDismiss = {
                         showManualUpdateDialog = false
                         AppUpdateManager.resetStatus()
+                    }
+                )
+            }
+
+            // GitHub Announcement / Notice Dialog
+            val activeNotice = currentNotice
+            if (activeNotice != null && updateStatus !is UpdateStatus.UpdateAvailable) {
+                AppNoticeDialog(
+                    notice = activeNotice,
+                    onDismiss = {
+                        AppNoticeManager.dismissNotice(context, activeNotice.id)
                     }
                 )
             }
