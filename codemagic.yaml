@@ -6,7 +6,6 @@ workflows:
     environment:
       groups:
         - keystore_credentials
-        - android_ndk
       java: 17
     scripts:
       - name: Set up local.properties
