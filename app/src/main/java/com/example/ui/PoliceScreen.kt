@@ -107,6 +107,11 @@ import com.example.ui.components.ContactDetailBottomSheet
 import com.example.ui.components.ContactQrDialog
 import com.example.ui.components.AppUpdateDialog
 import com.example.ui.components.AppNoticeDialog
+import com.example.ui.components.PoliceDataBufferingView
+import com.example.ui.components.InAppNotificationBanner
+import com.example.ui.components.InAppMessageDialog
+import com.example.service.InAppNotification
+import com.example.service.InAppNotificationBus
 import com.example.util.AppUpdateManager
 import com.example.util.AppNoticeManager
 import com.example.util.UpdateStatus
@@ -144,6 +149,16 @@ fun PoliceScreen(
     val coroutineScope = rememberCoroutineScope()
     val updateStatus by AppUpdateManager.updateStatus.collectAsStateWithLifecycle()
     val currentNotice by AppNoticeManager.currentNotice.collectAsStateWithLifecycle()
+
+    // Real-time In-App Notification state
+    var activeInAppBanner by remember { mutableStateOf<InAppNotification?>(null) }
+    var activeInAppDialog by remember { mutableStateOf<InAppNotification?>(null) }
+
+    LaunchedEffect(Unit) {
+        InAppNotificationBus.notificationFlow.collect { notification ->
+            activeInAppBanner = notification
+        }
+    }
 
     // Silently check for GitHub app updates and announcements in background on launch
     LaunchedEffect(Unit) {
@@ -328,6 +343,19 @@ fun PoliceScreen(
                 .background(MaterialTheme.colorScheme.background)
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
+                // In-App Notification Banner if notification received in foreground
+                InAppNotificationBanner(
+                    notification = activeInAppBanner,
+                    onDismiss = { activeInAppBanner = null },
+                    onClick = {
+                        val n = activeInAppBanner
+                        activeInAppBanner = null
+                        if (n != null) {
+                            activeInAppDialog = n
+                        }
+                    }
+                )
+
                 // Search Field & Category Filter Bar Header Section
                 Surface(
                     color = PoliceNavy,
@@ -434,20 +462,11 @@ fun PoliceScreen(
 
                 // Main Contacts List Content
                 if (uiState.isLoading && uiState.contacts.isEmpty()) {
-                    Box(
+                    PoliceDataBufferingView(
                         modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            CircularProgressIndicator(color = PoliceNavy)
-                            Spacer(modifier = Modifier.height(16.dp))
-                            Text(
-                                text = "Loading Police Directory...",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
+                        statusText = "Google Sheets දත්ත පූරණය වෙමින් පවතී...",
+                        subText = "දිවයින පුරා පොලිස් ස්ථාන හා හදිසි අංක යාවත්කාලීන කෙරේ"
+                    )
                 } else {
                     LazyColumn(
                         modifier = Modifier
@@ -625,6 +644,15 @@ fun PoliceScreen(
                     onDismiss = {
                         AppNoticeManager.dismissNotice(context, activeNotice.id)
                     }
+                )
+            }
+
+            // Firebase In-App Message Dialog
+            val currentInAppDialog = activeInAppDialog
+            if (currentInAppDialog != null) {
+                InAppMessageDialog(
+                    notification = currentInAppDialog,
+                    onDismiss = { activeInAppDialog = null }
                 )
             }
 

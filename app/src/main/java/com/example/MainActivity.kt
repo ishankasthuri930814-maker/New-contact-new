@@ -25,6 +25,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.repository.AuthRepository
 import com.example.data.repository.PoliceRepository
 import com.example.service.MyFirebaseMessagingService
+import com.example.service.InAppNotification
+import com.example.service.InAppNotificationBus
 import com.example.ui.AuthViewModel
 import com.example.ui.LoginScreen
 import com.example.ui.PoliceScreen
@@ -97,6 +99,8 @@ class MainActivity : ComponentActivity() {
                                 try {
                                     FirebaseMessaging.getInstance().subscribeToTopic("all")
                                     FirebaseMessaging.getInstance().subscribeToTopic("police_alerts")
+                                    FirebaseMessaging.getInstance().subscribeToTopic("news")
+                                    FirebaseMessaging.getInstance().subscribeToTopic("general")
                                 } catch (t: Throwable) {
                                     Log.w("MainActivity", "FCM subscribeToTopic error", t)
                                 }
@@ -169,8 +173,16 @@ class MainActivity : ComponentActivity() {
                     val notifTitle = intent?.getStringExtra("extra_notification_title")
                     val notifBody = intent?.getStringExtra("extra_notification_body")
                     if (!notifTitle.isNullOrBlank() || !notifBody.isNullOrBlank()) {
+                        val safeTitle = notifTitle ?: "Police Directory Notification"
+                        val safeBody = notifBody ?: ""
                         val displayMsg = listOfNotNull(notifTitle, notifBody).joinToString(": ")
                         Toast.makeText(this@MainActivity, displayMsg, Toast.LENGTH_LONG).show()
+                        InAppNotificationBus.postNotification(
+                            InAppNotification(
+                                title = safeTitle,
+                                body = safeBody
+                            )
+                        )
                     }
 
                     // Attempt showing App Open Ad on cold launch once view is active ONLY if authenticated
@@ -232,8 +244,16 @@ class MainActivity : ComponentActivity() {
         val notifTitle = intent.getStringExtra("extra_notification_title")
         val notifBody = intent.getStringExtra("extra_notification_body")
         if (!notifTitle.isNullOrBlank() || !notifBody.isNullOrBlank()) {
+            val safeTitle = notifTitle ?: "Police Directory Notification"
+            val safeBody = notifBody ?: ""
             val displayMsg = listOfNotNull(notifTitle, notifBody).joinToString(": ")
             Toast.makeText(this, displayMsg, Toast.LENGTH_LONG).show()
+            InAppNotificationBus.postNotification(
+                InAppNotification(
+                    title = safeTitle,
+                    body = safeBody
+                )
+            )
         }
     }
 

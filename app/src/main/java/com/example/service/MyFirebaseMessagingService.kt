@@ -32,14 +32,27 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
             val title = remoteMessage.notification?.title
                 ?: remoteMessage.data["title"]
                 ?: remoteMessage.data["heading"]
+                ?: remoteMessage.data["subject"]
                 ?: "Police Directory Alert"
 
             val body = remoteMessage.notification?.body
                 ?: remoteMessage.data["body"]
                 ?: remoteMessage.data["message"]
                 ?: remoteMessage.data["text"]
+                ?: remoteMessage.data["content"]
                 ?: "නව දැනුම්දීමක් (New Notification)"
 
+            // 1. Post to In-App Notification Bus so open app displays a rich animated In-App Message Dialog/Banner
+            InAppNotificationBus.postNotification(
+                InAppNotification(
+                    id = remoteMessage.messageId ?: System.currentTimeMillis().toString(),
+                    title = title,
+                    body = body,
+                    data = remoteMessage.data
+                )
+            )
+
+            // 2. Post to system notification tray
             sendNotification(title, body, remoteMessage.data)
         } catch (e: Exception) {
             Log.e(TAG, "Error handling FCM message", e)
