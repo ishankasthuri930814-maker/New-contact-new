@@ -31,6 +31,12 @@ sealed class AutoLoginResult {
     object NotLoggedIn : AutoLoginResult()
 }
 
+sealed class UserVerificationResult {
+    object Active : UserVerificationResult()
+    data class Blocked(val reason: String) : UserVerificationResult()
+    object NotApplicable : UserVerificationResult()
+}
+
 class AuthRepository(
     private val context: Context? = null,
     private val injectedFirebaseAuth: FirebaseAuth? = null
@@ -273,7 +279,68 @@ class AuthRepository(
         }
     }
 
+    suspend fun verifyCurrentUserStatus(): UserVerificationResult = withContext(Dispatchers.IO) {
+        val user = currentUser
+        if (user != null) {
+            try {
+                user.reload().await()
+                // If user is deleted or disabled
+                val refreshedUser = currentUser
+                if (refreshedUser == null) {
+                    return@withContext UserVerificationResult.Blocked("මෙම පරිශීලක ගිණුම Firebase මගින් අවලංගු කර හෝ ඉවත් කර ඇත (User Account Disabled)")
+                }
+                return@withContext UserVerificationResult.Active
+            } catch (e: Exception) {
+                Log.w("AuthRepo", "User verification check exception: ${e.message}")
+                if (e is FirebaseAuthInvalidUserException ||
+                    e.message?.contains("user-disabled", ignoreCase = true) == true ||
+                    e.message?.contains("user-not-found", ignoreCase = true) == true ||
+                    e.message?.contains("USER_NOT_FOUND", ignoreCase = true) == true ||
+                    e.message?.contains("USER_DISABLED", ignoreCase = true) == true ||
+                    e.message?.contains("has been disabled", ignoreCase = true) == true ||
+                    e.message?.contains("has been deleted", ignoreCase = true) == true
+                ) {
+                    return@withContext UserVerificationResult.Blocked("ඔබගේ පරිශීලක ගිණුම Firebase පද්ධතිය මගින් අවහිර කර ඇත (User Blocked or Disabled)")
+                }
+                // For network timeouts or transient errors, avoid disrupting the user
+                return@withContext UserVerificationResult.Active
+            }
+        }
+
+        // If not a Firebase user session, check saved credentials against Firebase if possible
+        val savedEmail = currentUsername
+        val savedPass = currentPassword
+        if (!savedEmail.isNullOrBlank() && !savedPass.isNullOrBlank() && savedPass != "GOOGLE_AUTH") {
+            val auth = firebaseAuth
+            if (auth != null) {
+                try {
+                    val result = auth.signInWithEmailAndPassword(savedEmail.trim(), savedPass.trim()).await()
+                    if (result.user == null) {
+                        return@withContext UserVerificationResult.Blocked("ගිණුම් විස්තර වලංගු නොවේ (Invalid Credentials)")
+                    }
+                    return@withContext UserVerificationResult.Active
+                } catch (e: Exception) {
+                    if (e is FirebaseAuthInvalidUserException ||
+                        e.message?.contains("user-disabled", ignoreCase = true) == true ||
+                        e.message?.contains("user-not-found", ignoreCase = true) == true ||
+                        e.message?.contains("has been disabled", ignoreCase = true) == true
+                    ) {
+                        return@withContext UserVerificationResult.Blocked("ඔබගේ පරිශීලක ගිණුම Firebase පද්ධතිය මගින් අවහිර කර ඇත (Account Blocked)")
+                    }
+                }
+            }
+        }
+
+        UserVerificationResult.NotApplicable
+    }
+
     suspend fun checkAutoLogin(): AutoLoginResult = withContext(Dispatchers.IO) {
+        val verification = verifyCurrentUserStatus()
+        if (verification is UserVerificationResult.Blocked) {
+            logout()
+            return@withContext AutoLoginResult.CredentialsRevoked(verification.reason)
+        }
+
         val firebaseUser = currentUser
         if (firebaseUser != null) {
             val email = firebaseUser.email ?: "User"

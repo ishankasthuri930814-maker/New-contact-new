@@ -80,7 +80,19 @@ fun LoginScreen(
     var localValidationError by remember { mutableStateOf<String?>(null) }
 
     val authState by authViewModel.authState.collectAsState()
-    val isLoading = authState is AuthState.Loading
+    val uiState by authViewModel.uiState.collectAsState()
+    val isLoading = authState is AuthState.Loading || uiState.isLoading
+
+    // Load saved credentials into input fields if empty
+    LaunchedEffect(Unit) {
+        val (savedEmail, savedPass) = authViewModel.getSavedCredentials()
+        if (email.isBlank() && !savedEmail.isNullOrBlank()) {
+            email = savedEmail
+        }
+        if (password.isBlank() && !savedPass.isNullOrBlank() && savedPass != "GOOGLE_AUTH") {
+            password = savedPass
+        }
+    }
 
     LaunchedEffect(authState) {
         if (authState is AuthState.Success) {
@@ -404,8 +416,8 @@ fun LoginScreen(
                         }
                     }
 
-                    // Error Message Banner (Local validation or Firebase Auth Error)
-                    val activeError = localValidationError ?: (authState as? AuthState.Error)?.message
+                    // Error Message Banner (Local validation or Firebase Auth Error or Blocked reason)
+                    val activeError = localValidationError ?: (authState as? AuthState.Error)?.message ?: uiState.errorMessage
                     AnimatedVisibility(
                         visible = !activeError.isNullOrBlank(),
                         enter = fadeIn(),

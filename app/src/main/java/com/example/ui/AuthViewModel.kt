@@ -96,6 +96,7 @@ class AuthViewModel(
                         successMessage = "සාර්ථකව ඇතුළු විය (Login Successful)"
                     )
                 }
+                startActiveSessionMonitoring()
             }.onFailure { exception ->
                 _authState.value = AuthState.Error(exception.localizedMessage ?: "ඇතුළු වීමේ දෝෂයක් සිදු විය")
             }
@@ -201,6 +202,7 @@ class AuthViewModel(
                             errorMessage = null
                         )
                     }
+                    startActiveSessionMonitoring()
                 }
                 is AutoLoginResult.CredentialsRevoked -> {
                     _uiState.update {
@@ -222,6 +224,47 @@ class AuthViewModel(
                     }
                 }
                 is AutoLoginResult.Checking -> {}
+            }
+        }
+    }
+
+    private var activeSessionJob: kotlinx.coroutines.Job? = null
+
+    fun startActiveSessionMonitoring() {
+        activeSessionJob?.cancel()
+        activeSessionJob = viewModelScope.launch {
+            while (true) {
+                kotlinx.coroutines.delay(60_000L)
+                if (!_uiState.value.isAuthenticated) break
+                val status = repository.verifyCurrentUserStatus()
+                if (status is com.example.data.repository.UserVerificationResult.Blocked) {
+                    val reasonMsg = status.reason
+                    logout()
+                    _uiState.update {
+                        it.copy(
+                            errorMessage = reasonMsg
+                        )
+                    }
+                    _authState.value = AuthState.Error(reasonMsg)
+                    break
+                }
+            }
+        }
+    }
+
+    fun verifyActiveUserImmediately() {
+        viewModelScope.launch {
+            if (!_uiState.value.isAuthenticated) return@launch
+            val status = repository.verifyCurrentUserStatus()
+            if (status is com.example.data.repository.UserVerificationResult.Blocked) {
+                val reasonMsg = status.reason
+                logout()
+                _uiState.update {
+                    it.copy(
+                        errorMessage = reasonMsg
+                    )
+                }
+                _authState.value = AuthState.Error(reasonMsg)
             }
         }
     }
@@ -277,6 +320,8 @@ class AuthViewModel(
     }
 
     fun logout() {
+        activeSessionJob?.cancel()
+        activeSessionJob = null
         repository.signOut()
         _authState.value = AuthState.Idle
         _uiState.update {
@@ -297,6 +342,10 @@ class AuthViewModel(
 
     fun clearMessages() {
         _uiState.update { it.copy(errorMessage = null, successMessage = null) }
+    }
+
+    fun getSavedCredentials(): Pair<String?, String?> {
+        return Pair(repository.currentUsername, repository.currentPassword)
     }
 
     class Factory(private val repository: AuthRepository) : ViewModelProvider.Factory {

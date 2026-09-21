@@ -18,6 +18,7 @@ import retrofit2.Retrofit
 import retrofit2.converter.moshi.MoshiConverterFactory
 import java.io.File
 import java.util.concurrent.TimeUnit
+import okhttp3.Request
 
 class PoliceRepository(private val context: Context) {
 
@@ -28,17 +29,19 @@ class PoliceRepository(private val context: Context) {
         .addLast(KotlinJsonAdapterFactory())
         .build()
 
-    private val apiService: PoliceApiService by lazy {
+    private val okHttpClient: OkHttpClient by lazy {
         val loggingInterceptor = HttpLoggingInterceptor().apply {
             level = HttpLoggingInterceptor.Level.BASIC
         }
 
-        val okHttpClient = OkHttpClient.Builder()
+        OkHttpClient.Builder()
             .addInterceptor(loggingInterceptor)
             .connectTimeout(30, TimeUnit.SECONDS)
             .readTimeout(30, TimeUnit.SECONDS)
             .build()
+    }
 
+    private val apiService: PoliceApiService by lazy {
         Retrofit.Builder()
             .baseUrl("https://sheets.googleapis.com/")
             .client(okHttpClient)
