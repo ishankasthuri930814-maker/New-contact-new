@@ -234,8 +234,7 @@ object AppUpdateManager {
     suspend fun downloadApk(context: Context, release: GitHubRelease) {
         val downloadUrl = release.apkDownloadUrl
         if (downloadUrl.isNullOrBlank() || !downloadUrl.endsWith(".apk", ignoreCase = true)) {
-            // Open in browser if direct apk is not available
-            openInBrowser(context, release.htmlUrl)
+            _updateStatus.value = UpdateStatus.Error("APK ගොනුව සොයාගත නොහැකි විය.")
             return
         }
 
@@ -347,8 +346,7 @@ object AppUpdateManager {
             activity.startActivity(installIntent)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to launch package installer", e)
-            // Fallback: Open browser
-            openInBrowser(activity, "https://github.com/${getGitHubRepo(activity)}/releases")
+            _updateStatus.value = UpdateStatus.Error("ස්ථාපනය කිරීමට නොහැකි විය: ${e.localizedMessage}")
         }
     }
 

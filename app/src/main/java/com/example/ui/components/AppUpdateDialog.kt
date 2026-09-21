@@ -24,7 +24,6 @@ import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Download
-import androidx.compose.material.icons.filled.OpenInBrowser
 import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
@@ -398,7 +397,7 @@ private fun UpdateAvailableContent(
             )
             Spacer(modifier = Modifier.width(8.dp))
             Text(
-                text = "දැන් Update කරන්න (Direct APK)",
+                text = "Download & Install",
                 style = MaterialTheme.typography.bodyMedium.copy(
                     fontWeight = FontWeight.Bold,
                     color = Color.White
@@ -654,7 +653,7 @@ private fun ReadyToInstallContent(
             )
             Spacer(modifier = Modifier.width(8.dp))
             Text(
-                text = "දැන් Install කරන්න (Install Now)",
+                text = "Install Now (ස්ථාපනය කරන්න)",
                 style = MaterialTheme.typography.bodyMedium.copy(
                     fontWeight = FontWeight.Bold,
                     color = Color.White
