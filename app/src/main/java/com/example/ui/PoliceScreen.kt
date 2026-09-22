@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -217,6 +218,13 @@ fun PoliceScreen(
         targetValue = if (uiState.isRefreshing) 360f else 0f,
         label = "RefreshRotation"
     )
+
+    val listState = rememberLazyListState()
+
+    // Automatically scroll back to top whenever user searches or selects a new category
+    LaunchedEffect(uiState.searchQuery, uiState.selectedCategory) {
+        listState.scrollToItem(0)
+    }
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -505,6 +513,7 @@ fun PoliceScreen(
                     )
                 } else {
                     LazyColumn(
+                        state = listState,
                         modifier = Modifier
                             .fillMaxSize()
                             .testTag("contacts_lazy_column"),

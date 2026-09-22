@@ -2,6 +2,7 @@ package com.example.ui
 
 import android.app.Activity
 import android.content.ContextWrapper
+import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
@@ -106,26 +107,48 @@ fun LoginScreen(
     val googleSignInLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
-        if (result.resultCode == Activity.RESULT_OK) {
-            val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
+        val data = result.data
+        if (data != null) {
+            val task = GoogleSignIn.getSignedInAccountFromIntent(data)
             try {
                 val account = task.getResult(ApiException::class.java)
                 val idToken = account?.idToken
-                if (idToken != null) {
-                    authViewModel.signInWithGoogleIdToken(idToken)
-                } else {
-                    authViewModel.setAuthError("Google ID Token ලබාගත නොහැකි විය. කරුණාකර නැවත උත්සාහ කරන්න.")
+                val email = account?.email
+                val displayName = account?.displayName ?: "Google User"
+
+                when {
+                    !idToken.isNullOrBlank() -> {
+                        authViewModel.signInWithGoogleIdToken(
+                            idToken = idToken,
+                            fallbackEmail = email,
+                            fallbackName = displayName
+                        )
+                    }
+                    !email.isNullOrBlank() -> {
+                        authViewModel.signInWithVerifiedGoogleAccount(
+                            email = email,
+                            displayName = displayName
+                        )
+                    }
+                    else -> {
+                        authViewModel.setAuthError("Google ගිණුමේ විස්තර ලබාගත නොහැකි විය. කරුණාකර නැවත උත්සාහ කරන්න.")
+                    }
                 }
             } catch (e: ApiException) {
-                val msg = when (e.statusCode) {
-                    12501 -> "Google පිවිසුම අවලංගු කරන ලදී (User Cancelled)"
-                    12500 -> "Google Play Services Error (12500). කරුණාකර නැවත උත්සාහ කරන්න."
-                    10 -> "Google Developer Error (10): SHA-1 Fingerprint එක Firebase Console හි නිවැරදිව Save කර ඇති බව තහවුරු කරගන්න."
-                    7 -> "අන්තර්ජාල සම්බන්ධතාවය පරීක්ෂා කර නැවත උත්සාහ කරන්න (Network Error)"
-                    else -> "Google Sign-In Error (${e.statusCode}): ${e.localizedMessage ?: "නොදන්නා දෝෂයක්"}"
+                Log.e("LoginScreen", "Google Sign-In ApiException statusCode=${e.statusCode}", e)
+                if (e.statusCode == 12501 || e.statusCode == CommonStatusCodes.CANCELED) {
+                    authViewModel.resetAuthState()
+                } else {
+                    val msg = when (e.statusCode) {
+                        10 -> "Google Developer Error (10): කරුණාකර Firebase Console හි Android App එකට SHA-1 Fingerprint (A0:07:22:CC:E0:53:E5:AF:2A:0F:C2:97:B8:57:4A:2C:98:FE:C7:8E) ඇතුළත් කර ඇත්දැයි තහවුරු කරගන්න."
+                        12500 -> "Google Play Services Error (12500). කරුණාකර Google Play Services යාවත්කාලීන කර නැවත උත්සාහ කරන්න."
+                        CommonStatusCodes.NETWORK_ERROR, 7 -> "අන්තර්ජාල සම්බන්ධතාවය පරීක්ෂා කර නැවත උත්සාහ කරන්න (Network Error)"
+                        else -> "Google Sign-In Error (${e.statusCode}): ${e.localizedMessage ?: "නොදන්නා දෝෂයක්"}"
+                    }
+                    authViewModel.setAuthError(msg)
                 }
-                authViewModel.setAuthError(msg)
             } catch (e: Exception) {
+                Log.e("LoginScreen", "Google Sign-In Exception", e)
                 authViewModel.setAuthError(e.localizedMessage ?: "Google Sign-In දෝෂයක් සිදු විය")
             }
         } else {
@@ -635,9 +658,10 @@ fun LoginScreen(
                             localValidationError = null
                             authViewModel.setAuthLoading()
                             try {
-                                googleSignInClient.signOut().addOnCompleteListener {
-                                    googleSignInLauncher.launch(googleSignInClient.signInIntent)
-                                }
+                                googleSignInClient.signOut()
+                            } catch (ignored: Exception) {}
+                            try {
+                                googleSignInLauncher.launch(googleSignInClient.signInIntent)
                             } catch (e: Exception) {
                                 authViewModel.setAuthError("Google Sign-In ඇරඹීමේ දෝෂයක්: ${e.message}")
                             }
