@@ -7,18 +7,21 @@ import com.example.data.model.ContactCategory
 import com.example.data.model.PoliceContact
 import com.example.data.remote.GoogleSheetsResponse
 import com.example.data.remote.PoliceApiService
+import com.example.util.AppUpdateManager
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.Types
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
+import okhttp3.Request
 import okhttp3.logging.HttpLoggingInterceptor
+import org.json.JSONArray
+import org.json.JSONObject
 import retrofit2.Retrofit
 import retrofit2.converter.moshi.MoshiConverterFactory
 import java.io.File
 import java.util.concurrent.TimeUnit
-import okhttp3.Request
 
 class PoliceRepository(private val context: Context) {
 
@@ -79,6 +82,17 @@ class PoliceRepository(private val context: Context) {
 
     private suspend fun fetchAndCacheRemote(favorites: Set<String>): List<PoliceContact> {
         val allParsed = mutableListOf<PoliceContact>()
+
+        // 0. Fetch contacts from GitHub Raw JSON (Live GitHub Sync without APK updates)
+        try {
+            val githubContacts = fetchGitHubRawContacts()
+            if (githubContacts.isNotEmpty()) {
+                allParsed.addAll(githubContacts)
+                Log.d("PoliceRepo", "Loaded ${githubContacts.size} contacts from GitHub Raw JSON")
+            }
+        } catch (e: Exception) {
+            Log.e("PoliceRepo", "GitHub Raw contacts fetch failed", e)
+        }
 
         // 1. Fetch all sheets/tabs dynamically from User's spreadsheet (1VTch65JpwfuZkUdnrrLpv7AA0YV-ekSLSY-fXToPpHs)
         try {
@@ -213,6 +227,142 @@ class PoliceRepository(private val context: Context) {
                     }
                 } catch (ignored: Exception) {}
             }
+        }
+        return contacts
+    }
+
+    private suspend fun fetchGitHubRawContacts(): List<PoliceContact> = withContext(Dispatchers.IO) {
+        val repo = AppUpdateManager.getGitHubRepo(context)
+        val branches = listOf("main", "master")
+        val fileNames = listOf("contacts.json", "contact.json", "police_contacts.json", "data.json")
+
+        val client = OkHttpClient.Builder()
+            .connectTimeout(10, TimeUnit.SECONDS)
+            .readTimeout(15, TimeUnit.SECONDS)
+            .build()
+
+        for (branch in branches) {
+            for (fileName in fileNames) {
+                val url = "https://raw.githubusercontent.com/$repo/$branch/$fileName"
+                try {
+                    val request = Request.Builder()
+                        .url(url)
+                        .header("Cache-Control", "no-cache")
+                        .build()
+
+                    client.newCall(request).execute().use { response ->
+                        if (response.isSuccessful) {
+                            val body = response.body?.string()
+                            if (!body.isNullOrBlank()) {
+                                val parsed = parseContactsJson(body)
+                                if (parsed.isNotEmpty()) {
+                                    Log.d("PoliceRepo", "Successfully fetched ${parsed.size} contacts from $url")
+                                    return@withContext parsed
+                                }
+                            }
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.d("PoliceRepo", "GitHub contacts fetch attempt failed for $url: ${e.message}")
+                }
+            }
+        }
+        emptyList()
+    }
+
+    private fun parseContactsJson(jsonString: String): List<PoliceContact> {
+        val contacts = mutableListOf<PoliceContact>()
+        try {
+            val trimmed = jsonString.trim()
+            val jsonArray = when {
+                trimmed.startsWith("[") -> JSONArray(trimmed)
+                trimmed.startsWith("{") -> {
+                    val obj = JSONObject(trimmed)
+                    when {
+                        obj.has("contacts") -> obj.optJSONArray("contacts")
+                        obj.has("data") -> obj.optJSONArray("data")
+                        obj.has("police") -> obj.optJSONArray("police")
+                        obj.has("items") -> obj.optJSONArray("items")
+                        else -> null
+                    }
+                }
+                else -> null
+            }
+
+            if (jsonArray != null) {
+                for (i in 0 until jsonArray.length()) {
+                    val item = jsonArray.optJSONObject(i) ?: continue
+
+                    fun getField(vararg keys: String): String {
+                        for (k in keys) {
+                            if (item.has(k)) {
+                                val v = item.optString(k, "").trim()
+                                if (v.isNotBlank()) return v
+                            }
+                        }
+                        return ""
+                    }
+
+                    val stationOrDesignation = getField("stationOrDesignation", "station", "name", "title", "designation", "station_name")
+                    if (stationOrDesignation.isBlank()) continue
+
+                    val rank = getField("rank", "designation_rank", "post", "position")
+                    val officerName = getField("officerName", "officer", "contact_person", "officer_name", "person")
+                    val generalPhone = getField("generalPhone", "phone", "general", "telephone", "office_no", "general_phone", "tel", "officePhone")
+                    val mobilePhone = getField("mobilePhone", "mobile", "mobile_no", "cell")
+                    val officePhone2 = getField("officePhone2", "office_no2", "phone2")
+                    val officePhone3 = getField("officePhone3", "office_no3", "phone3")
+                    val pvtNumber = getField("pvtNumber", "pvt", "private_no", "private_number")
+                    val fax = getField("fax", "fax_no")
+                    val email = getField("email", "mail")
+                    val oicTraffic = getField("oicTraffic", "traffic", "traffic_oic")
+                    val oicCrime = getField("oicCrime", "crime", "crime_oic")
+                    val oicVice = getField("oicVice", "vice", "vice_oic")
+                    val oicCommunityPolicing = getField("oicCommunityPolicing", "community", "community_policing")
+                    val locationCoordinates = getField("locationCoordinates", "coords", "coordinates", "let-lang", "lat_lng", "latlng", "location_coordinates")
+                    val locationAddress = getField("locationAddress", "address", "location", "location_address")
+                    val categoryStr = getField("category", "type", "group").uppercase()
+
+                    val category = when {
+                        categoryStr.contains("EMERGENCY") || categoryStr.contains("හදිසි") -> ContactCategory.EMERGENCY
+                        categoryStr.contains("FIRE") || categoryStr.contains("ගිනි") -> ContactCategory.FIRE_STATIONS
+                        categoryStr.contains("HOSPITAL") || categoryStr.contains("රෝහල්") -> ContactCategory.HOSPITALS
+                        categoryStr.contains("GOVT") || categoryStr.contains("GOVERNMENT") || categoryStr.contains("රජයේ") -> ContactCategory.GOVT_SERVICES
+                        categoryStr.contains("TRAVEL") || categoryStr.contains("TRANSPORT") || categoryStr.contains("ගමන්") -> ContactCategory.TRAVEL
+                        categoryStr.contains("SHORT") || categoryStr.contains("CODE") || categoryStr.contains("කෙටි") -> ContactCategory.SHORT_CODES
+                        categoryStr.contains("DIVISION") || rank.contains("SSP", ignoreCase = true) || rank.contains("SP", ignoreCase = true) || stationOrDesignation.contains("Division", ignoreCase = true) -> ContactCategory.DIVISIONS
+                        categoryStr.contains("RANGE") || rank.contains("DIG", ignoreCase = true) || stationOrDesignation.contains("DIG", ignoreCase = true) -> ContactCategory.RANGES
+                        categoryStr.contains("SENIOR") || stationOrDesignation.contains("Senior", ignoreCase = true) || rank.contains("IGP", ignoreCase = true) -> ContactCategory.SENIOR_OFFICERS
+                        else -> ContactCategory.POLICE
+                    }
+
+                    val id = getField("id").ifBlank { "gh_${i}_${stationOrDesignation.hashCode()}" }
+
+                    val parsed = PoliceContact(
+                        id = id,
+                        stationOrDesignation = stationOrDesignation,
+                        rank = rank,
+                        officerName = officerName,
+                        generalPhone = generalPhone,
+                        mobilePhone = mobilePhone,
+                        officePhone2 = officePhone2,
+                        officePhone3 = officePhone3,
+                        pvtNumber = pvtNumber,
+                        fax = fax,
+                        email = email,
+                        oicTraffic = oicTraffic,
+                        oicCrime = oicCrime,
+                        oicVice = oicVice,
+                        oicCommunityPolicing = oicCommunityPolicing,
+                        locationCoordinates = locationCoordinates,
+                        locationAddress = locationAddress,
+                        category = category
+                    )
+                    contacts.add(PoliceGpsDirectory.enrichContact(parsed))
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("PoliceRepo", "Error parsing contacts.json", e)
         }
         return contacts
     }

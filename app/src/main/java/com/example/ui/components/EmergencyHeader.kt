@@ -19,6 +19,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.LocalPolice
+import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -34,6 +35,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
@@ -41,6 +43,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aistudio.policedirectory.zxklm.R
+import com.example.data.model.AppConfig
+import com.example.data.model.QuickActionConfig
 import com.example.ui.theme.EmergencyRed
 import com.example.ui.theme.PoliceGold
 import com.example.ui.theme.PoliceNavy
@@ -48,159 +52,185 @@ import com.example.ui.theme.PoliceNavy
 @Composable
 fun EmergencyHeader(
     onEmergencyCall: (String) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    appConfig: AppConfig = AppConfig()
 ) {
+    val theme = appConfig.theme
+    val header = appConfig.header
+    val primaryColor = theme.getPrimaryColor()
+    val accentColor = theme.getAccentColor()
+    val emergencyRed = theme.getEmergencyRed()
+    val headerTextColor = theme.getHeaderTextColor()
+
     Column(modifier = modifier.fillMaxWidth()) {
-        // Hero Gradient Banner Card
-        Card(
-            modifier = Modifier
-                .fillMaxWidth(),
-            shape = RoundedCornerShape(20.dp),
-            colors = CardDefaults.cardColors(containerColor = PoliceNavy),
-            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(
-                        Brush.linearGradient(
-                            colors = listOf(
-                                PoliceNavy,
-                                Color(0xFF1E293B),
-                                PoliceNavy
+        // Hero Gradient Banner Card (If enabled in remote config)
+        if (appConfig.features.showEmergencyBanner) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = primaryColor),
+                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(
+                            Brush.linearGradient(
+                                colors = listOf(
+                                    primaryColor,
+                                    Color(0xFF1E293B),
+                                    primaryColor
+                                )
                             )
                         )
-                    )
-                    .padding(16.dp)
-            ) {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                        .padding(16.dp)
                 ) {
-                    Row(
+                    Column(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Surface(
-                            shape = CircleShape,
-                            color = PoliceGold.copy(alpha = 0.2f),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, PoliceGold)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                            Surface(
+                                shape = CircleShape,
+                                color = accentColor.copy(alpha = 0.2f),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, accentColor)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.LocalPolice,
+                                        contentDescription = null,
+                                        tint = accentColor,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = header.badgeText,
+                                        style = MaterialTheme.typography.labelSmall.copy(
+                                            fontWeight = FontWeight.Bold,
+                                            letterSpacing = 1.sp
+                                        ),
+                                        color = accentColor
+                                    )
+                                }
+                            }
+
+                            // Emergency Call Action inside Banner
+                            Button(
+                                onClick = { onEmergencyCall(header.emergencyBadgeNumber) },
+                                colors = ButtonDefaults.buttonColors(containerColor = emergencyRed),
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier
+                                    .height(38.dp)
+                                    .testTag("banner_119_button")
                             ) {
                                 Icon(
-                                    imageVector = Icons.Default.LocalPolice,
-                                    contentDescription = null,
-                                    tint = PoliceGold,
+                                    imageVector = Icons.Default.Call,
+                                    contentDescription = header.emergencyBadgeText,
+                                    tint = Color.White,
                                     modifier = Modifier.size(16.dp)
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
-                                    text = "OFFICIAL DIRECTORY",
-                                    style = MaterialTheme.typography.labelSmall.copy(
-                                        fontWeight = FontWeight.Bold,
-                                        letterSpacing = 1.sp
-                                    ),
-                                    color = PoliceGold
+                                    text = header.emergencyBadgeText,
+                                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.ExtraBold),
+                                    color = Color.White
                                 )
                             }
                         }
 
-                        // Emergency Call FAB Button inside Banner
-                        Button(
-                            onClick = { onEmergencyCall("119") },
-                            colors = ButtonDefaults.buttonColors(containerColor = EmergencyRed),
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier
-                                .height(38.dp)
-                                .testTag("banner_119_button")
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Call,
-                                contentDescription = "119 Call",
-                                tint = Color.White,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
+                        Column {
                             Text(
-                                text = "119 EMERGENCY",
-                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.ExtraBold),
-                                color = Color.White
+                                text = header.title,
+                                style = MaterialTheme.typography.titleLarge.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    color = headerTextColor
+                                )
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = header.subtitle,
+                                style = MaterialTheme.typography.bodySmall.copy(
+                                    color = headerTextColor.copy(alpha = 0.85f)
+                                )
                             )
                         }
-                    }
-
-                    Column {
-                        Text(
-                            text = "Sri Lanka Police Directory",
-                            style = MaterialTheme.typography.titleLarge.copy(
-                                fontWeight = FontWeight.Bold,
-                                color = Color.White
-                            )
-                        )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = "ශ්‍රී ලංකා පොලිස් නිල ඇමතුම් සහ විද්‍යුත් තැපැල් නාමාවලිය",
-                            style = MaterialTheme.typography.bodySmall.copy(
-                                color = Color.White.copy(alpha = 0.85f)
-                            )
-                        )
                     }
                 }
             }
         }
 
-        Spacer(modifier = Modifier.height(14.dp))
-
-        // Emergency Hotlines Row
-        Text(
-            text = "⚡ Quick Emergency Hotlines / හදිසි ඇමතුම්",
-            style = MaterialTheme.typography.titleSmall.copy(
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface
-            ),
-            modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp)
-        )
-
-        Spacer(modifier = Modifier.height(6.dp))
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            // 119 Emergency Box
-            EmergencyHotlineCard(
-                title = "119",
-                subtitle = "Police Hotline",
-                icon = Icons.Default.Warning,
-                badgeColor = EmergencyRed,
-                onClick = { onEmergencyCall("119") },
-                modifier = Modifier.weight(1f)
-            )
-
-            // 118 Security Box
-            EmergencyHotlineCard(
-                title = "118",
-                subtitle = "National Hotline",
-                icon = Icons.Default.Call,
-                badgeColor = PoliceNavy,
-                onClick = { onEmergencyCall("118") },
-                modifier = Modifier.weight(1f)
-            )
-
-            // Police HQ Box
-            EmergencyHotlineCard(
-                title = "Police HQ",
-                subtitle = "0112421111",
-                icon = Icons.Default.LocalPolice,
-                badgeColor = PoliceGold,
-                onClick = { onEmergencyCall("0112421111") },
-                modifier = Modifier.weight(1.1f)
-            )
+        // Ticker / Live Announcement banner if enabled
+        if (appConfig.features.showAnnouncementTicker && appConfig.features.announcementTickerText.isNotBlank()) {
+            Spacer(modifier = Modifier.height(10.dp))
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                color = accentColor.copy(alpha = 0.15f),
+                border = androidx.compose.foundation.BorderStroke(1.dp, accentColor.copy(alpha = 0.4f))
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = appConfig.features.announcementTickerText,
+                        style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+            }
         }
+
+        // Quick Emergency Actions Row (If enabled)
+        if (appConfig.features.showQuickActions && appConfig.quickActions.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(14.dp))
+
+            Text(
+                text = appConfig.quickActionsTitle,
+                style = MaterialTheme.typography.titleSmall.copy(
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                ),
+                modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp)
+            )
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                appConfig.quickActions.forEach { action ->
+                    val icon = getQuickActionIcon(action.iconType)
+                    val badgeColor = action.getBadgeColor()
+
+                    EmergencyHotlineCard(
+                        title = action.title,
+                        subtitle = action.subtitle,
+                        icon = icon,
+                        badgeColor = badgeColor,
+                        onClick = { onEmergencyCall(action.phoneNumber) },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+        }
+    }
+}
+
+private fun getQuickActionIcon(iconType: String): ImageVector {
+    return when (iconType.lowercase().trim()) {
+        "warning", "alert", "sos" -> Icons.Default.Warning
+        "police", "badge" -> Icons.Default.LocalPolice
+        "shield", "security" -> Icons.Default.Shield
+        else -> Icons.Default.Call
     }
 }
 
@@ -208,7 +238,7 @@ fun EmergencyHeader(
 private fun EmergencyHotlineCard(
     title: String,
     subtitle: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    icon: ImageVector,
     badgeColor: Color,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
@@ -223,13 +253,13 @@ private fun EmergencyHotlineCard(
     ) {
         Column(
             modifier = Modifier
-                .padding(10.dp)
+                .padding(8.dp)
                 .fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Box(
                 modifier = Modifier
-                    .size(32.dp)
+                    .size(30.dp)
                     .clip(CircleShape)
                     .background(badgeColor),
                 contentAlignment = Alignment.Center
@@ -238,24 +268,28 @@ private fun EmergencyHotlineCard(
                     imageVector = icon,
                     contentDescription = null,
                     tint = Color.White,
-                    modifier = Modifier.size(16.dp)
+                    modifier = Modifier.size(15.dp)
                 )
             }
-            Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = title,
                 style = MaterialTheme.typography.titleMedium.copy(
                     fontWeight = FontWeight.ExtraBold,
-                    fontSize = 14.sp
+                    fontSize = 13.sp
                 ),
-                color = badgeColor
-            )
-            Text(
-                text = subtitle,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = badgeColor,
                 maxLines = 1
             )
+            if (subtitle.isNotBlank()) {
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1
+                )
+            }
         }
     }
 }
+

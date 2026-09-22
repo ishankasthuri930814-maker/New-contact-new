@@ -69,23 +69,43 @@ object AppNoticeManager {
             }
 
             val json = JSONObject(jsonString)
-            val active = json.optBoolean("active", false)
+            
+            // Check active status (default true if not explicitly false)
+            val active = if (json.has("active")) json.optBoolean("active", true) else true
             if (!active && !forceShow) {
                 _currentNotice.value = null
                 return@withContext
             }
 
-            val id = json.optString("id", "")
-            val title = json.optString("title", "විශේෂ නිවේදනයයි")
-            val message = json.optString("message", "")
-            val type = json.optString("type", "info")
-            val date = json.optString("date", "")
-            val dismissible = json.optBoolean("dismissible", true)
+            val title = when {
+                json.has("notice_title") -> json.optString("notice_title")
+                json.has("title") -> json.optString("title")
+                json.has("heading") -> json.optString("heading")
+                json.has("subject") -> json.optString("subject")
+                else -> "විශේෂ නිවේදනයයි"
+            }
+
+            val message = when {
+                json.has("notice_body") -> json.optString("notice_body")
+                json.has("message") -> json.optString("message")
+                json.has("body") -> json.optString("body")
+                json.has("content") -> json.optString("content")
+                json.has("text") -> json.optString("text")
+                json.has("description") -> json.optString("description")
+                else -> ""
+            }
 
             if (message.isBlank()) {
                 _currentNotice.value = null
                 return@withContext
             }
+
+            val rawId = json.optString("id", "")
+            // Generate a content-based ID if not specified so any GitHub edit triggers a fresh notice
+            val id = if (rawId.isNotBlank()) rawId else "notice_${(title + message).hashCode()}"
+            val type = json.optString("type", "info")
+            val date = json.optString("date", "")
+            val dismissible = if (json.has("dismissible")) json.optBoolean("dismissible", true) else true
 
             // Check if user already dismissed this notice ID
             val dismissedId = getPrefs(context).getString(KEY_DISMISSED_NOTICE_ID, "")

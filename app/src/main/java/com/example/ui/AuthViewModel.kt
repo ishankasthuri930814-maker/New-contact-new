@@ -103,15 +103,17 @@ class AuthViewModel(
         }
     }
 
-    // Google මගින් ඇතුළු වීම / Sign Up වීම (Credential Manager)
+    // Google මගින් ඇතුළු වීම / Sign Up වීම (Credential Manager + Seamless Provider Fallback)
     fun signInWithGoogle(context: Context) {
+        val hostActivity: Activity? = generateSequence(context) {
+            if (it is ContextWrapper) it.baseContext else null
+        }.filterIsInstance<Activity>().firstOrNull()
+
         viewModelScope.launch {
             _authState.value = AuthState.Loading
-            try {
-                val hostActivity: Activity? = generateSequence(context) {
-                    if (it is ContextWrapper) it.baseContext else null
-                }.filterIsInstance<Activity>().firstOrNull()
+            var isSuccess = false
 
+            try {
                 val credentialContext = hostActivity ?: context
                 val credentialManager = CredentialManager.create(credentialContext)
 
@@ -141,6 +143,7 @@ class AuthViewModel(
 
                     val authResult = repository.signInWithGoogle(idToken)
                     authResult.onSuccess { user ->
+                        isSuccess = true
                         _authState.value = AuthState.Success(user)
                         _uiState.update {
                             it.copy(
@@ -149,22 +152,46 @@ class AuthViewModel(
                                 successMessage = "Google මගින් සාර්ථකව ඇතුළු විය (Google Sign-In Successful)"
                             )
                         }
+                        startActiveSessionMonitoring()
                     }.onFailure { ex ->
-                        _authState.value = AuthState.Error(ex.localizedMessage ?: "Google මගින් ඇතුළු වීමේ දෝෂයක් සිදු විය")
+                        android.util.Log.w("AuthViewModel", "Google ID token sign in failed", ex)
                     }
-                } else {
-                    _authState.value = AuthState.Error("Google ගිණුම් විස්තර ලබාගත නොහැකි විය")
                 }
             } catch (e: Exception) {
-                val errorMsg = e.message ?: ""
-                val msg = if (errorMsg.contains("cancel", ignoreCase = true) || errorMsg.contains("USER_CANCELED", ignoreCase = true)) {
-                    "Google පිවිසුම අවලංගු කරන ලදී (Cancelled)"
-                } else if (errorMsg.contains("No credentials", ignoreCase = true)) {
-                    "දුරකථනයේ Google ගිණුමක් සොයාගත නොහැකි විය. කරුණාකර ඔබගේ Google ගිණුම තහවුරු කර නැවත උත්සාහ කරන්න."
+                android.util.Log.i("AuthViewModel", "CredentialManager failed (${e.message}), attempting Google OAuth fallback...", e)
+            }
+
+            // Fallback to Google OAuthProvider if CredentialManager did not sign in
+            if (!isSuccess) {
+                if (hostActivity != null) {
+                    try {
+                        val providerResult = repository.signInWithGoogleProvider(hostActivity)
+                        providerResult.onSuccess { user ->
+                            isSuccess = true
+                            _authState.value = AuthState.Success(user)
+                            _uiState.update {
+                                it.copy(
+                                    isAuthenticated = true,
+                                    loggedInUsername = user?.email ?: user?.displayName ?: "Google User",
+                                    successMessage = "Google මගින් සාර්ථකව ඇතුළු විය (Google Sign-In Successful)"
+                                )
+                            }
+                            startActiveSessionMonitoring()
+                        }.onFailure { ex ->
+                            val errorMsg = ex.message ?: ""
+                            val msg = if (errorMsg.contains("cancel", ignoreCase = true) || errorMsg.contains("closed", ignoreCase = true) || errorMsg.contains("USER_CANCELED", ignoreCase = true)) {
+                                "Google පිවිසුම අවලංගු කරන ලදී (Cancelled)"
+                            } else {
+                                ex.localizedMessage ?: "Google මගින් ඇතුළු වීමේ දෝෂයක් සිදු විය"
+                            }
+                            _authState.value = AuthState.Error(msg)
+                        }
+                    } catch (t: Throwable) {
+                        _authState.value = AuthState.Error(t.localizedMessage ?: "Google මගින් ඇතුළු වීමේ දෝෂයක් සිදු විය")
+                    }
                 } else {
-                    e.localizedMessage ?: "Google මගින් ඇතුළු වීමේ දෝෂයක් සිදු විය"
+                    _authState.value = AuthState.Error("දුරකථනයේ Google ගිණුමක් සොයාගත නොහැකි විය. කරුණාකර ඔබගේ Google ගිණුම තහවුරු කර නැවත උත්සාහ කරන්න.")
                 }
-                _authState.value = AuthState.Error(msg)
             }
         }
     }
@@ -184,6 +211,56 @@ class AuthViewModel(
                 }
             }.onFailure { ex ->
                 _authState.value = AuthState.Error(ex.localizedMessage ?: "Google මගින් ඇතුළු වීමේ දෝෂයක් සිදු විය")
+            }
+        }
+    }
+
+    // Facebook මගින් ඇතුළු වීම / Sign Up වීම (Firebase OAuth)
+    fun signInWithFacebook(context: Context) {
+        val hostActivity: Activity? = generateSequence(context) {
+            if (it is ContextWrapper) it.baseContext else null
+        }.filterIsInstance<Activity>().firstOrNull()
+
+        if (hostActivity == null) {
+            _authState.value = AuthState.Error("Activity context not found for Facebook login")
+            return
+        }
+
+        viewModelScope.launch {
+            _authState.value = AuthState.Loading
+            val result = repository.signInWithFacebook(hostActivity)
+            result.onSuccess { user ->
+                _authState.value = AuthState.Success(user)
+                val displayNameOrEmail = user?.email ?: user?.displayName ?: "Facebook User"
+                _uiState.update {
+                    it.copy(
+                        isAuthenticated = true,
+                        loggedInUsername = displayNameOrEmail,
+                        successMessage = "Facebook මගින් සාර්ථකව ඇතුළු විය"
+                    )
+                }
+                startActiveSessionMonitoring()
+            }.onFailure { ex ->
+                android.util.Log.e("AuthViewModel", "Facebook sign-in failed", ex)
+                val errorMsg = ex.message ?: ""
+                val msg = when {
+                    errorMsg.contains("cancel", ignoreCase = true) || errorMsg.contains("closed", ignoreCase = true) || errorMsg.contains("USER_CANCELED", ignoreCase = true) -> {
+                        "Facebook පිවිසුම අවලංගු කරන ලදී (Cancelled)"
+                    }
+                    errorMsg.contains("App Not Active", ignoreCase = true) || errorMsg.contains("Development", ignoreCase = true) -> {
+                        "Facebook App එක තවමත් Development Mode හි පවතී. Meta Developers Dashboard හි App Mode එක 'Live' කරන්න."
+                    }
+                    errorMsg.contains("redirect", ignoreCase = true) || errorMsg.contains("URL Blocked", ignoreCase = true) || errorMsg.contains("whitelist", ignoreCase = true) -> {
+                        "Meta Dashboard හි Valid OAuth Redirect URIs වෙත Firebase handler URL එක ඇතුළත් කළ යුතුය."
+                    }
+                    errorMsg.contains("network", ignoreCase = true) -> {
+                        "අන්තර්ජාල සම්බන්ධතාවය පරීක්ෂා කර නැවත උත්සාහ කරන්න (Network Error)"
+                    }
+                    else -> {
+                        ex.localizedMessage ?: "Facebook මගින් ඇතුළු වීමේ දෝෂයක් සිදු විය"
+                    }
+                }
+                _authState.value = AuthState.Error(msg)
             }
         }
     }

@@ -1,0 +1,76 @@
+[
+  {
+    "stationOrDesignation": "119 Police Emergency Call Centre",
+    "rank": "EMERGENCY HOTLINE",
+    "officerName": "Police Emergency 24/7 Operations",
+    "generalPhone": "119",
+    "mobilePhone": "119",
+    "email": "telligp@police.gov.lk",
+    "locationCoordinates": "6.9271,79.8612",
+    "locationAddress": "Police Headquarters, Colombo 01",
+    "category": "EMERGENCY"
+  },
+  {
+    "stationOrDesignation": "1990 Suwa Seriya Ambulance",
+    "rank": "AMBULANCE",
+    "officerName": "Emergency Medical & Ambulance Dispatch",
+    "generalPhone": "1990",
+    "mobilePhone": "1990",
+    "category": "EMERGENCY"
+  },
+  {
+    "stationOrDesignation": "110 Fire & Rescue Service (CMC)",
+    "rank": "FIRE & RESCUE",
+    "officerName": "Fire Brigade Headquarters",
+    "generalPhone": "110",
+    "officePhone2": "011-2422222",
+    "locationAddress": "T.B. Jayah Mawatha, Colombo 10",
+    "category": "FIRE_STATIONS"
+  },
+  {
+    "stationOrDesignation": "Colombo Central Police Station (HQI)",
+    "rank": "HQI",
+    "officerName": "Chief Inspector of Police",
+    "generalPhone": "011-2433333",
+    "mobilePhone": "071-8591111",
+    "officePhone2": "011-2326941",
+    "email": "hqi.colombocentral@police.gov.lk",
+    "locationCoordinates": "6.9344,79.8428",
+    "locationAddress": "Dam Street, Pettah, Colombo 11",
+    "category": "POLICE"
+  },
+  {
+    "stationOrDesignation": "Kandy Police Station (HQI)",
+    "rank": "HQI",
+    "officerName": "Chief Inspector of Police",
+    "generalPhone": "081-2222222",
+    "mobilePhone": "071-8591888",
+    "locationCoordinates": "7.2906,80.6337",
+    "locationAddress": "Yatinuwara Veediya, Kandy",
+    "category": "POLICE"
+  },
+  {
+    "stationOrDesignation": "Galle Police Station (HQI)",
+    "rank": "HQI",
+    "officerName": "Chief Inspector of Police",
+    "generalPhone": "091-2222222",
+    "mobilePhone": "071-8591444",
+    "locationCoordinates": "6.0328,80.2170",
+    "locationAddress": "Fort, Galle",
+    "category": "POLICE"
+  },
+  {
+    "stationOrDesignation": "National Hospital Colombo (Accident Service)",
+    "rank": "GOVT HOSPITAL",
+    "officerName": "Emergency Trauma Unit",
+    "generalPhone": "011-2691111",
+    "category": "HOSPITALS"
+  },
+  {
+    "stationOrDesignation": "1919 Government Information Centre",
+    "rank": "SHORT CODE",
+    "officerName": "Government Public Service Helpline",
+    "generalPhone": "1919",
+    "category": "SHORT_CODES"
+  }
+]

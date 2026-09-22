@@ -1,0 +1,63 @@
+{
+  "theme": {
+    "primaryColor": "#0D2240",
+    "accentColor": "#F59E0B",
+    "emergencyRed": "#DC2626",
+    "headerTextColor": "#FFFFFF"
+  },
+  "header": {
+    "badgeText": "OFFICIAL DIRECTORY",
+    "title": "Sri Lanka Police Directory",
+    "subtitle": "ශ්‍රී ලංකා පොලිස් නිල ඇමතුම් සහ විද්‍යුත් තැපැල් නාමාවලිය",
+    "emergencyBadgeText": "119 EMERGENCY",
+    "emergencyBadgeNumber": "119"
+  },
+  "quickActionsTitle": "⚡ Quick Emergency Hotlines / හදිසි ඇමතුම්",
+  "quickActions": [
+    {
+      "id": "119",
+      "title": "119",
+      "subtitle": "Police Hotline",
+      "phoneNumber": "119",
+      "icon": "warning",
+      "badgeColor": "#DC2626",
+      "enabled": true
+    },
+    {
+      "id": "118",
+      "title": "118",
+      "subtitle": "National Hotline",
+      "phoneNumber": "118",
+      "icon": "call",
+      "badgeColor": "#0D2240",
+      "enabled": true
+    },
+    {
+      "id": "1990",
+      "title": "1990",
+      "subtitle": "Suwa Seriya",
+      "phoneNumber": "1990",
+      "icon": "medical",
+      "badgeColor": "#059669",
+      "enabled": true
+    },
+    {
+      "id": "hq",
+      "title": "Police HQ",
+      "subtitle": "0112421111",
+      "phoneNumber": "0112421111",
+      "icon": "police",
+      "badgeColor": "#D97706",
+      "enabled": true
+    }
+  ],
+  "features": {
+    "showEmergencyBanner": true,
+    "showQuickActions": true,
+    "showCategoryTabs": true,
+    "showGpsMap": true,
+    "showFloatingSos": true,
+    "showAnnouncementTicker": false,
+    "announcementTickerText": "🚨 සියලුම හදිසි ඇමතුම් සේවා පැය 24 පුරා සක්‍රීයයි."
+  }
+}

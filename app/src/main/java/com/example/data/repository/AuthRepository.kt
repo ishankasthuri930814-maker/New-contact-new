@@ -1,5 +1,6 @@
 package com.example.data.repository
 
+import android.app.Activity
 import android.content.Context
 import android.content.SharedPreferences
 import android.util.Log
@@ -13,6 +14,7 @@ import com.google.firebase.auth.FirebaseAuthUserCollisionException
 import com.google.firebase.auth.FirebaseAuthWeakPasswordException
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.auth.GoogleAuthProvider
+import com.google.firebase.auth.OAuthProvider
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
@@ -181,6 +183,60 @@ class AuthRepository(
         }
     }
 
+    // Google මගින් ඇතුළු වීම (Firebase OAuthProvider Fallback)
+    suspend fun signInWithGoogleProvider(activity: Activity): Result<FirebaseUser?> {
+        val auth = firebaseAuth ?: return Result.failure(IllegalStateException("Google සත්‍යාපනය සඳහා සේවාව සූදානම් නැත"))
+        return try {
+            val provider = OAuthProvider.newBuilder("google.com")
+            provider.addCustomParameter("prompt", "select_account")
+            val scopes = listOf("profile", "email")
+            provider.setScopes(scopes)
+
+            val pendingResultTask = auth.pendingAuthResult
+            val result = if (pendingResultTask != null) {
+                pendingResultTask.await()
+            } else {
+                auth.startActivityForSignInWithProvider(activity, provider.build()).await()
+            }
+            val user = result.user
+            if (user != null) {
+                val emailOrName = user.email ?: user.displayName ?: "Google User"
+                saveCredentials(emailOrName, "GOOGLE_AUTH")
+            }
+            Result.success(user)
+        } catch (e: Exception) {
+            Log.e("AuthRepo", "Firebase Google OAuthProvider sign-in failed", e)
+            Result.failure(e)
+        }
+    }
+
+    // Facebook මගින් ඇතුළු වීම / Sign In (Firebase OAuthProvider)
+    suspend fun signInWithFacebook(activity: Activity): Result<FirebaseUser?> {
+        val auth = firebaseAuth ?: return Result.failure(IllegalStateException("Facebook සත්‍යාපනය සඳහා සේවාව සූදානම් නැත"))
+        return try {
+            val provider = OAuthProvider.newBuilder("facebook.com")
+            provider.addCustomParameter("display", "touch")
+            val scopes = listOf("email", "public_profile")
+            provider.setScopes(scopes)
+
+            val pendingResultTask = auth.pendingAuthResult
+            val result = if (pendingResultTask != null) {
+                pendingResultTask.await()
+            } else {
+                auth.startActivityForSignInWithProvider(activity, provider.build()).await()
+            }
+            val user = result.user
+            if (user != null) {
+                val emailOrName = user.email ?: user.displayName ?: "Facebook User"
+                saveCredentials(emailOrName, "FACEBOOK_AUTH")
+            }
+            Result.success(user)
+        } catch (e: Exception) {
+            Log.e("AuthRepo", "Facebook sign-in failed", e)
+            Result.failure(e)
+        }
+    }
+
     // Sign Out වීම
     fun signOut() {
         try {
@@ -310,7 +366,7 @@ class AuthRepository(
         // If not a Firebase user session, check saved credentials against Firebase if possible
         val savedEmail = currentUsername
         val savedPass = currentPassword
-        if (!savedEmail.isNullOrBlank() && !savedPass.isNullOrBlank() && savedPass != "GOOGLE_AUTH") {
+        if (!savedEmail.isNullOrBlank() && !savedPass.isNullOrBlank() && savedPass != "GOOGLE_AUTH" && savedPass != "FACEBOOK_AUTH") {
             val auth = firebaseAuth
             if (auth != null) {
                 try {

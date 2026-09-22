@@ -114,7 +114,9 @@ import com.example.service.InAppNotification
 import com.example.service.InAppNotificationBus
 import com.example.util.AppUpdateManager
 import com.example.util.AppNoticeManager
+import com.example.util.AppConfigManager
 import com.example.util.UpdateStatus
+import com.example.data.model.AppConfig
 import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Logout
@@ -149,6 +151,7 @@ fun PoliceScreen(
     val coroutineScope = rememberCoroutineScope()
     val updateStatus by AppUpdateManager.updateStatus.collectAsStateWithLifecycle()
     val currentNotice by AppNoticeManager.currentNotice.collectAsStateWithLifecycle()
+    val appConfig by AppConfigManager.appConfig.collectAsStateWithLifecycle()
 
     // Real-time In-App Notification state
     var activeInAppBanner by remember { mutableStateOf<InAppNotification?>(null) }
@@ -160,10 +163,11 @@ fun PoliceScreen(
         }
     }
 
-    // Silently check for GitHub app updates and announcements in background on launch
+    // Silently check for GitHub app updates, announcements and dynamic UI config in background on launch
     LaunchedEffect(Unit) {
         AppUpdateManager.checkForUpdates(context, isManualCheck = false)
         AppNoticeManager.checkForNotices(context, forceShow = false)
+        AppConfigManager.loadConfig(context)
     }
 
     // Interstitial Ad when user was viewing contact details popup and presses Back
@@ -303,7 +307,12 @@ fun PoliceScreen(
                         )
                     }
                     IconButton(
-                        onClick = { viewModel.loadContacts(forceRefresh = true) },
+                        onClick = {
+                            viewModel.loadContacts(forceRefresh = true)
+                            coroutineScope.launch {
+                                AppConfigManager.loadConfig(context)
+                            }
+                        },
                         modifier = Modifier.testTag("refresh_button")
                     ) {
                         Icon(
@@ -480,7 +489,8 @@ fun PoliceScreen(
                             item {
                                 EmergencyHeader(
                                     onEmergencyCall = { number -> viewModel.makePhoneCall(context, number) },
-                                    modifier = Modifier.padding(bottom = 8.dp)
+                                    modifier = Modifier.padding(bottom = 8.dp),
+                                    appConfig = appConfig
                                 )
                             }
                         }

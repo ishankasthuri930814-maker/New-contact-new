@@ -570,6 +570,48 @@ fun LoginScreen(
                             )
                         }
                     }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // Facebook Sign In / Sign Up Button
+                    Button(
+                        onClick = {
+                            localValidationError = null
+                            authViewModel.signInWithFacebook(context)
+                        },
+                        enabled = !isLoading,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(50.dp)
+                            .testTag("facebook_signup_button"),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF1877F2),
+                            contentColor = Color.White
+                        ),
+                        elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Icon(
+                                painter = painterResource(id = R.drawable.ic_facebook),
+                                contentDescription = "Facebook Logo",
+                                modifier = Modifier.size(22.dp),
+                                tint = Color.Unspecified
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Text(
+                                text = "Facebook සමඟ සම්බන්ධ වන්න",
+                                style = MaterialTheme.typography.bodyMedium.copy(
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 14.sp
+                                ),
+                                color = Color.White
+                            )
+                        }
+                    }
                 }
             }
 
