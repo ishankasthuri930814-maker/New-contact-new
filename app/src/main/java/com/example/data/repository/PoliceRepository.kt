@@ -25,6 +25,8 @@ import java.util.concurrent.TimeUnit
 
 class PoliceRepository(private val context: Context) {
 
+    val networkMonitor = com.example.util.NetworkMonitor(context)
+
     private val prefs: SharedPreferences =
         context.getSharedPreferences("police_directory_prefs", Context.MODE_PRIVATE)
 
@@ -57,27 +59,25 @@ class PoliceRepository(private val context: Context) {
         withContext(Dispatchers.IO) {
             val favorites = getFavoritesSet()
 
-            // Try fetching live data from Google Sheets first
+            // 1. If device is currently offline and forceRefresh is not requested, immediately return offline cache
+            if (!networkMonitor.isOnline && !forceRefresh) {
+                val fastCached = getCachedContactsFast()
+                return@withContext Result.success(fastCached)
+            }
+
+            // 2. Try fetching live data from Google Sheets when network is available
             try {
                 val remoteContacts = fetchAndCacheRemote(favorites)
                 if (remoteContacts.isNotEmpty()) {
                     return@withContext Result.success(remoteContacts)
                 }
             } catch (e: Exception) {
-                Log.e("PoliceRepo", "Remote fetch failed, falling back to local cache", e)
+                Log.e("PoliceRepo", "Remote fetch failed, falling back to local offline cache", e)
             }
 
-            // Fallback to local disk cache if remote fetch failed
-            val cached = loadFromLocalCache()
-            if (cached.isNotEmpty()) {
-                val updated = cached.map { PoliceGpsDirectory.enrichContact(it).copy(isFavorite = favorites.contains(it.id)) }
-                Result.success(updated)
-            } else {
-                val defaults = getDefaultEmergencyContacts().map {
-                    PoliceGpsDirectory.enrichContact(it).copy(isFavorite = favorites.contains(it.id))
-                }
-                Result.success(defaults)
-            }
+            // 3. Fallback to local disk/persistent cache if remote fetch failed
+            val cached = getCachedContactsFast()
+            Result.success(cached)
         }
 
     private suspend fun fetchAndCacheRemote(favorites: Set<String>): List<PoliceContact> {
@@ -541,29 +541,76 @@ class PoliceRepository(private val context: Context) {
     }
 
     private fun saveToLocalCache(contacts: List<PoliceContact>) {
+        if (contacts.isEmpty()) return
         try {
-            val cacheFile = File(context.cacheDir, "police_contacts_cache.json")
             val listType = Types.newParameterizedType(List::class.java, PoliceContact::class.java)
             val adapter = moshi.adapter<List<PoliceContact>>(listType)
             val json = adapter.toJson(contacts)
+
+            // 1. Save to persistent internal storage (filesDir) - permanent, survives cache clearance
+            val persistentFile = File(context.filesDir, "police_contacts_offline.json")
+            persistentFile.writeText(json)
+
+            // 2. Also save to cacheDir for compatibility
+            val cacheFile = File(context.cacheDir, "police_contacts_cache.json")
             cacheFile.writeText(json)
-            prefs.edit().putLong("last_sync_time", System.currentTimeMillis()).apply()
+
+            prefs.edit()
+                .putLong("last_sync_time", System.currentTimeMillis())
+                .putInt("cached_contacts_count", contacts.size)
+                .apply()
+            Log.d("PoliceRepo", "Successfully saved ${contacts.size} contacts to persistent offline storage")
         } catch (e: Exception) {
-            Log.e("PoliceRepo", "Error saving cache", e)
+            Log.e("PoliceRepo", "Error saving offline cache", e)
         }
     }
 
     fun loadFromLocalCache(): List<PoliceContact> {
-        return try {
-            val cacheFile = File(context.cacheDir, "police_contacts_cache.json")
-            if (!cacheFile.exists()) return emptyList()
-            val json = cacheFile.readText()
-            val listType = Types.newParameterizedType(List::class.java, PoliceContact::class.java)
-            val adapter = moshi.adapter<List<PoliceContact>>(listType)
-            adapter.fromJson(json) ?: emptyList()
+        val listType = Types.newParameterizedType(List::class.java, PoliceContact::class.java)
+        val adapter = moshi.adapter<List<PoliceContact>>(listType)
+
+        // 1. Try persistent internal storage (filesDir) first
+        try {
+            val persistentFile = File(context.filesDir, "police_contacts_offline.json")
+            if (persistentFile.exists() && persistentFile.length() > 0) {
+                val json = persistentFile.readText()
+                val parsed = adapter.fromJson(json)
+                if (!parsed.isNullOrEmpty()) {
+                    Log.d("PoliceRepo", "Loaded ${parsed.size} contacts from persistent offline filesDir")
+                    return parsed
+                }
+            }
         } catch (e: Exception) {
-            Log.e("PoliceRepo", "Error loading cache", e)
-            emptyList()
+            Log.e("PoliceRepo", "Error loading from persistent offline storage", e)
+        }
+
+        // 2. Fallback to cacheDir
+        try {
+            val cacheFile = File(context.cacheDir, "police_contacts_cache.json")
+            if (cacheFile.exists() && cacheFile.length() > 0) {
+                val json = cacheFile.readText()
+                val parsed = adapter.fromJson(json)
+                if (!parsed.isNullOrEmpty()) {
+                    Log.d("PoliceRepo", "Loaded ${parsed.size} contacts from cacheDir")
+                    return parsed
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("PoliceRepo", "Error loading from cacheDir", e)
+        }
+
+        return emptyList()
+    }
+
+    fun getCachedContactsFast(): List<PoliceContact> {
+        val favorites = getFavoritesSet()
+        val cached = loadFromLocalCache()
+        return if (cached.isNotEmpty()) {
+            cached.map { PoliceGpsDirectory.enrichContact(it).copy(isFavorite = favorites.contains(it.id)) }
+        } else {
+            getDefaultEmergencyContacts().map {
+                PoliceGpsDirectory.enrichContact(it).copy(isFavorite = favorites.contains(it.id))
+            }
         }
     }
 

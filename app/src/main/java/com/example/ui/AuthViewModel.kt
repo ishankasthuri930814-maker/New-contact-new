@@ -265,6 +265,37 @@ class AuthViewModel(
         }
     }
 
+    // Facebook Access Token මගින් ඇතුළු වීම (Facebook Android SDK)
+    fun signInWithFacebookToken(accessToken: String) {
+        viewModelScope.launch {
+            _authState.value = AuthState.Loading
+            val result = repository.signInWithFacebookToken(accessToken)
+            result.onSuccess { user ->
+                _authState.value = AuthState.Success(user)
+                val displayNameOrEmail = user?.email ?: user?.displayName ?: "Facebook User"
+                _uiState.update {
+                    it.copy(
+                        isAuthenticated = true,
+                        loggedInUsername = displayNameOrEmail,
+                        successMessage = "Facebook මගින් සාර්ථකව ඇතුළු විය"
+                    )
+                }
+                startActiveSessionMonitoring()
+            }.onFailure { ex ->
+                android.util.Log.e("AuthViewModel", "Facebook token sign-in failed", ex)
+                _authState.value = AuthState.Error(ex.localizedMessage ?: "Facebook මගින් ඇතුළු වීමේ දෝෂයක් සිදු විය")
+            }
+        }
+    }
+
+    fun setAuthError(message: String) {
+        _authState.value = AuthState.Error(message)
+    }
+
+    fun setAuthLoading() {
+        _authState.value = AuthState.Loading
+    }
+
     fun checkAutoLogin() {
         viewModelScope.launch {
             _uiState.update { it.copy(isCheckingAutoLogin = true, errorMessage = null) }

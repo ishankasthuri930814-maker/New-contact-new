@@ -44,6 +44,17 @@ class MainActivity : ComponentActivity() {
 
     private lateinit var policeViewModel: PoliceViewModel
     private lateinit var authViewModel: AuthViewModel
+    val facebookCallbackManager: com.facebook.CallbackManager = com.facebook.CallbackManager.Factory.create()
+
+    @Deprecated("Deprecated in Java")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        try {
+            facebookCallbackManager.onActivityResult(requestCode, resultCode, data)
+        } catch (t: Throwable) {
+            Log.w("MainActivity", "Facebook callback error", t)
+        }
+        super.onActivityResult(requestCode, resultCode, data)
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -229,6 +240,7 @@ class MainActivity : ComponentActivity() {
                 } else {
                     LoginScreen(
                         authViewModel = authViewModel,
+                        facebookCallbackManager = facebookCallbackManager,
                         onLoginSuccess = {
                             Toast.makeText(this@MainActivity, "සාර්ථකව ඇතුළු විය!", Toast.LENGTH_SHORT).show()
                         }

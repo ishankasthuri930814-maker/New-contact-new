@@ -14,6 +14,7 @@ import com.google.firebase.auth.FirebaseAuthUserCollisionException
 import com.google.firebase.auth.FirebaseAuthWeakPasswordException
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.auth.GoogleAuthProvider
+import com.google.firebase.auth.FacebookAuthProvider
 import com.google.firebase.auth.OAuthProvider
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.tasks.await
@@ -233,6 +234,24 @@ class AuthRepository(
             Result.success(user)
         } catch (e: Exception) {
             Log.e("AuthRepo", "Facebook sign-in failed", e)
+            Result.failure(e)
+        }
+    }
+
+    // Facebook Access Token මගින් ඇතුළු වීම (Facebook Android SDK Credential)
+    suspend fun signInWithFacebookToken(accessToken: String): Result<FirebaseUser?> {
+        val auth = firebaseAuth ?: return Result.failure(IllegalStateException("Facebook සත්‍යාපනය සඳහා සේවාව සූදානම් නැත"))
+        return try {
+            val credential = FacebookAuthProvider.getCredential(accessToken)
+            val result = auth.signInWithCredential(credential).await()
+            val user = result.user
+            if (user != null) {
+                val emailOrName = user.email ?: user.displayName ?: "Facebook User"
+                saveCredentials(emailOrName, "FACEBOOK_AUTH")
+            }
+            Result.success(user)
+        } catch (e: Exception) {
+            Log.e("AuthRepo", "Firebase Facebook sign-in with credential failed", e)
             Result.failure(e)
         }
     }

@@ -252,13 +252,40 @@ fun PoliceScreen(
                                 text = "ALL Police Contact",
                                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
                             )
-                            Text(
-                                text = "Synced: ${uiState.lastSyncTime}",
-                                style = MaterialTheme.typography.labelSmall.copy(
-                                    color = Color.White.copy(alpha = 0.7f),
-                                    fontSize = 11.sp
-                                )
-                            )
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                if (uiState.isOfflineMode) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(7.dp)
+                                            .clip(CircleShape)
+                                            .background(Color(0xFFFFB74D))
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = "Offline Mode (සුරැකි දත්ත)",
+                                        style = MaterialTheme.typography.labelSmall.copy(
+                                            color = Color(0xFFFFD54F),
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                    )
+                                } else {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(7.dp)
+                                            .clip(CircleShape)
+                                            .background(Color(0xFF4CAF50))
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = "Online | Synced: ${uiState.lastSyncTime}",
+                                        style = MaterialTheme.typography.labelSmall.copy(
+                                            color = Color.White.copy(alpha = 0.8f),
+                                            fontSize = 11.sp
+                                        )
+                                    )
+                                }
+                            }
                         }
                     }
                 },

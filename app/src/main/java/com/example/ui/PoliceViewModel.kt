@@ -19,8 +19,9 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 data class PoliceUiState(
-    val isLoading: Boolean = true,
+    val isLoading: Boolean = false,
     val isRefreshing: Boolean = false,
+    val isOfflineMode: Boolean = false,
     val contacts: List<PoliceContact> = emptyList(),
     val filteredContacts: List<PoliceContact> = emptyList(),
     val searchQuery: String = "",
@@ -35,15 +36,60 @@ class PoliceViewModel(private val repository: PoliceRepository) : ViewModel() {
     private val _uiState = MutableStateFlow(PoliceUiState())
     val uiState: StateFlow<PoliceUiState> = _uiState.asStateFlow()
 
+    private var hasObservedInitialNetwork = false
+
     init {
-        loadContacts(forceRefresh = true)
+        // 1. Immediately load local offline contacts (retrieved in previous session) so UI shows contacts with 0 delay
+        loadCachedContactsImmediately()
+
+        // 2. Observe network connectivity: when mobile data or Wi-Fi turns ON, auto-refresh live Google Sheet data!
+        observeNetworkConnectivity()
     }
 
-    fun loadContacts(forceRefresh: Boolean = false) {
+    private fun loadCachedContactsImmediately() {
+        val cached = repository.getCachedContactsFast()
+        val syncTime = repository.getLastSyncTimeString()
+        val isOffline = !repository.networkMonitor.isOnline
+        _uiState.update { state ->
+            val filtered = filterContactsList(cached, state.searchQuery, state.selectedCategory)
+            state.copy(
+                isLoading = false,
+                isOfflineMode = isOffline,
+                contacts = cached,
+                filteredContacts = filtered,
+                lastSyncTime = syncTime,
+                userMessage = if (isOffline && cached.isNotEmpty()) {
+                    "Offline මාදිලිය: පෙර ලබාගත් Google Sheet දත්ත පෙන්වයි"
+                } else null
+            )
+        }
+    }
+
+    private fun observeNetworkConnectivity() {
         viewModelScope.launch {
+            repository.networkMonitor.isOnlineFlow.collect { isOnline ->
+                val wasOffline = _uiState.value.isOfflineMode
+                _uiState.update { it.copy(isOfflineMode = !isOnline) }
+
+                if (isOnline) {
+                    // Mobile data or Wi-Fi connected! Auto-refresh live data from Google Sheets!
+                    if (!hasObservedInitialNetwork || wasOffline) {
+                        hasObservedInitialNetwork = true
+                        loadContacts(forceRefresh = true, isAutoRefresh = true)
+                    }
+                } else {
+                    hasObservedInitialNetwork = true
+                }
+            }
+        }
+    }
+
+    fun loadContacts(forceRefresh: Boolean = false, isAutoRefresh: Boolean = false) {
+        viewModelScope.launch {
+            val isOnline = repository.networkMonitor.isOnline
             if (forceRefresh) {
                 _uiState.update { it.copy(isRefreshing = true) }
-            } else {
+            } else if (_uiState.value.contacts.isEmpty()) {
                 _uiState.update { it.copy(isLoading = true) }
             }
 
@@ -53,13 +99,20 @@ class PoliceViewModel(private val repository: PoliceRepository) : ViewModel() {
             result.onSuccess { contactsList ->
                 _uiState.update { state ->
                     val filtered = filterContactsList(contactsList, state.searchQuery, state.selectedCategory)
+                    val message = when {
+                        isAutoRefresh -> "ජාලය සම්බන්ධ විය. Google Sheet දත්ත යාවත්කාලීන විය!"
+                        forceRefresh -> "තොරතුරු සාර්ථකව යාවත්කාලීන විය (Synced)"
+                        !isOnline -> "Offline මාදිලිය: පෙර ලබාගත් දත්ත පෙන්වයි"
+                        else -> null
+                    }
                     state.copy(
                         isLoading = false,
                         isRefreshing = false,
+                        isOfflineMode = !isOnline,
                         contacts = contactsList,
                         filteredContacts = filtered,
                         lastSyncTime = syncTime,
-                        userMessage = if (forceRefresh) "Contact directory updated successfully" else null
+                        userMessage = message
                     )
                 }
             }.onFailure { error ->
@@ -67,8 +120,9 @@ class PoliceViewModel(private val repository: PoliceRepository) : ViewModel() {
                     state.copy(
                         isLoading = false,
                         isRefreshing = false,
+                        isOfflineMode = !isOnline,
                         lastSyncTime = syncTime,
-                        userMessage = "Could not connect to online sheet. Displaying cached data."
+                        userMessage = "Offline මාදිලිය: පෙර ලබාගත් Google Sheet දත්ත පෙන්වයි"
                     )
                 }
             }
