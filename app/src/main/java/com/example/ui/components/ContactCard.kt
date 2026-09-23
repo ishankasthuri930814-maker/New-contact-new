@@ -395,8 +395,11 @@ fun ContactCard(
                                 Column {
                                     Text(
                                         text = phoneLabelText,
-                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                                        color = MaterialTheme.colorScheme.outline
+                                        style = MaterialTheme.typography.labelSmall.copy(
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.SemiBold
+                                        ),
+                                        color = Color(0xFF334155)
                                     )
                                     Text(
                                         text = contact.generalPhone,
@@ -463,8 +466,11 @@ fun ContactCard(
                                 Column {
                                     Text(
                                         text = mobileLabelText,
-                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                                        color = MaterialTheme.colorScheme.outline
+                                        style = MaterialTheme.typography.labelSmall.copy(
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.SemiBold
+                                        ),
+                                        color = Color(0xFF334155)
                                     )
                                     Text(
                                         text = contact.mobilePhone,
@@ -651,8 +657,11 @@ fun ContactCard(
                                 Column {
                                     Text(
                                         text = "අතිරේක ඇමතුම් / Office 2",
-                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                                        color = MaterialTheme.colorScheme.outline
+                                        style = MaterialTheme.typography.labelSmall.copy(
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.SemiBold
+                                        ),
+                                        color = Color(0xFF334155)
                                     )
                                     Text(
                                         text = contact.officePhone2,
@@ -800,8 +809,11 @@ fun ContactCard(
                         Column {
                             Text(
                                 text = "විද්‍යුත් තැපෑල / Email",
-                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                                color = MaterialTheme.colorScheme.outline
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                ),
+                                color = Color(0xFF334155)
                             )
                             Text(
                                 text = contact.email,

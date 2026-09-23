@@ -80,14 +80,20 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.text.style.TextOverflow
+import android.Manifest
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.compose.material.icons.filled.AdminPanelSettings
+import com.example.ui.components.InAppCallDialog
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -180,6 +186,7 @@ fun PoliceScreen(
     val chatViewModel: ChatViewModel = viewModel(
         factory = ChatViewModel.Factory(context)
     )
+    val chatUiState by chatViewModel.uiState.collectAsStateWithLifecycle()
     val profileViewModel: ProfileViewModel = viewModel(
         factory = ProfileViewModel.Factory(context)
     )
@@ -203,6 +210,34 @@ fun PoliceScreen(
         AppUpdateManager.checkForUpdates(context, isManualCheck = false)
         AppNoticeManager.checkForNotices(context, forceShow = false)
         AppConfigManager.loadConfig(context)
+    }
+
+    var pendingAcceptCallId by remember { mutableStateOf<String?>(null) }
+    val audioPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            pendingAcceptCallId?.let { callId ->
+                chatViewModel.acceptIncomingCall(callId)
+                pendingAcceptCallId = null
+            }
+        } else {
+            Toast.makeText(context, "ඇමතුම් සඳහා මයික්‍රෆෝන අවසරය (Microphone permission) ලබාදෙන්න", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    val checkAudioPermissionAndAcceptCall: (String) -> Unit = { callId ->
+        val hasPermission = ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.RECORD_AUDIO
+        ) == PackageManager.PERMISSION_GRANTED
+
+        if (hasPermission) {
+            chatViewModel.acceptIncomingCall(callId)
+        } else {
+            pendingAcceptCallId = callId
+            audioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+        }
     }
 
     // Interstitial Ad when user was viewing contact details popup and presses Back
@@ -1536,6 +1571,22 @@ fun PoliceScreen(
                         showAiSearchDialog = false
                         viewModel.performGoogleSearch(context, query)
                     }
+                )
+            }
+
+            // In-App Voice Call Dialog (Incoming or Active Call overlay across all tabs)
+            if (chatUiState.activeCall != null || chatUiState.incomingCall != null) {
+                InAppCallDialog(
+                    incomingCall = chatUiState.incomingCall,
+                    activeCall = chatUiState.activeCall,
+                    isMuted = chatUiState.isMuted,
+                    isSpeakerOn = chatUiState.isSpeakerOn,
+                    onAcceptCall = { callId -> checkAudioPermissionAndAcceptCall(callId) },
+                    onDeclineCall = { callId -> chatViewModel.declineIncomingCall(callId) },
+                    onEndCall = { callId -> chatViewModel.endActiveCall(callId) },
+                    onToggleMute = { chatViewModel.toggleMute() },
+                    onToggleSpeaker = { chatViewModel.toggleSpeaker() },
+                    onDismiss = { chatViewModel.dismissCallDialog() }
                 )
             }
         }

@@ -4,9 +4,11 @@ import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.example.data.model.CallSession
 import com.example.data.model.ChatMessage
 import com.example.data.model.DirectChatMessage
 import com.example.data.model.UserProfile
+import com.example.data.repository.CallRepository
 import com.example.data.repository.ChatRepository
 import com.example.data.repository.UserProfileRepository
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -35,21 +37,27 @@ data class ChatUiState(
     val inputText: String = "",
     val isEmergencyFlag: Boolean = false,
     val isSending: Boolean = false,
-    val currentUserProfile: UserProfile = UserProfile()
+    val currentUserProfile: UserProfile = UserProfile(),
+    // In-App Voice Calling
+    val activeCall: CallSession? = null,
+    val incomingCall: CallSession? = null,
+    val isMuted: Boolean = false,
+    val isSpeakerOn: Boolean = true
 ) {
     val activeDirectMessages: List<DirectChatMessage>
         get() {
             val other = activeDirectUser ?: return emptyList()
-            val myId = currentUserProfile.userId.ifBlank { currentUserProfile.email }
-            val otherId = other.userId.ifBlank { other.email }
-            val convId = DirectChatMessage.createConversationId(myId, otherId)
+            val myKey = currentUserProfile.email.ifBlank { currentUserProfile.userId }
+            val otherKey = other.email.ifBlank { other.userId }
+            val convId = DirectChatMessage.createConversationId(myKey, otherKey)
             return directMessagesMap[convId] ?: emptyList()
         }
 }
 
 class ChatViewModel(
     private val chatRepository: ChatRepository,
-    private val userProfileRepository: UserProfileRepository
+    private val userProfileRepository: UserProfileRepository,
+    private val callRepository: CallRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ChatUiState())
@@ -65,6 +73,10 @@ class ChatViewModel(
         viewModelScope.launch {
             userProfileRepository.currentProfile.collect { profile ->
                 _uiState.update { it.copy(currentUserProfile = profile) }
+                if (profile.email.isNotBlank() || profile.userId.isNotBlank()) {
+                    callRepository.startListeningForIncomingCalls(profile)
+                    chatRepository.startListeningForIncomingDirectMessages(profile)
+                }
             }
         }
 
@@ -77,6 +89,30 @@ class ChatViewModel(
         viewModelScope.launch {
             chatRepository.directMessages.collect { directMap ->
                 _uiState.update { it.copy(directMessagesMap = directMap) }
+            }
+        }
+
+        viewModelScope.launch {
+            callRepository.activeCall.collect { call ->
+                _uiState.update { it.copy(activeCall = call) }
+            }
+        }
+
+        viewModelScope.launch {
+            callRepository.incomingCall.collect { incoming ->
+                _uiState.update { it.copy(incomingCall = incoming) }
+            }
+        }
+
+        viewModelScope.launch {
+            callRepository.isMuted.collect { muted ->
+                _uiState.update { it.copy(isMuted = muted) }
+            }
+        }
+
+        viewModelScope.launch {
+            callRepository.isSpeakerOn.collect { speaker ->
+                _uiState.update { it.copy(isSpeakerOn = speaker) }
             }
         }
     }
@@ -95,9 +131,9 @@ class ChatViewModel(
     }
 
     fun openDirectChatWith(otherUser: UserProfile) {
-        val myId = _uiState.value.currentUserProfile.userId.ifBlank { _uiState.value.currentUserProfile.email }
-        val otherId = otherUser.userId.ifBlank { otherUser.email }
-        val convId = DirectChatMessage.createConversationId(myId, otherId)
+        val myKey = _uiState.value.currentUserProfile.email.ifBlank { _uiState.value.currentUserProfile.userId }
+        val otherKey = otherUser.email.ifBlank { otherUser.userId }
+        val convId = DirectChatMessage.createConversationId(myKey, otherKey)
         chatRepository.listenToDirectConversation(convId)
 
         _uiState.update {
@@ -141,12 +177,12 @@ class ChatViewModel(
 
         if (state.chatMode == ChatMode.DIRECT_CHAT_ROOM) {
             val other = state.activeDirectUser ?: return
-            val otherId = other.userId.ifBlank { other.email }
+            val otherKey = other.email.ifBlank { other.userId }
             viewModelScope.launch {
                 _uiState.update { it.copy(isSending = true, inputText = "") }
                 chatRepository.sendDirectMessage(
                     sender = profile,
-                    receiverUserId = otherId,
+                    receiverUserId = otherKey,
                     text = text
                 )
                 _uiState.update { it.copy(isSending = false) }
@@ -168,9 +204,48 @@ class ChatViewModel(
         }
     }
 
+    // --- In-App Voice Calling Actions ---
+
+    fun startInAppCallWith(otherUser: UserProfile) {
+        viewModelScope.launch {
+            callRepository.initiateCall(_uiState.value.currentUserProfile, otherUser)
+        }
+    }
+
+    fun acceptIncomingCall(callId: String) {
+        viewModelScope.launch {
+            callRepository.acceptCall(callId)
+        }
+    }
+
+    fun declineIncomingCall(callId: String) {
+        viewModelScope.launch {
+            callRepository.declineCall(callId)
+        }
+    }
+
+    fun endActiveCall(callId: String) {
+        viewModelScope.launch {
+            callRepository.endCall(callId)
+        }
+    }
+
+    fun toggleMute() {
+        callRepository.toggleMute()
+    }
+
+    fun toggleSpeaker() {
+        callRepository.toggleSpeaker()
+    }
+
+    fun dismissCallDialog() {
+        callRepository.dismissCallDialog()
+    }
+
     override fun onCleared() {
         super.onCleared()
         chatRepository.onCleared()
+        callRepository.onCleared()
     }
 
     class Factory(
@@ -180,7 +255,8 @@ class ChatViewModel(
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             val userProfileRepo = UserProfileRepository(context.applicationContext)
             val chatRepo = ChatRepository(context.applicationContext)
-            return ChatViewModel(chatRepo, userProfileRepo) as T
+            val callRepo = CallRepository(context.applicationContext)
+            return ChatViewModel(chatRepo, userProfileRepo, callRepo) as T
         }
     }
 }

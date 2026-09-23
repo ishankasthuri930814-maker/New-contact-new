@@ -1,9 +1,13 @@
 package com.example.ui
 
+import android.Manifest
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -28,6 +32,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.Emergency
 import androidx.compose.material.icons.filled.Forum
@@ -60,7 +65,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -68,13 +75,16 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.model.ChatMessage
 import com.example.data.model.DirectChatMessage
 import com.example.data.model.UserProfile
+import com.example.ui.components.InAppCallDialog
 import com.example.ui.components.UserAvatarView
 import com.example.util.AppLanguage
 import com.example.util.AppStrings
@@ -91,6 +101,55 @@ fun ChatScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
+
+    var pendingCallUser by remember { mutableStateOf<UserProfile?>(null) }
+    var pendingAcceptCallId by remember { mutableStateOf<String?>(null) }
+    val audioPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            pendingCallUser?.let { user ->
+                viewModel.startInAppCallWith(user)
+                pendingCallUser = null
+            }
+            pendingAcceptCallId?.let { callId ->
+                viewModel.acceptIncomingCall(callId)
+                pendingAcceptCallId = null
+            }
+        } else {
+            Toast.makeText(context, "ඇමතුම් සඳහා මයික්‍රෆෝන අවසරය (Microphone permission) අවශ්‍ය වේ", Toast.LENGTH_SHORT).show()
+            pendingCallUser = null
+            pendingAcceptCallId = null
+        }
+    }
+
+    val checkAudioPermissionAndCall: (UserProfile) -> Unit = { targetUser ->
+        val hasPermission = ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.RECORD_AUDIO
+        ) == PackageManager.PERMISSION_GRANTED
+
+        if (hasPermission) {
+            viewModel.startInAppCallWith(targetUser)
+        } else {
+            pendingCallUser = targetUser
+            audioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+        }
+    }
+
+    val checkAudioPermissionAndAcceptCall: (String) -> Unit = { callId ->
+        val hasPermission = ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.RECORD_AUDIO
+        ) == PackageManager.PERMISSION_GRANTED
+
+        if (hasPermission) {
+            viewModel.acceptIncomingCall(callId)
+        } else {
+            pendingAcceptCallId = callId
+            audioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+        }
+    }
 
     Column(
         modifier = modifier
@@ -162,6 +221,9 @@ fun ChatScreen(
                     onStartDirectChat = { user -> viewModel.openDirectChatWith(user) },
                     onCallUser = { user ->
                         makePhoneCall(context, user)
+                    },
+                    onInAppCallUser = { user ->
+                        checkAudioPermissionAndCall(user)
                     }
                 )
             }
@@ -173,21 +235,36 @@ fun ChatScreen(
                     onBack = { viewModel.closeDirectChat() },
                     onCallUser = { user ->
                         makePhoneCall(context, user)
+                    },
+                    onInAppCallUser = { user ->
+                        checkAudioPermissionAndCall(user)
                     }
                 )
             }
         }
     }
+
+    // In-App Call Overlay
+    if (uiState.activeCall != null || uiState.incomingCall != null) {
+        InAppCallDialog(
+            incomingCall = uiState.incomingCall,
+            activeCall = uiState.activeCall,
+            isMuted = uiState.isMuted,
+            isSpeakerOn = uiState.isSpeakerOn,
+            onAcceptCall = { callId -> checkAudioPermissionAndAcceptCall(callId) },
+            onDeclineCall = { callId -> viewModel.declineIncomingCall(callId) },
+            onEndCall = { callId -> viewModel.endActiveCall(callId) },
+            onToggleMute = { viewModel.toggleMute() },
+            onToggleSpeaker = { viewModel.toggleSpeaker() },
+            onDismiss = { viewModel.dismissCallDialog() }
+        )
+    }
 }
 
 private fun makePhoneCall(context: Context, user: UserProfile) {
-    if (!user.allowDirectCalls) {
-        Toast.makeText(context, "මෙම සාමාජිකයා ඇමතුම් ලබාගැනීම අක්‍රිය කර ඇත (Calls Disabled by User)", Toast.LENGTH_SHORT).show()
-        return
-    }
     val phone = user.phoneNumber.trim()
     if (phone.isBlank()) {
-        Toast.makeText(context, "මෙම සාමාජිකයා දුරකථන අංකය ලබාදී නොමැත හෝ සඟවා ඇත (Hidden)", Toast.LENGTH_SHORT).show()
+        Toast.makeText(context, "මෙම සාමාජිකයා දුරකථන අංකය ලබාදී නොමැත (No phone number in profile)", Toast.LENGTH_SHORT).show()
         return
     }
     try {
@@ -203,7 +280,8 @@ fun RegisteredUsersDirectoryContent(
     viewModel: ChatViewModel,
     uiState: ChatUiState,
     onStartDirectChat: (UserProfile) -> Unit,
-    onCallUser: (UserProfile) -> Unit
+    onCallUser: (UserProfile) -> Unit,
+    onInAppCallUser: (UserProfile) -> Unit
 ) {
     val myEmail = uiState.currentUserProfile.email
     val myId = uiState.currentUserProfile.userId
@@ -383,31 +461,50 @@ fun RegisteredUsersDirectoryContent(
                                 }
                             }
 
-                            // Action buttons: Direct Chat & Call
+                            // Action buttons: In-App Voice Call, Regular Phone Call, Direct Chat
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                if (user.allowDirectCalls && user.phoneNumber.isNotBlank()) {
+                                // 1. In-App Call Button (Green phone icon)
+                                IconButton(
+                                    onClick = { onInAppCallUser(user) },
+                                    modifier = Modifier
+                                        .size(38.dp)
+                                        .background(Color(0xFF2E7D32).copy(alpha = 0.2f), CircleShape)
+                                        .testTag("in_app_call_user_${user.userId}")
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Phone,
+                                        contentDescription = "In-App Voice Call",
+                                        tint = Color(0xFF4CAF50),
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(4.dp))
+
+                                // 2. Regular Phone Call (if has number)
+                                if (user.phoneNumber.isNotBlank()) {
                                     IconButton(
                                         onClick = { onCallUser(user) },
                                         modifier = Modifier
                                             .size(38.dp)
-                                            .background(Color(0xFF2E7D32).copy(alpha = 0.2f), CircleShape)
+                                            .background(Color(0xFF0288D1).copy(alpha = 0.18f), CircleShape)
                                     ) {
                                         Icon(
-                                            imageVector = Icons.Default.Phone,
-                                            contentDescription = "Call",
-                                            tint = Color(0xFF4CAF50),
+                                            imageVector = Icons.Default.Call,
+                                            contentDescription = "Regular Phone Call",
+                                            tint = Color(0xFF0288D1),
                                             modifier = Modifier.size(18.dp)
                                         )
                                     }
-                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
                                 }
 
+                                // 3. Direct Chat
                                 IconButton(
                                     onClick = { onStartDirectChat(user) },
                                     modifier = Modifier
                                         .size(38.dp)
                                         .background(MaterialTheme.colorScheme.primaryContainer, CircleShape)
-                                    ) {
+                                ) {
                                     Icon(
                                         imageVector = Icons.Default.Chat,
                                         contentDescription = "Direct Chat",
@@ -430,7 +527,8 @@ fun DirectPrivateChatContent(
     uiState: ChatUiState,
     selectedLanguage: AppLanguage,
     onBack: () -> Unit,
-    onCallUser: (UserProfile) -> Unit
+    onCallUser: (UserProfile) -> Unit,
+    onInAppCallUser: (UserProfile) -> Unit
 ) {
     val activeUser = uiState.activeDirectUser ?: return
     val messages = uiState.activeDirectMessages
@@ -490,20 +588,41 @@ fun DirectPrivateChatContent(
                     )
                 }
 
-                // Call Button
-                if (activeUser.allowDirectCalls && activeUser.phoneNumber.isNotBlank()) {
+                // Action Buttons: In-App Voice Call & Phone Call
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    // 1. In-App Voice Call (Internet Call)
                     IconButton(
-                        onClick = { onCallUser(activeUser) },
+                        onClick = { onInAppCallUser(activeUser) },
                         modifier = Modifier
                             .background(Color(0xFF2E7D32), CircleShape)
                             .size(38.dp)
+                            .testTag("in_app_call_button")
                     ) {
                         Icon(
                             imageVector = Icons.Default.Phone,
-                            contentDescription = "Call",
+                            contentDescription = "In-App Voice Call",
                             tint = Color.White,
-                            modifier = Modifier.size(20.dp)
+                            modifier = Modifier.size(19.dp)
                         )
+                    }
+
+                    // 2. Regular Phone Call (if has number)
+                    if (activeUser.phoneNumber.isNotBlank()) {
+                        Spacer(modifier = Modifier.width(6.dp))
+                        IconButton(
+                            onClick = { onCallUser(activeUser) },
+                            modifier = Modifier
+                                .background(Color.White.copy(alpha = 0.2f), CircleShape)
+                                .size(38.dp)
+                                .testTag("regular_phone_call_button")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Call,
+                                contentDescription = "Regular Phone Call",
+                                tint = Color.White,
+                                modifier = Modifier.size(19.dp)
+                            )
+                        }
                     }
                 }
             }
@@ -548,8 +667,10 @@ fun DirectPrivateChatContent(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     items(messages, key = { it.id }) { msg ->
-                        val isMe = msg.senderId == uiState.currentUserProfile.userId ||
-                                (msg.senderId == uiState.currentUserProfile.email && msg.senderId.isNotBlank())
+                        val myNormKey = DirectChatMessage.normalizeUserKey(uiState.currentUserProfile.email.ifBlank { uiState.currentUserProfile.userId })
+                        val isMe = msg.senderId == myNormKey ||
+                                msg.senderId == uiState.currentUserProfile.userId ||
+                                (msg.senderId.isNotBlank() && msg.senderId == uiState.currentUserProfile.email)
                         DirectMessageItem(message = msg, isMe = isMe)
                     }
                 }

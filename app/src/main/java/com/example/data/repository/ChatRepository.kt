@@ -48,7 +48,10 @@ class ChatRepository(
 
     private var communityListener: ListenerRegistration? = null
     private var directListener: ListenerRegistration? = null
+    private var incomingDirectMessagesListener: ListenerRegistration? = null
     private var currentActiveConversationId: String? = null
+    private val appStartTime = System.currentTimeMillis() - 5000L
+    private var lastNotifiedMessageTimestamp = System.currentTimeMillis()
 
     init {
         seedInitialSampleMessages()
@@ -141,10 +144,9 @@ class ChatRepository(
 
         try {
             val db = firestore ?: return
+            // Query by conversationId without composite orderBy to avoid Firestore index requirement
             directListener = db.collection("direct_chats")
                 .whereEqualTo("conversationId", conversationId)
-                .orderBy("timestamp", Query.Direction.ASCENDING)
-                .limitToLast(100)
                 .addSnapshotListener { snapshot, error ->
                     if (error != null) {
                         Log.w("ChatRepo", "Direct chat listener error", error)
@@ -154,10 +156,12 @@ class ChatRepository(
                         val list = snapshot.documents.mapNotNull { doc ->
                             val data = doc.data ?: return@mapNotNull null
                             DirectChatMessage.fromMap(data).copy(id = doc.id)
-                        }
+                        }.sortedBy { it.timestamp }
+
                         val currentMap = _directMessages.value.toMutableMap()
                         currentMap[conversationId] = list
                         _directMessages.value = currentMap
+                        Log.d("ChatRepo", "Live direct messages updated for $conversationId: ${list.size} messages")
                     }
                 }
         } catch (t: Throwable) {
@@ -174,10 +178,11 @@ class ChatRepository(
         val cleanText = text.trim()
         if (cleanText.isBlank()) return@withContext false
 
+        val senderId = userProfile.userId.ifBlank { userProfile.email }
         val msgId = UUID.randomUUID().toString()
         val newMessage = ChatMessage(
             id = msgId,
-            senderId = userProfile.userId.ifBlank { userProfile.email },
+            senderId = senderId,
             senderName = userProfile.displayName.ifBlank { "Citizen" },
             senderEmail = userProfile.email,
             senderAvatarIndex = userProfile.avatarIndex,
@@ -212,17 +217,17 @@ class ChatRepository(
         val cleanText = text.trim()
         if (cleanText.isBlank() || receiverUserId.isBlank()) return@withContext false
 
-        val senderId = sender.userId.ifBlank { sender.email }
-        val convId = DirectChatMessage.createConversationId(senderId, receiverUserId)
+        val senderKey = sender.email.ifBlank { sender.userId }
+        val convId = DirectChatMessage.createConversationId(senderKey, receiverUserId)
         val msgId = UUID.randomUUID().toString()
 
         val newDirect = DirectChatMessage(
             id = msgId,
             conversationId = convId,
-            senderId = senderId,
+            senderId = DirectChatMessage.normalizeUserKey(senderKey),
             senderName = sender.displayName.ifBlank { "Citizen" },
             senderAvatarIndex = sender.avatarIndex,
-            receiverId = receiverUserId,
+            receiverId = DirectChatMessage.normalizeUserKey(receiverUserId),
             text = cleanText,
             timestamp = System.currentTimeMillis()
         )
@@ -236,6 +241,7 @@ class ChatRepository(
             val db = firestore
             if (db != null) {
                 db.collection("direct_chats").document(msgId).set(newDirect.toMap()).await()
+                Log.d("ChatRepo", "Direct message saved to Firestore for $convId")
                 return@withContext true
             }
         } catch (t: Throwable) {
@@ -244,8 +250,42 @@ class ChatRepository(
         return@withContext true
     }
 
+    fun startListeningForIncomingDirectMessages(currentUserProfile: UserProfile) {
+        val myKey = DirectChatMessage.normalizeUserKey(currentUserProfile.email.ifBlank { currentUserProfile.userId })
+        if (myKey.isBlank() || myKey == "unknown_user") return
+        incomingDirectMessagesListener?.remove()
+
+        try {
+            val db = firestore ?: return
+            incomingDirectMessagesListener = db.collection("direct_chats")
+                .whereEqualTo("receiverId", myKey)
+                .addSnapshotListener { snapshot, error ->
+                    if (error != null || snapshot == null) return@addSnapshotListener
+                    val newMessages = snapshot.documents.mapNotNull { doc ->
+                        val data = doc.data ?: return@mapNotNull null
+                        DirectChatMessage.fromMap(data).copy(id = doc.id)
+                    }.filter { it.timestamp > appStartTime && it.senderId != myKey }
+
+                    val latest = newMessages.maxByOrNull { it.timestamp }
+                    if (latest != null && latest.timestamp > lastNotifiedMessageTimestamp) {
+                        lastNotifiedMessageTimestamp = latest.timestamp
+                        com.example.util.AppNotificationManager.playMessageNotificationSound(context)
+                        com.example.util.AppNotificationManager.showDirectMessageNotification(
+                            context = context,
+                            senderName = latest.senderName,
+                            messageText = latest.text,
+                            conversationId = latest.conversationId
+                        )
+                    }
+                }
+        } catch (e: Exception) {
+            Log.w("ChatRepo", "Error listening for incoming user direct messages", e)
+        }
+    }
+
     fun onCleared() {
         communityListener?.remove()
         directListener?.remove()
+        incomingDirectMessagesListener?.remove()
     }
 }

@@ -94,6 +94,7 @@ class MainActivity : ComponentActivity() {
         // 4. Initialize Notification Channel and Firebase Cloud Messaging safely
         try {
             MyFirebaseMessagingService.createNotificationChannel(applicationContext)
+            com.example.util.AppNotificationManager.initializeChannels(applicationContext)
 
             val gmsAvailability = GoogleApiAvailability.getInstance().isGooglePlayServicesAvailable(this)
             val isGooglePlayServicesAvailable = (gmsAvailability == ConnectionResult.SUCCESS)

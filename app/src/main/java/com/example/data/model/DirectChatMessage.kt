@@ -2,7 +2,7 @@ package com.example.data.model
 
 data class DirectChatMessage(
     val id: String = "",
-    val conversationId: String = "", // e.g. min(userId1, userId2) + "_" + max(userId1, userId2)
+    val conversationId: String = "", // e.g. userA__userB (normalized)
     val senderId: String = "",
     val senderName: String = "",
     val senderAvatarIndex: Int = 0,
@@ -26,8 +26,17 @@ data class DirectChatMessage(
     }
 
     companion object {
+        fun normalizeUserKey(raw: String): String {
+            return raw.trim().lowercase()
+                .replace(".", "_")
+                .replace("@", "_at_")
+                .ifBlank { "unknown_user" }
+        }
+
         fun createConversationId(userA: String, userB: String): String {
-            val list = listOf(userA.trim().lowercase(), userB.trim().lowercase()).sorted()
+            val keyA = normalizeUserKey(userA)
+            val keyB = normalizeUserKey(userB)
+            val list = listOf(keyA, keyB).sorted()
             return "${list[0]}__${list[1]}"
         }
 

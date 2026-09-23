@@ -1,6 +1,8 @@
 package com.example.ui.components
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -218,9 +220,9 @@ fun ContactDetailBottomSheet(
                 Text(
                     text = "👮 ${contact.officerName}",
                     style = MaterialTheme.typography.titleMedium.copy(
-                        fontWeight = FontWeight.Medium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 13.5.sp
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color(0xFF334155),
+                        fontSize = 14.sp
                     )
                 )
             }
@@ -232,8 +234,11 @@ fun ContactDetailBottomSheet(
             // Action Buttons Section Header
             Text(
                 text = "සම්බන්ධතා විස්තර සහ සේවාවන් / Contact Details",
-                style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
-                color = MaterialTheme.colorScheme.primary
+                style = MaterialTheme.typography.labelLarge.copy(
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 13.5.sp
+                ),
+                color = PoliceNavy
             )
 
             Spacer(modifier = Modifier.height(12.dp))
@@ -338,19 +343,20 @@ fun ContactDetailBottomSheet(
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(14.dp),
-                    color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.3f)
+                    color = Color(0xFFFFFBEB),
+                    border = BorderStroke(1.dp, Color(0xFFFDE68A))
                 ) {
                     Column(modifier = Modifier.padding(12.dp)) {
                         Text(
                             text = "විද්‍යුත් තැපෑල / Email Address",
-                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, fontSize = 11.sp),
-                            color = MaterialTheme.colorScheme.tertiary
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, fontSize = 12.sp),
+                            color = Color(0xFFB45309)
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             text = contact.email,
-                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold, fontSize = 14.sp),
-                            color = MaterialTheme.colorScheme.onSurface
+                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold, fontSize = 14.5.sp),
+                            color = Color(0xFF0F172A)
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                         Row(
@@ -361,17 +367,17 @@ fun ContactDetailBottomSheet(
                                 onClick = { onEmailClick(contact.email, contact.stationOrDesignation) },
                                 modifier = Modifier.weight(1f).height(40.dp),
                                 shape = RoundedCornerShape(10.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.tertiary)
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD97706))
                             ) {
-                                Icon(Icons.Default.Email, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Icon(Icons.Default.Email, contentDescription = null, modifier = Modifier.size(16.dp), tint = Color.White)
                                 Spacer(modifier = Modifier.width(6.dp))
-                                Text("Email යවන්න", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                Text("Email යවන්න", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color.White)
                             }
                             IconButton(
                                 onClick = { onCopyClick(contact.email, "Email Address") },
                                 modifier = Modifier.size(40.dp).clip(RoundedCornerShape(10.dp)).background(Color.White)
                             ) {
-                                Icon(Icons.Default.ContentCopy, contentDescription = "Copy", tint = MaterialTheme.colorScheme.tertiary, modifier = Modifier.size(18.dp))
+                                Icon(Icons.Default.ContentCopy, contentDescription = "Copy", tint = Color(0xFFB45309), modifier = Modifier.size(18.dp))
                             }
                         }
                     }
@@ -384,8 +390,8 @@ fun ContactDetailBottomSheet(
                 Spacer(modifier = Modifier.height(6.dp))
                 Text(
                     text = "OIC ස්ථානාධිපති සෘජු අංශ / OIC Emergency Direct Lines",
-                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                    color = MaterialTheme.colorScheme.primary
+                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold, fontSize = 13.sp),
+                    color = PoliceNavy
                 )
                 Spacer(modifier = Modifier.height(8.dp))
 
@@ -601,19 +607,20 @@ private fun ContactDetailActionRow(
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(14.dp),
-        color = if (isEmergency) EmergencyRed.copy(alpha = 0.08f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+        color = if (isEmergency) EmergencyRed.copy(alpha = 0.08f) else Color(0xFFF8FAFC),
+        border = BorderStroke(1.dp, if (isEmergency) EmergencyRed.copy(alpha = 0.3f) else Color(0xFFCBD5E1))
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
             Text(
                 text = label,
-                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, fontSize = 11.sp),
-                color = if (isEmergency) EmergencyRed else MaterialTheme.colorScheme.outline
+                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, fontSize = 12.sp),
+                color = if (isEmergency) EmergencyRed else Color(0xFF1E293B)
             )
-            Spacer(modifier = Modifier.height(2.dp))
+            Spacer(modifier = Modifier.height(3.dp))
             Text(
                 text = value,
-                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, fontSize = 14.sp),
-                color = MaterialTheme.colorScheme.onSurface
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold, fontSize = 15.sp),
+                color = Color(0xFF0F172A)
             )
             Spacer(modifier = Modifier.height(8.dp))
             Row(
@@ -657,11 +664,12 @@ private fun ContactDetailActionRow(
                         .size(40.dp)
                         .clip(RoundedCornerShape(10.dp))
                         .background(Color.White)
+                        .border(1.dp, Color(0xFFCBD5E1), RoundedCornerShape(10.dp))
                 ) {
                     Icon(
                         imageVector = Icons.Default.ContentCopy,
                         contentDescription = "Copy",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        tint = Color(0xFF334155),
                         modifier = Modifier.size(18.dp)
                     )
                 }
@@ -681,8 +689,8 @@ private fun OicDirectButton(
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
-        color = MaterialTheme.colorScheme.surface,
-        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+        color = Color(0xFFF8FAFC),
+        border = BorderStroke(1.dp, Color(0xFFCBD5E1))
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
@@ -692,13 +700,13 @@ private fun OicDirectButton(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = title,
-                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, fontSize = 11.sp),
-                    color = MaterialTheme.colorScheme.primary
+                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, fontSize = 11.5.sp),
+                    color = Color(0xFF1E293B)
                 )
                 Text(
                     text = number,
-                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold, fontSize = 13.sp),
-                    color = MaterialTheme.colorScheme.onSurface
+                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.ExtraBold, fontSize = 13.5.sp),
+                    color = Color(0xFF0F172A)
                 )
             }
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -727,9 +735,13 @@ private fun OicDirectButton(
                 }
                 IconButton(
                     onClick = onCopy,
-                    modifier = Modifier.size(34.dp)
+                    modifier = Modifier
+                        .size(34.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Color.White)
+                        .border(1.dp, Color(0xFFCBD5E1), RoundedCornerShape(8.dp))
                 ) {
-                    Icon(Icons.Default.ContentCopy, contentDescription = "Copy", tint = MaterialTheme.colorScheme.outline, modifier = Modifier.size(16.dp))
+                    Icon(Icons.Default.ContentCopy, contentDescription = "Copy", tint = Color(0xFF334155), modifier = Modifier.size(16.dp))
                 }
             }
         }
