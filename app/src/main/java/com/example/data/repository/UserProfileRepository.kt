@@ -7,14 +7,20 @@ import com.example.data.model.UserProfile
 import com.google.firebase.FirebaseApp
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
+import com.google.firebase.auth.FirebaseAuth
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 
-class UserProfileRepository(private val context: Context) {
+class UserProfileRepository(
+    private val context: Context,
+    private val externalScope: CoroutineScope = CoroutineScope(Dispatchers.IO)
+) {
 
     private val prefs: SharedPreferences = context.getSharedPreferences("user_profile_prefs", Context.MODE_PRIVATE)
 
@@ -42,6 +48,25 @@ class UserProfileRepository(private val context: Context) {
     init {
         loadCachedProfile()
         startRealtimeUsersListener()
+        setupAuthListener()
+    }
+
+    private fun setupAuthListener() {
+        try {
+            FirebaseAuth.getInstance().addAuthStateListener { auth ->
+                val fbUser = auth.currentUser
+                if (fbUser != null) {
+                    val email = fbUser.email ?: ""
+                    val name = fbUser.displayName?.takeIf { it.isNotBlank() }
+                        ?: email.substringBefore("@").replaceFirstChar { it.uppercase() }
+                    externalScope.launch {
+                        getOrCreateProfileForEmail(email, name, fbUser.uid)
+                    }
+                }
+            }
+        } catch (t: Throwable) {
+            Log.w("UserProfileRepo", "Could not attach FirebaseAuth listener", t)
+        }
     }
 
     fun startRealtimeUsersListener() {
@@ -72,11 +97,56 @@ class UserProfileRepository(private val context: Context) {
     }
 
     fun loadCachedProfile(): UserProfile {
-        val email = prefs.getString("email", "") ?: ""
+        var email = prefs.getString("email", "") ?: ""
+        var userId = prefs.getString("userId", "") ?: ""
+        var displayName = prefs.getString("displayName", "") ?: ""
+
+        // Safe Firebase Auth user fallback
+        try {
+            val fbUser = FirebaseAuth.getInstance().currentUser
+            if (fbUser != null) {
+                if (email.isBlank()) {
+                    email = fbUser.email ?: ""
+                }
+                if (userId.isBlank()) {
+                    userId = fbUser.uid
+                }
+                if (displayName.isBlank() || displayName.equals("Citizen", ignoreCase = true)) {
+                    displayName = fbUser.displayName?.takeIf { it.isNotBlank() }
+                        ?: email.substringBefore("@").replaceFirstChar { it.uppercase() }
+                }
+            }
+        } catch (t: Throwable) {
+            Log.w("UserProfileRepo", "FirebaseAuth check in loadCachedProfile skipped", t)
+        }
+
+        // Safe auth prefs fallback if email still blank
+        if (email.isBlank()) {
+            try {
+                val authPrefs = context.getSharedPreferences("police_auth_prefs", Context.MODE_PRIVATE)
+                val savedAuthUser = authPrefs.getString("saved_username", "") ?: ""
+                if (savedAuthUser.isNotBlank() && savedAuthUser.contains("@")) {
+                    email = savedAuthUser
+                } else if (savedAuthUser.isNotBlank() && userId.isBlank()) {
+                    userId = savedAuthUser
+                }
+            } catch (e: Exception) {
+                Log.w("UserProfileRepo", "Error reading auth prefs fallback", e)
+            }
+        }
+
+        if (displayName.isBlank() || displayName.equals("Citizen", ignoreCase = true)) {
+            displayName = if (email.isNotBlank()) {
+                email.substringBefore("@").replaceFirstChar { it.uppercase() }
+            } else {
+                "User_${(1000..9999).random()}"
+            }
+        }
+
         val profile = UserProfile(
-            userId = prefs.getString("userId", "") ?: "",
+            userId = userId.ifBlank { getDocIdForEmail(email) },
             email = email,
-            displayName = prefs.getString("displayName", "") ?: (email.substringBefore("@").ifBlank { "Citizen" }),
+            displayName = displayName,
             phoneNumber = prefs.getString("phoneNumber", "") ?: "",
             district = prefs.getString("district", "Colombo") ?: "Colombo",
             emergencyNote = prefs.getString("emergencyNote", "") ?: "",

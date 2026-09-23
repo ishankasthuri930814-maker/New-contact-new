@@ -26,4 +26,9 @@ class ExampleRobolectricTest {
       t.printStackTrace()
     }
   }
+
+  @Test
+  fun `launch MainActivity`() {
+    org.robolectric.Robolectric.buildActivity(MainActivity::class.java).setup()
+  }
 }

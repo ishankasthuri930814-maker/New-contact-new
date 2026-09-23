@@ -133,16 +133,16 @@ fun ContactCard(
                             Surface(
                                 shape = RoundedCornerShape(4.dp),
                                 color = if (isEmergency) EmergencyRed else MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.padding(bottom = 2.dp)
+                                modifier = Modifier.padding(bottom = 3.dp)
                             ) {
                                 Text(
                                     text = contact.rank,
                                     style = MaterialTheme.typography.labelSmall.copy(
-                                        fontSize = 9.5.sp,
+                                        fontSize = 11.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = Color.White
                                     ),
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
                                 )
                             }
                         }
@@ -152,7 +152,7 @@ fun ContactCard(
                             text = contact.stationOrDesignation,
                             style = MaterialTheme.typography.titleMedium.copy(
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 14.5.sp
+                                fontSize = 16.sp
                             ),
                             color = if (isEmergency) EmergencyRed else MaterialTheme.colorScheme.onSurface
                         )
@@ -161,8 +161,8 @@ fun ContactCard(
                         if (contact.officerName.isNotBlank()) {
                             Text(
                                 text = "👮 ${contact.officerName}",
-                                style = MaterialTheme.typography.bodySmall.copy(
-                                    fontSize = 11.5.sp,
+                                style = MaterialTheme.typography.bodyMedium.copy(
+                                    fontSize = 13.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             )
@@ -172,7 +172,7 @@ fun ContactCard(
                         Text(
                             text = "විස්තර බැලීමට තට්ටු කරන්න (Tap for details) ➔",
                             style = MaterialTheme.typography.labelSmall.copy(
-                                fontSize = 10.5.sp,
+                                fontSize = 12.sp,
                                 color = MaterialTheme.colorScheme.primary,
                                 fontWeight = FontWeight.SemiBold
                             )
@@ -285,8 +285,8 @@ fun ContactCard(
                         text = contact.stationOrDesignation,
                         style = MaterialTheme.typography.titleMedium.copy(
                             fontWeight = FontWeight.Bold,
-                            fontSize = 14.5.sp,
-                            lineHeight = 20.sp
+                            fontSize = 16.sp,
+                            lineHeight = 22.sp
                         ),
                         color = if (isEmergency) EmergencyRed else MaterialTheme.colorScheme.onSurface
                     )
@@ -296,8 +296,9 @@ fun ContactCard(
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             text = "👮 ${contact.officerName}",
-                            style = MaterialTheme.typography.bodySmall.copy(
+                            style = MaterialTheme.typography.bodyMedium.copy(
                                 fontWeight = FontWeight.Medium,
+                                fontSize = 13.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         )

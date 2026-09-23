@@ -179,6 +179,56 @@ object AppNotificationManager {
     }
 
     /**
+     * Dismiss active incoming call notification
+     */
+    fun dismissIncomingCallNotification(context: Context) {
+        try {
+            val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            notificationManager.cancel(CALL_NOTIFICATION_ID)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error dismissing call notification", e)
+        }
+    }
+
+    /**
+     * Show Missed Call notification when an incoming call was unanswered or cancelled
+     */
+    fun showMissedCallNotification(context: Context, callerName: String) {
+        try {
+            initializeChannels(context)
+            dismissIncomingCallNotification(context)
+
+            val launchIntent = Intent(context, MainActivity::class.java).apply {
+                addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            }
+
+            val pendingIntent = PendingIntent.getActivity(
+                context,
+                102,
+                launchIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+
+            val cleanCallerName = callerName.takeIf { it.isNotBlank() && !it.equals("Citizen", ignoreCase = true) }
+                ?: "සාමාජිකයෙකු (Citizen)"
+
+            val builder = NotificationCompat.Builder(context, CHANNEL_CALLS_ID)
+                .setSmallIcon(R.drawable.ic_notification)
+                .setContentTitle("🔴 මඟහැරුණු ඇමතුම (Missed Call)")
+                .setContentText("$cleanCallerName වෙතින් මඟහැරුණු ඇමතුමක් (Missed Call from $cleanCallerName)")
+                .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .setCategory(NotificationCompat.CATEGORY_MISSED_CALL)
+                .setAutoCancel(true)
+                .setContentIntent(pendingIntent)
+
+            val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            notificationManager.notify(CALL_NOTIFICATION_ID + 1, builder.build())
+        } catch (e: Exception) {
+            Log.e(TAG, "Error showing missed call notification", e)
+        }
+    }
+
+    /**
      * Show notification for incoming direct chat message
      */
     fun showDirectMessageNotification(

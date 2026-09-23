@@ -9,6 +9,7 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -23,6 +24,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -31,13 +33,22 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.CallMade
+import androidx.compose.material.icons.automirrored.filled.CallMissed
+import androidx.compose.material.icons.automirrored.filled.CallReceived
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Call
+import androidx.compose.material.icons.filled.CallEnd
+import androidx.compose.material.icons.filled.CallMissed
 import androidx.compose.material.icons.filled.Chat
+import androidx.compose.material.icons.filled.CleaningServices
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Emergency
 import androidx.compose.material.icons.filled.Forum
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.Phone
@@ -45,11 +56,14 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Traffic
 import androidx.compose.material.icons.filled.Verified
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
@@ -62,6 +76,7 @@ import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -72,10 +87,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -211,7 +228,15 @@ fun ChatScreen(
                 CommunityChatContent(
                     viewModel = viewModel,
                     uiState = uiState,
-                    selectedLanguage = selectedLanguage
+                    selectedLanguage = selectedLanguage,
+                    onOpenDirectChatWithUser = { msg ->
+                        viewModel.openDirectChatWithUser(
+                            targetUserId = msg.senderId,
+                            targetDisplayName = msg.senderName,
+                            targetEmail = msg.senderEmail,
+                            targetAvatarIndex = msg.senderAvatarIndex
+                        )
+                    }
                 )
             }
             ChatMode.REGISTERED_USERS -> {
@@ -535,11 +560,36 @@ fun DirectPrivateChatContent(
     val listState = rememberLazyListState()
     val keyboardController = LocalSoftwareKeyboardController.current
     val focusManager = LocalFocusManager.current
+    var showOptionsMenu by remember { mutableStateOf(false) }
+    var showClearConfirmDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(messages.size) {
         if (messages.isNotEmpty()) {
             listState.animateScrollToItem(messages.size - 1)
         }
+    }
+
+    if (showClearConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showClearConfirmDialog = false },
+            title = { Text("සංවාදය හිස් කරන්නද?") },
+            text = { Text("මෙම පුද්ගලික සංවාදයේ සියලුම පණිවිඩ සහ ඇමතුම් සටහන් මකා දැමීමට අවශ්‍ය බව තහවුරු කරන්න.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showClearConfirmDialog = false
+                        viewModel.clearCurrentDirectConversation()
+                    }
+                ) {
+                    Text("මකන්න (Clear)", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showClearConfirmDialog = false }) {
+                    Text("අවලංගු කරන්න (Cancel)")
+                }
+            }
+        )
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
@@ -572,23 +622,25 @@ fun DirectPrivateChatContent(
 
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = activeUser.displayName.ifBlank { "Citizen" },
+                        text = activeUser.displayName.ifBlank { "User" },
                         style = MaterialTheme.typography.titleMedium.copy(
                             fontWeight = FontWeight.Bold,
                             color = Color.White,
                             fontSize = 15.sp
-                        )
+                        ),
+                        maxLines = 1
                     )
                     Text(
                         text = "🔒 Direct Private Chat • ${activeUser.district}",
                         style = MaterialTheme.typography.bodySmall.copy(
                             color = Color.White.copy(alpha = 0.8f),
                             fontSize = 11.sp
-                        )
+                        ),
+                        maxLines = 1
                     )
                 }
 
-                // Action Buttons: In-App Voice Call & Phone Call
+                // Action Buttons: In-App Voice Call, Phone Call, & More Options
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     // 1. In-App Voice Call (Internet Call)
                     IconButton(
@@ -621,6 +673,39 @@ fun DirectPrivateChatContent(
                                 contentDescription = "Regular Phone Call",
                                 tint = Color.White,
                                 modifier = Modifier.size(19.dp)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.width(4.dp))
+
+                    // 3. Overflow Menu (Clear Conversation)
+                    Box {
+                        IconButton(
+                            onClick = { showOptionsMenu = true },
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.MoreVert,
+                                contentDescription = "More Options",
+                                tint = Color.White,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+
+                        DropdownMenu(
+                            expanded = showOptionsMenu,
+                            onDismissRequest = { showOptionsMenu = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("සංවාදය හිස් කරන්න (Clear Chat)", color = MaterialTheme.colorScheme.error) },
+                                leadingIcon = {
+                                    Icon(Icons.Default.CleaningServices, contentDescription = null, tint = MaterialTheme.colorScheme.error)
+                                },
+                                onClick = {
+                                    showOptionsMenu = false
+                                    showClearConfirmDialog = true
+                                }
                             )
                         }
                     }
@@ -671,7 +756,21 @@ fun DirectPrivateChatContent(
                         val isMe = msg.senderId == myNormKey ||
                                 msg.senderId == uiState.currentUserProfile.userId ||
                                 (msg.senderId.isNotBlank() && msg.senderId == uiState.currentUserProfile.email)
-                        DirectMessageItem(message = msg, isMe = isMe)
+
+                        if (msg.messageType == DirectChatMessage.TYPE_CALL_LOG) {
+                            DirectCallLogItem(
+                                message = msg,
+                                isMe = isMe,
+                                onCallBack = { onInAppCallUser(activeUser) },
+                                onDelete = { viewModel.deleteDirectMessage(msg.id) }
+                            )
+                        } else {
+                            DirectMessageItem(
+                                message = msg,
+                                isMe = isMe,
+                                onDelete = { viewModel.deleteDirectMessage(msg.id) }
+                            )
+                        }
                     }
                 }
             }
@@ -736,19 +835,306 @@ fun DirectPrivateChatContent(
 }
 
 @Composable
-fun DirectMessageItem(
+fun DirectCallLogItem(
     message: DirectChatMessage,
-    isMe: Boolean
+    isMe: Boolean,
+    onCallBack: () -> Unit,
+    onDelete: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     val timeFormat = SimpleDateFormat("hh:mm a", Locale.getDefault())
     val formattedTime = timeFormat.format(Date(message.timestamp))
+    var showMenu by remember { mutableStateOf(false) }
+
+    val isConnected = message.callStatus == "CONNECTED"
+    val isDeclined = message.callStatus == "DECLINED"
+    val isMissed = message.callStatus == "MISSED" || (!isConnected && !isDeclined)
+
+    val (titleText, statusText, iconVector, containerBg, borderClr, mainColor) = when {
+        isMe -> {
+            // Outgoing call (ගනු ලැබූ ඇමතුම)
+            when {
+                isConnected -> Tuple6(
+                    "ගනු ලැබූ ඇමතුම (Outgoing Call)",
+                    "🟢 පිළිගන්නා ලදී (Answered)",
+                    Icons.AutoMirrored.Filled.CallMade,
+                    Color(0xFFE8F5E9),
+                    Color(0xFF81C784),
+                    Color(0xFF2E7D32)
+                )
+                isDeclined -> Tuple6(
+                    "ගනු ලැබූ ඇමතුම (Outgoing Call)",
+                    "🔴 ප්‍රතික්ෂේප විය (Declined)",
+                    Icons.Default.CallEnd,
+                    Color(0xFFFFEBEE),
+                    Color(0xFFEF9A9A),
+                    Color(0xFFC62828)
+                )
+                else -> Tuple6(
+                    "ගනු ලැබූ ඇමතුම (Outgoing Call)",
+                    "⚠️ පිළිතුරු නොලැබුණි (Unanswered)",
+                    Icons.AutoMirrored.Filled.CallMade,
+                    Color(0xFFFFF3E0),
+                    Color(0xFFFFCC80),
+                    Color(0xFFE65100)
+                )
+            }
+        }
+        else -> {
+            // Incoming call (ලැබුණු ඇමතුම)
+            when {
+                isConnected -> Tuple6(
+                    "ලැබුණු ඇමතුම (Incoming Call)",
+                    "🟢 ඔබ විසින් පිළිගන්නා ලදී",
+                    Icons.AutoMirrored.Filled.CallReceived,
+                    Color(0xFFE8F5E9),
+                    Color(0xFF81C784),
+                    Color(0xFF2E7D32)
+                )
+                isDeclined -> Tuple6(
+                    "ප්‍රතික්ෂේප කළ ඇමතුම (Declined Call)",
+                    "ඔබ විසින් ප්‍රතික්ෂේප කළ",
+                    Icons.Default.CallEnd,
+                    Color(0xFFFAFAFA),
+                    Color(0xFFE0E0E0),
+                    Color(0xFF616161)
+                )
+                else -> Tuple6(
+                    "මඟහැරුණු ඇමතුම (Missed Call)",
+                    "🔴 මඟහැරුණි (Missed Call)",
+                    Icons.AutoMirrored.Filled.CallMissed,
+                    Color(0xFFFFEBEE),
+                    Color(0xFFEF5350),
+                    Color(0xFFD32F2F)
+                )
+            }
+        }
+    }
+
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        contentAlignment = if (isMe) Alignment.CenterEnd else Alignment.CenterStart
+    ) {
+        Card(
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = containerBg),
+            border = BorderStroke(1.dp, borderClr),
+            modifier = Modifier.widthIn(max = 340.dp)
+        ) {
+            Column(modifier = Modifier.padding(12.dp)) {
+                // Top Direction Indicator Badge
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(bottom = 6.dp)
+                ) {
+                    Text(
+                        text = if (isMe) "↗ ගනිපු ඇමතුම (Outgoing)" else if (isMissed) "↙🔴 මඟහැරුණු ඇමතුම (Missed)" else "↙ ආපු ඇමතුම (Incoming)",
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontWeight = FontWeight.Bold,
+                            color = mainColor,
+                            fontSize = 11.sp
+                        )
+                    )
+                }
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(38.dp)
+                            .background(mainColor.copy(alpha = 0.15f), CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = iconVector,
+                            contentDescription = null,
+                            tint = mainColor,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.width(10.dp))
+
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = titleText,
+                            style = MaterialTheme.typography.titleSmall.copy(
+                                fontWeight = FontWeight.Bold,
+                                color = mainColor,
+                                fontSize = 13.sp
+                            )
+                        )
+
+                        Text(
+                            text = statusText,
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                fontWeight = FontWeight.SemiBold,
+                                color = mainColor,
+                                fontSize = 11.sp
+                            )
+                        )
+
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = formattedTime,
+                                style = MaterialTheme.typography.bodySmall.copy(
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            )
+                            if (isConnected && message.callDurationSeconds > 0) {
+                                val mins = message.callDurationSeconds / 60
+                                val secs = message.callDurationSeconds % 60
+                                val durStr = if (mins > 0) "${mins}m ${secs}s" else "${secs}s"
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "• කාලය: $durStr",
+                                    style = MaterialTheme.typography.bodySmall.copy(
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF1B5E20)
+                                    )
+                                )
+                            }
+                        }
+                    }
+
+                    Box {
+                        IconButton(
+                            onClick = { showMenu = true },
+                            modifier = Modifier.size(28.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.MoreVert,
+                                contentDescription = "Options",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+
+                        DropdownMenu(
+                            expanded = showMenu,
+                            onDismissRequest = { showMenu = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("මකන්න (Delete Log)", color = MaterialTheme.colorScheme.error) },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Default.Delete,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.error
+                                    )
+                                },
+                                onClick = {
+                                    showMenu = false
+                                    onDelete()
+                                }
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Button(
+                    onClick = onCallBack,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(36.dp),
+                    shape = RoundedCornerShape(18.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = mainColor),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Phone,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = if (isMissed) "නැවත අමතන්න (Call Back)" else "නැවත ඇමතුමක් ගන්න (Call Again)",
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.sp,
+                            color = Color.White
+                        )
+                    )
+                }
+            }
+        }
+    }
+}
+
+private data class Tuple6<A, B, C, D, E, F>(
+    val a: A,
+    val b: B,
+    val c: C,
+    val d: D,
+    val e: E,
+    val f: F
+)
+
+@Composable
+fun DirectMessageItem(
+    message: DirectChatMessage,
+    isMe: Boolean,
+    onDelete: (() -> Unit)? = null
+) {
+    val timeFormat = SimpleDateFormat("hh:mm a", Locale.getDefault())
+    val formattedTime = timeFormat.format(Date(message.timestamp))
+    val clipboardManager = LocalClipboardManager.current
+    val context = LocalContext.current
+    var showMenu by remember { mutableStateOf(false) }
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 2.dp),
-        horizontalArrangement = if (isMe) Arrangement.End else Arrangement.Start
+        horizontalArrangement = if (isMe) Arrangement.End else Arrangement.Start,
+        verticalAlignment = Alignment.CenterVertically
     ) {
+        if (isMe) {
+            Box {
+                IconButton(
+                    onClick = { showMenu = true },
+                    modifier = Modifier.size(24.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.MoreVert,
+                        contentDescription = "Options",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                        modifier = Modifier.size(14.dp)
+                    )
+                }
+                DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
+                    DropdownMenuItem(
+                        text = { Text("පිටපත් කරන්න (Copy)") },
+                        leadingIcon = { Icon(Icons.Default.ContentCopy, contentDescription = null) },
+                        onClick = {
+                            showMenu = false
+                            clipboardManager.setText(AnnotatedString(message.text))
+                            Toast.makeText(context, "පිටපත් කරන ලදී (Copied)", Toast.LENGTH_SHORT).show()
+                        }
+                    )
+                    if (onDelete != null) {
+                        DropdownMenuItem(
+                            text = { Text("මකන්න (Delete)", color = MaterialTheme.colorScheme.error) },
+                            leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+                            onClick = {
+                                showMenu = false
+                                onDelete()
+                            }
+                        )
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.width(4.dp))
+        }
+
         Column(
             horizontalAlignment = if (isMe) Alignment.End else Alignment.Start,
             modifier = Modifier.weight(1f, fill = false)
@@ -780,6 +1166,44 @@ fun DirectMessageItem(
                 modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
             )
         }
+
+        if (!isMe) {
+            Spacer(modifier = Modifier.width(4.dp))
+            Box {
+                IconButton(
+                    onClick = { showMenu = true },
+                    modifier = Modifier.size(24.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.MoreVert,
+                        contentDescription = "Options",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                        modifier = Modifier.size(14.dp)
+                    )
+                }
+                DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
+                    DropdownMenuItem(
+                        text = { Text("පිටපත් කරන්න (Copy)") },
+                        leadingIcon = { Icon(Icons.Default.ContentCopy, contentDescription = null) },
+                        onClick = {
+                            showMenu = false
+                            clipboardManager.setText(AnnotatedString(message.text))
+                            Toast.makeText(context, "පිටපත් කරන ලදී (Copied)", Toast.LENGTH_SHORT).show()
+                        }
+                    )
+                    if (onDelete != null) {
+                        DropdownMenuItem(
+                            text = { Text("මකන්න (Delete)", color = MaterialTheme.colorScheme.error) },
+                            leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+                            onClick = {
+                                showMenu = false
+                                onDelete()
+                            }
+                        )
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -788,7 +1212,8 @@ fun DirectMessageItem(
 fun CommunityChatContent(
     viewModel: ChatViewModel,
     uiState: ChatUiState,
-    selectedLanguage: AppLanguage
+    selectedLanguage: AppLanguage,
+    onOpenDirectChatWithUser: (ChatMessage) -> Unit
 ) {
     val listState = rememberLazyListState()
     val keyboardController = LocalSoftwareKeyboardController.current
@@ -938,7 +1363,10 @@ fun CommunityChatContent(
                                 (msg.senderId.isNotBlank() && msg.senderId == uiState.currentUserProfile.userId)
                         ChatMessageItem(
                             message = msg,
-                            isMe = isMe
+                            isMe = isMe,
+                            registeredUsers = uiState.registeredUsers,
+                            onOpenDirectChat = { onOpenDirectChatWithUser(it) },
+                            onDeleteMessage = { viewModel.deleteCommunityMessage(it.id) }
                         )
                     }
                 }
@@ -1099,24 +1527,80 @@ fun CommunityChatContent(
 fun ChatMessageItem(
     message: ChatMessage,
     isMe: Boolean,
+    registeredUsers: List<UserProfile> = emptyList(),
+    onOpenDirectChat: ((ChatMessage) -> Unit)? = null,
+    onDeleteMessage: ((ChatMessage) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val timeFormat = SimpleDateFormat("hh:mm a", Locale.getDefault())
     val formattedTime = timeFormat.format(Date(message.timestamp))
+    val clipboardManager = LocalClipboardManager.current
+    val context = LocalContext.current
+    var showMenu by remember { mutableStateOf(false) }
+    var showDeleteConfirmDialog by remember { mutableStateOf(false) }
+
+    val displaySenderName = remember(message.senderName, message.senderEmail, message.senderId, registeredUsers) {
+        if (message.senderName.isNotBlank() &&
+            !message.senderName.equals("Citizen", ignoreCase = true) &&
+            !message.senderName.equals("citizen", ignoreCase = true) &&
+            !message.senderName.equals("සාමාජිකයා (Member)", ignoreCase = true)
+        ) {
+            message.senderName
+        } else {
+            val registered = registeredUsers.firstOrNull {
+                (it.email.isNotBlank() && it.email.equals(message.senderEmail, ignoreCase = true)) ||
+                (it.userId.isNotBlank() && it.userId == message.senderId)
+            }
+            registered?.displayName?.takeIf { it.isNotBlank() && !it.equals("Citizen", ignoreCase = true) }
+                ?: message.senderEmail.substringBefore("@").replaceFirstChar { it.uppercase() }.takeIf { it.isNotBlank() }
+                ?: "සාමාජිකයා"
+        }
+    }
+
+    if (showDeleteConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirmDialog = false },
+            title = { Text("පණිවිඩය මකන්නද?") },
+            text = { Text("මෙම පණිවිඩය සාකච්ඡා මණ්ඩපයෙන් ඉවත් කිරීමට අවශ්‍ය බව තහවුරු කරන්න.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showDeleteConfirmDialog = false
+                        onDeleteMessage?.invoke(message)
+                    }
+                ) {
+                    Text("මකන්න (Delete)", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirmDialog = false }) {
+                    Text("අවලංගු කරන්න (Cancel)")
+                }
+            }
+        )
+    }
 
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(vertical = 2.dp),
+            .padding(vertical = 3.dp),
         horizontalArrangement = if (isMe) Arrangement.End else Arrangement.Start,
         verticalAlignment = Alignment.Top
     ) {
         if (!isMe) {
-            UserAvatarView(
-                avatarIndex = message.senderAvatarIndex,
-                displayName = message.senderName,
-                size = 36.dp
-            )
+            Box(
+                modifier = Modifier
+                    .clip(CircleShape)
+                    .clickable(enabled = onOpenDirectChat != null) {
+                        onOpenDirectChat?.invoke(message)
+                    }
+            ) {
+                UserAvatarView(
+                    avatarIndex = message.senderAvatarIndex,
+                    displayName = displaySenderName,
+                    size = 36.dp
+                )
+            }
             Spacer(modifier = Modifier.width(8.dp))
         }
 
@@ -1128,15 +1612,43 @@ fun ChatMessageItem(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.padding(bottom = 3.dp, start = 4.dp, end = 4.dp)
             ) {
-                Text(
-                    text = if (isMe) "ඔබ (You)" else message.senderName,
-                    style = MaterialTheme.typography.labelSmall.copy(
-                        fontWeight = FontWeight.Bold,
-                        color = if (isMe) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                if (isMe) {
+                    Text(
+                        text = "ඔබ (You)",
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
                     )
-                )
+                } else {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f))
+                            .clickable(enabled = onOpenDirectChat != null) {
+                                onOpenDirectChat?.invoke(message)
+                            }
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                    ) {
+                        Text(
+                            text = displaySenderName,
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Icon(
+                            imageVector = Icons.Default.Chat,
+                            contentDescription = "Tap to chat privately",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(11.dp)
+                        )
+                    }
+                }
 
-                if (message.senderBadge.isNotBlank()) {
+                if (message.senderBadge.isNotBlank() && !isMe) {
                     Spacer(modifier = Modifier.width(4.dp))
                     Icon(
                         imageVector = Icons.Default.Verified,
@@ -1154,6 +1666,64 @@ fun ChatMessageItem(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 )
+
+                // 3-dots Action Menu for options
+                Box {
+                    IconButton(
+                        onClick = { showMenu = true },
+                        modifier = Modifier.size(20.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.MoreVert,
+                            contentDescription = "Options",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                            modifier = Modifier.size(14.dp)
+                        )
+                    }
+
+                    DropdownMenu(
+                        expanded = showMenu,
+                        onDismissRequest = { showMenu = false }
+                    ) {
+                        if (!isMe && onOpenDirectChat != null) {
+                            DropdownMenuItem(
+                                text = { Text("පුද්ගලිකව කතා කරන්න (Direct Chat)") },
+                                leadingIcon = {
+                                    Icon(Icons.Default.Chat, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                                },
+                                onClick = {
+                                    showMenu = false
+                                    onOpenDirectChat.invoke(message)
+                                }
+                            )
+                        }
+
+                        DropdownMenuItem(
+                            text = { Text("පිටපත් කරන්න (Copy)") },
+                            leadingIcon = {
+                                Icon(Icons.Default.ContentCopy, contentDescription = null)
+                            },
+                            onClick = {
+                                showMenu = false
+                                clipboardManager.setText(AnnotatedString(message.text))
+                                Toast.makeText(context, "පිටපත් කරන ලදී (Copied)", Toast.LENGTH_SHORT).show()
+                            }
+                        )
+
+                        if (isMe && onDeleteMessage != null) {
+                            DropdownMenuItem(
+                                text = { Text("මකන්න (Delete)", color = MaterialTheme.colorScheme.error) },
+                                leadingIcon = {
+                                    Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error)
+                                },
+                                onClick = {
+                                    showMenu = false
+                                    showDeleteConfirmDialog = true
+                                }
+                            )
+                        }
+                    }
+                }
             }
 
             Card(
@@ -1215,7 +1785,7 @@ fun ChatMessageItem(
             Spacer(modifier = Modifier.width(8.dp))
             UserAvatarView(
                 avatarIndex = message.senderAvatarIndex,
-                displayName = message.senderName,
+                displayName = "ඔබ",
                 size = 36.dp
             )
         }

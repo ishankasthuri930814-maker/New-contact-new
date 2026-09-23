@@ -25,6 +25,7 @@ enum class ChatMode {
 
 data class ChatUiState(
     val chatMode: ChatMode = ChatMode.COMMUNITY_ROOM,
+    val previousChatMode: ChatMode = ChatMode.REGISTERED_USERS,
     // Community
     val messages: List<ChatMessage> = emptyList(),
     val selectedChannel: String = "general",
@@ -62,8 +63,16 @@ class ChatViewModel(
 
     private val _uiState = MutableStateFlow(ChatUiState())
     val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
+    private val loggedCallIds = mutableSetOf<String>()
 
     init {
+        val initialCached = userProfileRepository.loadCachedProfile()
+        _uiState.update { it.copy(currentUserProfile = initialCached) }
+        if (initialCached.email.isNotBlank() || initialCached.userId.isNotBlank()) {
+            callRepository.startListeningForIncomingCalls(initialCached)
+            chatRepository.startListeningForIncomingDirectMessages(initialCached)
+        }
+
         viewModelScope.launch {
             chatRepository.messages.collect { msgList ->
                 _uiState.update { it.copy(messages = msgList) }
@@ -95,6 +104,11 @@ class ChatViewModel(
         viewModelScope.launch {
             callRepository.activeCall.collect { call ->
                 _uiState.update { it.copy(activeCall = call) }
+                if (call != null && (call.status == CallSession.STATUS_ENDED ||
+                            call.status == CallSession.STATUS_DECLINED ||
+                            call.status == CallSession.STATUS_MISSED)) {
+                    handleCallFinished(call)
+                }
             }
         }
 
@@ -130,7 +144,7 @@ class ChatViewModel(
         _uiState.update { it.copy(selectedChannel = channelId) }
     }
 
-    fun openDirectChatWith(otherUser: UserProfile) {
+    fun openDirectChatWith(otherUser: UserProfile, fromMode: ChatMode = _uiState.value.chatMode) {
         val myKey = _uiState.value.currentUserProfile.email.ifBlank { _uiState.value.currentUserProfile.userId }
         val otherKey = otherUser.email.ifBlank { otherUser.userId }
         val convId = DirectChatMessage.createConversationId(myKey, otherKey)
@@ -139,18 +153,101 @@ class ChatViewModel(
         _uiState.update {
             it.copy(
                 activeDirectUser = otherUser,
+                previousChatMode = fromMode,
                 chatMode = ChatMode.DIRECT_CHAT_ROOM,
                 inputText = ""
             )
         }
     }
 
+    fun openDirectChatWithUser(
+        targetUserId: String,
+        targetDisplayName: String,
+        targetEmail: String,
+        targetAvatarIndex: Int
+    ) {
+        val existing = _uiState.value.registeredUsers.firstOrNull {
+            (it.email.isNotBlank() && it.email.equals(targetEmail, ignoreCase = true)) ||
+            (it.userId.isNotBlank() && it.userId == targetUserId)
+        }
+
+        val targetProfile = existing ?: UserProfile(
+            userId = targetUserId.ifBlank { targetEmail },
+            email = targetEmail,
+            displayName = targetDisplayName.takeIf { it.isNotBlank() && !it.equals("Citizen", ignoreCase = true) }
+                ?: targetEmail.substringBefore("@").replaceFirstChar { it.uppercase() }.ifBlank { "User" },
+            avatarIndex = targetAvatarIndex
+        )
+
+        openDirectChatWith(targetProfile, fromMode = _uiState.value.chatMode)
+    }
+
     fun closeDirectChat() {
+        val backTo = _uiState.value.previousChatMode
         _uiState.update {
             it.copy(
                 activeDirectUser = null,
-                chatMode = ChatMode.REGISTERED_USERS,
+                chatMode = backTo,
                 inputText = ""
+            )
+        }
+    }
+
+    fun deleteCommunityMessage(messageId: String) {
+        viewModelScope.launch {
+            chatRepository.deleteCommunityMessage(messageId)
+        }
+    }
+
+    fun deleteDirectMessage(messageId: String) {
+        val active = _uiState.value.activeDirectUser ?: return
+        val myKey = _uiState.value.currentUserProfile.email.ifBlank { _uiState.value.currentUserProfile.userId }
+        val otherKey = active.email.ifBlank { active.userId }
+        val convId = DirectChatMessage.createConversationId(myKey, otherKey)
+        viewModelScope.launch {
+            chatRepository.deleteDirectMessage(messageId, convId)
+        }
+    }
+
+    fun clearCurrentDirectConversation() {
+        val active = _uiState.value.activeDirectUser ?: return
+        val myKey = _uiState.value.currentUserProfile.email.ifBlank { _uiState.value.currentUserProfile.userId }
+        val otherKey = active.email.ifBlank { active.userId }
+        val convId = DirectChatMessage.createConversationId(myKey, otherKey)
+        viewModelScope.launch {
+            chatRepository.clearDirectConversation(convId)
+        }
+    }
+
+    private fun handleCallFinished(call: CallSession) {
+        if (call.callId.isBlank() || loggedCallIds.contains(call.callId)) return
+        loggedCallIds.add(call.callId)
+
+        val durationSeconds = if (call.connectedAt > 0L) {
+            val end = if (call.endedAt > call.connectedAt) call.endedAt else System.currentTimeMillis()
+            ((end - call.connectedAt) / 1000).toInt().coerceAtLeast(1)
+        } else {
+            0
+        }
+
+        val status = if (call.connectedAt > 0L) {
+            "CONNECTED"
+        } else if (call.status == CallSession.STATUS_DECLINED) {
+            "DECLINED"
+        } else {
+            "MISSED"
+        }
+
+        viewModelScope.launch {
+            chatRepository.logCallMessage(
+                callId = call.callId,
+                callerKey = call.callerId,
+                callerName = call.callerName,
+                callerAvatarIndex = call.callerAvatarIndex,
+                receiverKey = call.receiverId,
+                callStatus = status,
+                durationSeconds = durationSeconds,
+                timestamp = if (call.endedAt > 0L) call.endedAt else System.currentTimeMillis()
             )
         }
     }
@@ -207,8 +304,14 @@ class ChatViewModel(
     // --- In-App Voice Calling Actions ---
 
     fun startInAppCallWith(otherUser: UserProfile) {
+        val resolved = _uiState.value.registeredUsers.firstOrNull {
+            (it.email.isNotBlank() && it.email.equals(otherUser.email, ignoreCase = true)) ||
+            (it.userId.isNotBlank() && it.userId == otherUser.userId) ||
+            (it.displayName.isNotBlank() && it.displayName.equals(otherUser.displayName, ignoreCase = true))
+        } ?: otherUser
+
         viewModelScope.launch {
-            callRepository.initiateCall(_uiState.value.currentUserProfile, otherUser)
+            callRepository.initiateCall(_uiState.value.currentUserProfile, resolved)
         }
     }
 
@@ -219,12 +322,21 @@ class ChatViewModel(
     }
 
     fun declineIncomingCall(callId: String) {
+        val currentIncoming = _uiState.value.incomingCall
+        if (currentIncoming != null && currentIncoming.callId == callId) {
+            handleCallFinished(currentIncoming.copy(status = CallSession.STATUS_DECLINED, endedAt = System.currentTimeMillis()))
+        }
         viewModelScope.launch {
             callRepository.declineCall(callId)
         }
     }
 
     fun endActiveCall(callId: String) {
+        val currentActive = _uiState.value.activeCall
+        if (currentActive != null && currentActive.callId == callId) {
+            val finalStatus = if (currentActive.connectedAt == 0L) CallSession.STATUS_MISSED else CallSession.STATUS_ENDED
+            handleCallFinished(currentActive.copy(status = finalStatus, endedAt = System.currentTimeMillis()))
+        }
         viewModelScope.launch {
             callRepository.endCall(callId)
         }

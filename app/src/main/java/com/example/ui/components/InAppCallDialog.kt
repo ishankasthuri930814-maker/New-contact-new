@@ -85,11 +85,25 @@ fun InAppCallDialog(
         }
     }
 
-    // Auto dismiss when ended or declined
+    // Auto dismiss when ended or declined or missed
     LaunchedEffect(currentCall.status) {
-        if (currentCall.status == CallSession.STATUS_ENDED || currentCall.status == CallSession.STATUS_DECLINED) {
+        if (currentCall.status == CallSession.STATUS_ENDED ||
+            currentCall.status == CallSession.STATUS_DECLINED ||
+            currentCall.status == CallSession.STATUS_MISSED) {
             delay(1500L)
             onDismiss()
+        }
+    }
+
+    // Auto timeout for unanswered ringing call (35 seconds)
+    LaunchedEffect(currentCall.status) {
+        if (currentCall.status == CallSession.STATUS_RINGING) {
+            delay(35000L)
+            if (isIncoming) {
+                onDeclineCall(currentCall.callId)
+            } else {
+                onEndCall(currentCall.callId)
+            }
         }
     }
 
@@ -198,13 +212,14 @@ fun InAppCallDialog(
                                 "🟢 සම්බන්ධයි • %02d:%02d".format(minutes, seconds)
                             }
                             CallSession.STATUS_DECLINED -> "🔴 ඇමතුම ප්‍රතික්ෂේප විය (Declined)"
+                            CallSession.STATUS_MISSED -> "🔴 මඟහැරුණු ඇමතුම (Missed Call)"
                             CallSession.STATUS_ENDED -> "⏹️ ඇමතුම අවසන් විය (Call Ended)"
                             else -> "ඇමතුම සක්‍රියයි"
                         },
                         style = MaterialTheme.typography.bodyMedium.copy(
                             color = when (currentCall.status) {
                                 CallSession.STATUS_CONNECTED -> Color(0xFF81C784)
-                                CallSession.STATUS_DECLINED, CallSession.STATUS_ENDED -> Color(0xFFFF8A80)
+                                CallSession.STATUS_DECLINED, CallSession.STATUS_ENDED, CallSession.STATUS_MISSED -> Color(0xFFFF8A80)
                                 else -> Color.White.copy(alpha = 0.85f)
                             },
                             fontWeight = FontWeight.SemiBold,

@@ -9,7 +9,10 @@ data class DirectChatMessage(
     val receiverId: String = "",
     val text: String = "",
     val timestamp: Long = System.currentTimeMillis(),
-    val isRead: Boolean = false
+    val isRead: Boolean = false,
+    val messageType: String = TYPE_TEXT, // "TEXT" or "CALL_LOG"
+    val callDurationSeconds: Int = 0,
+    val callStatus: String = "" // "CONNECTED", "MISSED", "DECLINED"
 ) {
     fun toMap(): Map<String, Any?> {
         return mapOf(
@@ -21,11 +24,17 @@ data class DirectChatMessage(
             "receiverId" to receiverId,
             "text" to text,
             "timestamp" to timestamp,
-            "isRead" to isRead
+            "isRead" to isRead,
+            "messageType" to messageType,
+            "callDurationSeconds" to callDurationSeconds,
+            "callStatus" to callStatus
         )
     }
 
     companion object {
+        const val TYPE_TEXT = "TEXT"
+        const val TYPE_CALL_LOG = "CALL_LOG"
+
         fun normalizeUserKey(raw: String): String {
             return raw.trim().lowercase()
                 .replace(".", "_")
@@ -50,7 +59,10 @@ data class DirectChatMessage(
                 receiverId = map["receiverId"] as? String ?: "",
                 text = map["text"] as? String ?: "",
                 timestamp = (map["timestamp"] as? Number)?.toLong() ?: System.currentTimeMillis(),
-                isRead = map["isRead"] as? Boolean ?: false
+                isRead = map["isRead"] as? Boolean ?: false,
+                messageType = map["messageType"] as? String ?: TYPE_TEXT,
+                callDurationSeconds = (map["callDurationSeconds"] as? Number)?.toInt() ?: 0,
+                callStatus = map["callStatus"] as? String ?: ""
             )
         }
     }

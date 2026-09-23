@@ -44,12 +44,22 @@ class MainActivity : ComponentActivity() {
 
     private lateinit var policeViewModel: PoliceViewModel
     private lateinit var authViewModel: AuthViewModel
-    val facebookCallbackManager: com.facebook.CallbackManager = com.facebook.CallbackManager.Factory.create()
+    val facebookCallbackManager: com.facebook.CallbackManager? by lazy {
+        try {
+            if (!com.facebook.FacebookSdk.isInitialized()) {
+                com.facebook.FacebookSdk.sdkInitialize(applicationContext)
+            }
+            com.facebook.CallbackManager.Factory.create()
+        } catch (t: Throwable) {
+            Log.w("MainActivity", "Facebook CallbackManager safe init fallback", t)
+            null
+        }
+    }
 
     @Deprecated("Deprecated in Java")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         try {
-            facebookCallbackManager.onActivityResult(requestCode, resultCode, data)
+            facebookCallbackManager?.onActivityResult(requestCode, resultCode, data)
         } catch (t: Throwable) {
             Log.w("MainActivity", "Facebook callback error", t)
         }

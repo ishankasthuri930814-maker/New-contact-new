@@ -56,25 +56,34 @@ class CallRepository(
     private var incomingCallListener: ListenerRegistration? = null
     private var activeCallListener: ListenerRegistration? = null
     private var currentListeningUserKey: String? = null
+    private var myKeys: List<String> = emptyList()
 
     init {
         AppNotificationManager.initializeChannels(context)
     }
 
     fun startListeningForIncomingCalls(userProfile: UserProfile) {
-        val userKey = DirectChatMessage.normalizeUserKey(
-            userProfile.email.ifBlank { userProfile.userId }
-        )
-        if (userKey.isBlank() || userKey == "unknown_user") return
-        if (currentListeningUserKey == userKey && incomingCallListener != null) return
+        val keys = listOf(
+            DirectChatMessage.normalizeUserKey(userProfile.email),
+            DirectChatMessage.normalizeUserKey(userProfile.userId),
+            DirectChatMessage.normalizeUserKey(userProfile.phoneNumber),
+            userProfile.email.trim().lowercase(),
+            userProfile.userId.trim(),
+            userProfile.phoneNumber.trim()
+        ).filter { it.isNotBlank() && it != "unknown_user" }.distinct()
 
-        currentListeningUserKey = userKey
+        if (keys.isEmpty()) return
+        myKeys = keys
+        val primaryKey = keys.first()
+        if (currentListeningUserKey == primaryKey && incomingCallListener != null) return
+
+        currentListeningUserKey = primaryKey
         incomingCallListener?.remove()
 
         try {
             val db = firestore ?: return
             incomingCallListener = db.collection("active_calls")
-                .whereEqualTo("receiverId", userKey)
+                .whereEqualTo("status", CallSession.STATUS_RINGING)
                 .addSnapshotListener { snapshot, error ->
                     if (error != null) {
                         Log.w(TAG, "Error in incoming call listener", error)
@@ -82,25 +91,52 @@ class CallRepository(
                     }
 
                     if (snapshot != null) {
+                        val now = System.currentTimeMillis()
                         val activeIncoming = snapshot.documents.mapNotNull { doc ->
                             val data = doc.data ?: return@mapNotNull null
                             CallSession.fromMap(data).copy(callId = doc.id)
-                        }.firstOrNull {
-                            it.status == CallSession.STATUS_RINGING &&
-                                    (System.currentTimeMillis() - it.startedAt) < 60000L
+                        }.firstOrNull { session ->
+                            if (session.status != CallSession.STATUS_RINGING) return@firstOrNull false
+                            // Ignore if started by myself
+                            if (myKeys.contains(session.callerId) ||
+                                (session.callerEmail.isNotBlank() && myKeys.contains(session.callerEmail)) ||
+                                (session.callerUserId.isNotBlank() && myKeys.contains(session.callerUserId))
+                            ) {
+                                return@firstOrNull false
+                            }
+                            // Ringing must be recent (within 90 seconds)
+                            if (Math.abs(now - session.startedAt) > 90000L) return@firstOrNull false
+
+                            // Check if this call is destined for me
+                            val isForMe = myKeys.contains(session.receiverId) ||
+                                    session.targetKeys.any { myKeys.contains(it) } ||
+                                    (session.receiverEmail.isNotBlank() && userProfile.email.isNotBlank() && session.receiverEmail.equals(userProfile.email, ignoreCase = true)) ||
+                                    (session.receiverUserId.isNotBlank() && userProfile.userId.isNotBlank() && session.receiverUserId == userProfile.userId) ||
+                                    (session.receiverPhone.isNotBlank() && userProfile.phoneNumber.isNotBlank() && session.receiverPhone == userProfile.phoneNumber)
+
+                            isForMe
                         }
 
                         if (activeIncoming != null) {
                             if (_incomingCall.value?.callId != activeIncoming.callId) {
-                                Log.d(TAG, "Incoming in-app call detected from: ${activeIncoming.callerName}")
+                                Log.d(TAG, "Incoming in-app call detected from: ${activeIncoming.callerName} (ID: ${activeIncoming.callId})")
                                 _incomingCall.value = activeIncoming
                                 AppNotificationManager.startIncomingCallRingtone(context)
                                 AppNotificationManager.showIncomingCallNotification(context, activeIncoming)
                                 listenToActiveCall(activeIncoming.callId)
                             }
                         } else {
-                            if (_incomingCall.value != null && _activeCall.value?.status != CallSession.STATUS_CONNECTED) {
+                            val prevIncoming = _incomingCall.value
+                            if (prevIncoming != null && _activeCall.value?.status != CallSession.STATUS_CONNECTED) {
                                 AppNotificationManager.stopIncomingCallRingtone(context)
+                                AppNotificationManager.dismissIncomingCallNotification(context)
+                                if (prevIncoming.connectedAt == 0L) {
+                                    AppNotificationManager.showMissedCallNotification(context, prevIncoming.callerName)
+                                    _activeCall.value = prevIncoming.copy(
+                                        status = CallSession.STATUS_MISSED,
+                                        endedAt = System.currentTimeMillis()
+                                    )
+                                }
                                 _incomingCall.value = null
                             }
                         }
@@ -129,8 +165,19 @@ class CallRepository(
                         AppNotificationManager.stopIncomingCallRingtone(context)
                         _incomingCall.value = null
                     } else if (updatedSession.status == CallSession.STATUS_ENDED ||
-                        updatedSession.status == CallSession.STATUS_DECLINED) {
+                        updatedSession.status == CallSession.STATUS_DECLINED ||
+                        updatedSession.status == CallSession.STATUS_MISSED
+                    ) {
                         AppNotificationManager.stopIncomingCallRingtone(context)
+                        AppNotificationManager.dismissIncomingCallNotification(context)
+                        if (updatedSession.connectedAt == 0L && updatedSession.status != CallSession.STATUS_DECLINED) {
+                            val isReceiver = _incomingCall.value != null ||
+                                    myKeys.contains(updatedSession.receiverId) ||
+                                    updatedSession.targetKeys.any { myKeys.contains(it) }
+                            if (isReceiver) {
+                                AppNotificationManager.showMissedCallNotification(context, updatedSession.callerName)
+                            }
+                        }
                         _incomingCall.value = null
                     }
                 }
@@ -143,17 +190,33 @@ class CallRepository(
         val callerKey = DirectChatMessage.normalizeUserKey(caller.email.ifBlank { caller.userId })
         val receiverKey = DirectChatMessage.normalizeUserKey(receiver.email.ifBlank { receiver.userId })
 
+        val targetKeys = listOf(
+            DirectChatMessage.normalizeUserKey(receiver.email),
+            DirectChatMessage.normalizeUserKey(receiver.userId),
+            DirectChatMessage.normalizeUserKey(receiver.phoneNumber),
+            receiver.email.trim().lowercase(),
+            receiver.userId.trim(),
+            receiver.phoneNumber.trim()
+        ).filter { it.isNotBlank() && it != "unknown_user" }.distinct()
+
         val callId = UUID.randomUUID().toString()
         val session = CallSession(
             callId = callId,
             callerId = callerKey,
-            callerName = caller.displayName.ifBlank { "Citizen" },
+            callerEmail = caller.email.trim().lowercase(),
+            callerUserId = caller.userId.trim(),
+            callerName = caller.displayName.takeIf { it.isNotBlank() && !it.equals("Citizen", ignoreCase = true) }
+                ?: caller.email.substringBefore("@").replaceFirstChar { it.uppercase() }.ifBlank { "User" },
             callerAvatarIndex = caller.avatarIndex,
             callerPhone = caller.phoneNumber,
             receiverId = receiverKey,
-            receiverName = receiver.displayName.ifBlank { "Citizen" },
+            receiverEmail = receiver.email.trim().lowercase(),
+            receiverUserId = receiver.userId.trim(),
+            receiverName = receiver.displayName.takeIf { it.isNotBlank() && !it.equals("Citizen", ignoreCase = true) }
+                ?: receiver.email.substringBefore("@").replaceFirstChar { it.uppercase() }.ifBlank { "User" },
             receiverAvatarIndex = receiver.avatarIndex,
             receiverPhone = receiver.phoneNumber,
+            targetKeys = targetKeys,
             status = CallSession.STATUS_RINGING,
             callType = "VOICE",
             startedAt = System.currentTimeMillis()
@@ -175,11 +238,23 @@ class CallRepository(
         }
 
         listenToActiveCall(callId)
+
+        // Outgoing call ringing timeout (35 seconds)
+        externalScope.launch {
+            kotlinx.coroutines.delay(35000L)
+            val current = _activeCall.value
+            if (current != null && current.callId == callId && current.status == CallSession.STATUS_RINGING) {
+                Log.d(TAG, "Outgoing call timed out after 35s with no answer: $callId")
+                endCall(callId)
+            }
+        }
+
         return@withContext session
     }
 
     suspend fun acceptCall(callId: String) = withContext(Dispatchers.IO) {
         AppNotificationManager.stopIncomingCallRingtone(context)
+        AppNotificationManager.dismissIncomingCallNotification(context)
         _incomingCall.value = null
 
         val current = _activeCall.value ?: CallSession(callId = callId)
@@ -205,11 +280,13 @@ class CallRepository(
 
     suspend fun declineCall(callId: String) = withContext(Dispatchers.IO) {
         AppNotificationManager.stopIncomingCallRingtone(context)
+        AppNotificationManager.dismissIncomingCallNotification(context)
         _incomingCall.value = null
 
-        val current = _activeCall.value
+        val current = _activeCall.value ?: _incomingCall.value
+        val endedAtTime = System.currentTimeMillis()
         if (current != null && current.callId == callId) {
-            _activeCall.value = current.copy(status = CallSession.STATUS_DECLINED, endedAt = System.currentTimeMillis())
+            _activeCall.value = current.copy(status = CallSession.STATUS_DECLINED, endedAt = endedAtTime)
         }
 
         try {
@@ -217,7 +294,7 @@ class CallRepository(
             db?.collection("active_calls")?.document(callId)?.update(
                 mapOf(
                     "status" to CallSession.STATUS_DECLINED,
-                    "endedAt" to System.currentTimeMillis()
+                    "endedAt" to endedAtTime
                 )
             )?.await()
         } catch (e: Exception) {
@@ -227,19 +304,26 @@ class CallRepository(
 
     suspend fun endCall(callId: String) = withContext(Dispatchers.IO) {
         AppNotificationManager.stopIncomingCallRingtone(context)
+        AppNotificationManager.dismissIncomingCallNotification(context)
         _incomingCall.value = null
 
         val current = _activeCall.value
+        val finalStatus = if (current != null && current.connectedAt == 0L) {
+            CallSession.STATUS_MISSED
+        } else {
+            CallSession.STATUS_ENDED
+        }
+        val endedAtTime = System.currentTimeMillis()
         if (current != null && current.callId == callId) {
-            _activeCall.value = current.copy(status = CallSession.STATUS_ENDED, endedAt = System.currentTimeMillis())
+            _activeCall.value = current.copy(status = finalStatus, endedAt = endedAtTime)
         }
 
         try {
             val db = firestore
             db?.collection("active_calls")?.document(callId)?.update(
                 mapOf(
-                    "status" to CallSession.STATUS_ENDED,
-                    "endedAt" to System.currentTimeMillis()
+                    "status" to finalStatus,
+                    "endedAt" to endedAtTime
                 )
             )?.await()
         } catch (e: Exception) {

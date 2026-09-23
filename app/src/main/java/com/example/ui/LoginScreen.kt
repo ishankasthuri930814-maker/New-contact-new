@@ -161,38 +161,58 @@ fun LoginScreen(
     }
 
     val actualFacebookCallbackManager = remember(facebookCallbackManager) {
-        facebookCallbackManager ?: CallbackManager.Factory.create()
+        facebookCallbackManager ?: try {
+            if (!com.facebook.FacebookSdk.isInitialized()) {
+                com.facebook.FacebookSdk.sdkInitialize(context.applicationContext)
+            }
+            CallbackManager.Factory.create()
+        } catch (t: Throwable) {
+            Log.w("LoginScreen", "Facebook CallbackManager safe init fallback", t)
+            null
+        }
     }
 
     DisposableEffect(actualFacebookCallbackManager) {
-        LoginManager.getInstance().registerCallback(
-            actualFacebookCallbackManager,
-            object : FacebookCallback<LoginResult> {
-                override fun onSuccess(result: LoginResult) {
-                    val token = result.accessToken.token
-                    authViewModel.signInWithFacebookToken(token)
-                }
+        if (actualFacebookCallbackManager != null) {
+            try {
+                LoginManager.getInstance().registerCallback(
+                    actualFacebookCallbackManager,
+                    object : FacebookCallback<LoginResult> {
+                        override fun onSuccess(result: LoginResult) {
+                            val token = result.accessToken.token
+                            authViewModel.signInWithFacebookToken(token)
+                        }
 
-                override fun onCancel() {
-                    authViewModel.resetAuthState()
-                }
+                        override fun onCancel() {
+                            authViewModel.resetAuthState()
+                        }
 
-                override fun onError(error: FacebookException) {
-                    val errorMsg = error.localizedMessage ?: ""
-                    val msg = when {
-                        errorMsg.contains("CONNECTION_FAILURE", ignoreCase = true) ->
-                            "අන්තර්ජාල සම්බන්ධතාවය පරීක්ෂා කරන්න (Connection Failure)"
-                        errorMsg.contains("app is not accessible", ignoreCase = true) || errorMsg.contains("Development", ignoreCase = true) ->
-                            "Facebook App එක Meta Dashboard හි Live කරන්න (In Development)"
-                        else ->
-                            error.localizedMessage ?: "Facebook පිවිසුම් දෝෂයක් සිදු විය"
+                        override fun onError(error: FacebookException) {
+                            val errorMsg = error.localizedMessage ?: ""
+                            val msg = when {
+                                errorMsg.contains("CONNECTION_FAILURE", ignoreCase = true) ->
+                                    "අන්තර්ජාල සම්බන්ධතාවය පරීක්ෂා කරන්න (Connection Failure)"
+                                errorMsg.contains("app is not accessible", ignoreCase = true) || errorMsg.contains("Development", ignoreCase = true) ->
+                                    "Facebook App එක Meta Dashboard හි Live කරන්න (In Development)"
+                                else ->
+                                    error.localizedMessage ?: "Facebook පිවිසුම් දෝෂයක් සිදු විය"
+                            }
+                            authViewModel.setAuthError(msg)
+                        }
                     }
-                    authViewModel.setAuthError(msg)
+                )
+            } catch (t: Throwable) {
+                Log.w("LoginScreen", "Facebook registerCallback failed safely", t)
+            }
+        }
+        onDispose {
+            if (actualFacebookCallbackManager != null) {
+                try {
+                    LoginManager.getInstance().unregisterCallback(actualFacebookCallbackManager)
+                } catch (t: Throwable) {
+                    Log.w("LoginScreen", "Facebook unregisterCallback failed safely", t)
                 }
             }
-        )
-        onDispose {
-            LoginManager.getInstance().unregisterCallback(actualFacebookCallbackManager)
         }
     }
 
@@ -260,7 +280,7 @@ fun LoginScreen(
             ) {
                 AsyncImage(
                     model = ImageRequest.Builder(LocalContext.current)
-                        .data(R.drawable.police_app_icon_1785650919319)
+                        .data(R.drawable.app_icon_512_1789882505504)
                         .crossfade(true)
                         .build(),
                     contentDescription = "Sri Lanka Police Logo",

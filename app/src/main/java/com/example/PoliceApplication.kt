@@ -64,7 +64,16 @@ class PoliceApplication : Application() {
             Log.e("PoliceApplication", "FirebaseApp initialization failed in Application", t)
         }
 
-        // 4. Create Notification Channels
+        // 4. Initialize Facebook SDK safely
+        try {
+            com.facebook.FacebookSdk.sdkInitialize(this)
+            com.facebook.appevents.AppEventsLogger.activateApp(this)
+            Log.d("PoliceApplication", "FacebookSdk initialized")
+        } catch (t: Throwable) {
+            Log.w("PoliceApplication", "FacebookSdk initialization skipped or failed", t)
+        }
+
+        // 5. Create Notification Channels
         try {
             MyFirebaseMessagingService.createNotificationChannel(this)
             Log.d("PoliceApplication", "Notification channels created")

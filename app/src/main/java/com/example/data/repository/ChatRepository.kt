@@ -180,10 +180,16 @@ class ChatRepository(
 
         val senderId = userProfile.userId.ifBlank { userProfile.email }
         val msgId = UUID.randomUUID().toString()
+        val resolvedSenderName = userProfile.displayName.takeIf { it.isNotBlank() && !it.equals("Citizen", ignoreCase = true) }
+            ?: com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.displayName?.takeIf { it.isNotBlank() }
+            ?: userProfile.email.substringBefore("@").replaceFirstChar { it.uppercase() }.takeIf { it.isNotBlank() }
+            ?: com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.email?.substringBefore("@")?.replaceFirstChar { it.uppercase() }
+            ?: "පරිශීලක (User)"
+
         val newMessage = ChatMessage(
             id = msgId,
             senderId = senderId,
-            senderName = userProfile.displayName.ifBlank { "Citizen" },
+            senderName = resolvedSenderName,
             senderEmail = userProfile.email,
             senderAvatarIndex = userProfile.avatarIndex,
             senderBadge = userProfile.badge,
@@ -209,6 +215,18 @@ class ChatRepository(
         return@withContext true
     }
 
+    suspend fun deleteCommunityMessage(messageId: String): Boolean = withContext(Dispatchers.IO) {
+        _messages.value = _messages.value.filter { it.id != messageId }
+        try {
+            firestore?.collection("chat_messages")?.document(messageId)?.delete()?.await()
+            Log.d("ChatRepo", "Deleted community message: $messageId")
+            return@withContext true
+        } catch (t: Throwable) {
+            Log.w("ChatRepo", "Error deleting community message", t)
+        }
+        return@withContext true
+    }
+
     suspend fun sendDirectMessage(
         sender: UserProfile,
         receiverUserId: String,
@@ -221,11 +239,16 @@ class ChatRepository(
         val convId = DirectChatMessage.createConversationId(senderKey, receiverUserId)
         val msgId = UUID.randomUUID().toString()
 
+        val resolvedSenderName = sender.displayName.takeIf { it.isNotBlank() && !it.equals("Citizen", ignoreCase = true) }
+            ?: com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.displayName?.takeIf { it.isNotBlank() }
+            ?: sender.email.substringBefore("@").replaceFirstChar { it.uppercase() }.takeIf { it.isNotBlank() }
+            ?: "පරිශීලක (User)"
+
         val newDirect = DirectChatMessage(
             id = msgId,
             conversationId = convId,
             senderId = DirectChatMessage.normalizeUserKey(senderKey),
-            senderName = sender.displayName.ifBlank { "Citizen" },
+            senderName = resolvedSenderName,
             senderAvatarIndex = sender.avatarIndex,
             receiverId = DirectChatMessage.normalizeUserKey(receiverUserId),
             text = cleanText,
@@ -246,6 +269,106 @@ class ChatRepository(
             }
         } catch (t: Throwable) {
             Log.w("ChatRepo", "Direct message send error in Firestore", t)
+        }
+        return@withContext true
+    }
+
+    suspend fun logCallMessage(
+        callId: String = "",
+        callerKey: String,
+        callerName: String,
+        callerAvatarIndex: Int,
+        receiverKey: String,
+        callStatus: String,
+        durationSeconds: Int,
+        timestamp: Long = System.currentTimeMillis()
+    ): Boolean = withContext(Dispatchers.IO) {
+        val convId = DirectChatMessage.createConversationId(callerKey, receiverKey)
+        val msgId = if (callId.isNotBlank()) "call_log_$callId" else ("call_" + UUID.randomUUID().toString())
+
+        val textSummary = when (callStatus) {
+            "CONNECTED" -> {
+                val mins = durationSeconds / 60
+                val secs = durationSeconds % 60
+                val durStr = if (mins > 0) "${mins}m ${secs}s" else "${secs}s"
+                "📞 හඬ ඇමතුම (Voice Call) • කාලය: $durStr"
+            }
+            "DECLINED" -> "📞 ප්‍රතික්ෂේප කළ ඇමතුම (Declined Call)"
+            else -> "📞 මඟහැරුණු ඇමතුම (Missed Call)"
+        }
+
+        val resolvedCallerName = callerName.takeIf { it.isNotBlank() && !it.equals("Citizen", ignoreCase = true) }
+            ?: callerKey.substringBefore("@").replaceFirstChar { it.uppercase() }.ifBlank { "User" }
+
+        val callLogMsg = DirectChatMessage(
+            id = msgId,
+            conversationId = convId,
+            senderId = DirectChatMessage.normalizeUserKey(callerKey),
+            senderName = resolvedCallerName,
+            senderAvatarIndex = callerAvatarIndex,
+            receiverId = DirectChatMessage.normalizeUserKey(receiverKey),
+            text = textSummary,
+            timestamp = timestamp,
+            messageType = DirectChatMessage.TYPE_CALL_LOG,
+            callDurationSeconds = durationSeconds,
+            callStatus = callStatus
+        )
+
+        val currentMap = _directMessages.value.toMutableMap()
+        val existingList = currentMap[convId] ?: emptyList()
+        val updatedList = if (existingList.any { it.id == msgId }) {
+            existingList.map { if (it.id == msgId) callLogMsg else it }
+        } else {
+            existingList + callLogMsg
+        }
+        currentMap[convId] = updatedList
+        _directMessages.value = currentMap
+
+        try {
+            val db = firestore
+            if (db != null) {
+                db.collection("direct_chats").document(msgId).set(callLogMsg.toMap()).await()
+                Log.d("ChatRepo", "Call log successfully recorded for $convId")
+                return@withContext true
+            }
+        } catch (t: Throwable) {
+            Log.w("ChatRepo", "Error recording call log in Firestore", t)
+        }
+        return@withContext true
+    }
+
+    suspend fun deleteDirectMessage(messageId: String, conversationId: String): Boolean = withContext(Dispatchers.IO) {
+        val currentMap = _directMessages.value.toMutableMap()
+        val list = currentMap[conversationId]?.filter { it.id != messageId } ?: emptyList()
+        currentMap[conversationId] = list
+        _directMessages.value = currentMap
+
+        try {
+            firestore?.collection("direct_chats")?.document(messageId)?.delete()?.await()
+            Log.d("ChatRepo", "Deleted direct message: $messageId")
+            return@withContext true
+        } catch (t: Throwable) {
+            Log.w("ChatRepo", "Error deleting direct message in Firestore", t)
+        }
+        return@withContext true
+    }
+
+    suspend fun clearDirectConversation(conversationId: String): Boolean = withContext(Dispatchers.IO) {
+        val currentMap = _directMessages.value.toMutableMap()
+        val toDelete = currentMap[conversationId] ?: emptyList()
+        currentMap[conversationId] = emptyList()
+        _directMessages.value = currentMap
+
+        try {
+            val db = firestore
+            if (db != null) {
+                for (msg in toDelete) {
+                    db.collection("direct_chats").document(msg.id).delete()
+                }
+            }
+            return@withContext true
+        } catch (t: Throwable) {
+            Log.w("ChatRepo", "Error clearing direct conversation in Firestore", t)
         }
         return@withContext true
     }

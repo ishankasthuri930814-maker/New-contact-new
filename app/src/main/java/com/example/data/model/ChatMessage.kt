@@ -3,7 +3,7 @@ package com.example.data.model
 data class ChatMessage(
     val id: String = "",
     val senderId: String = "",
-    val senderName: String = "Citizen",
+    val senderName: String = "සාමාජිකයා (Member)",
     val senderEmail: String = "",
     val senderAvatarIndex: Int = 0,
     val senderBadge: String = "Verified Citizen",
@@ -31,11 +31,21 @@ data class ChatMessage(
 
     companion object {
         fun fromMap(map: Map<String, Any?>): ChatMessage {
+            val rawName = map["senderName"] as? String ?: ""
+            val rawEmail = map["senderEmail"] as? String ?: ""
+            val resolvedName = if (rawName.isNotBlank() && !rawName.equals("Citizen", ignoreCase = true)) {
+                rawName
+            } else if (rawEmail.isNotBlank()) {
+                rawEmail.substringBefore("@").replaceFirstChar { it.uppercase() }
+            } else {
+                "සාමාජිකයා (Member)"
+            }
+
             return ChatMessage(
                 id = map["id"] as? String ?: "",
                 senderId = map["senderId"] as? String ?: "",
-                senderName = map["senderName"] as? String ?: "Citizen",
-                senderEmail = map["senderEmail"] as? String ?: "",
+                senderName = resolvedName,
+                senderEmail = rawEmail,
                 senderAvatarIndex = (map["senderAvatarIndex"] as? Number)?.toInt() ?: 0,
                 senderBadge = map["senderBadge"] as? String ?: "Verified Citizen",
                 text = map["text"] as? String ?: "",
