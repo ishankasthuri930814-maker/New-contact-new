@@ -48,7 +48,7 @@ class ChatRepository(
 
     private var communityListener: ListenerRegistration? = null
     private var directListener: ListenerRegistration? = null
-    private var incomingDirectMessagesListener: ListenerRegistration? = null
+    private val incomingDirectListeners = mutableListOf<ListenerRegistration>()
     private var currentActiveConversationId: String? = null
     private val appStartTime = System.currentTimeMillis() - 5000L
     private var lastNotifiedMessageTimestamp = System.currentTimeMillis()
@@ -111,7 +111,7 @@ class ChatRepository(
 
             communityListener = db.collection("chat_messages")
                 .orderBy("timestamp", Query.Direction.ASCENDING)
-                .limitToLast(100)
+                .limitToLast(120)
                 .addSnapshotListener { snapshot, error ->
                     if (error != null) {
                         Log.w("ChatRepo", "Chat listener error", error)
@@ -144,7 +144,7 @@ class ChatRepository(
 
         try {
             val db = firestore ?: return
-            // Query by conversationId without composite orderBy to avoid Firestore index requirement
+            // Query by conversationId without composite orderBy to avoid index requirement
             directListener = db.collection("direct_chats")
                 .whereEqualTo("conversationId", conversationId)
                 .addSnapshotListener { snapshot, error ->
@@ -227,30 +227,67 @@ class ChatRepository(
         return@withContext true
     }
 
+    suspend fun deleteMultipleCommunityMessages(messageIds: Collection<String>): Boolean = withContext(Dispatchers.IO) {
+        if (messageIds.isEmpty()) return@withContext true
+        _messages.value = _messages.value.filter { !messageIds.contains(it.id) }
+        try {
+            val db = firestore
+            if (db != null) {
+                for (id in messageIds) {
+                    db.collection("chat_messages").document(id).delete()
+                }
+            }
+            return@withContext true
+        } catch (t: Throwable) {
+            Log.w("ChatRepo", "Error deleting multiple community messages", t)
+        }
+        return@withContext true
+    }
+
     suspend fun sendDirectMessage(
         sender: UserProfile,
-        receiverUserId: String,
+        receiver: UserProfile,
         text: String
     ): Boolean = withContext(Dispatchers.IO) {
         val cleanText = text.trim()
-        if (cleanText.isBlank() || receiverUserId.isBlank()) return@withContext false
+        if (cleanText.isBlank()) return@withContext false
 
         val senderKey = sender.email.ifBlank { sender.userId }
-        val convId = DirectChatMessage.createConversationId(senderKey, receiverUserId)
+        val receiverKey = receiver.email.ifBlank { receiver.userId }
+        if (senderKey.isBlank() || receiverKey.isBlank()) return@withContext false
+
+        val convId = DirectChatMessage.createConversationId(senderKey, receiverKey)
         val msgId = UUID.randomUUID().toString()
+
+        val normSenderKey = DirectChatMessage.normalizeUserKey(senderKey)
+        val normReceiverKey = DirectChatMessage.normalizeUserKey(receiverKey)
 
         val resolvedSenderName = sender.displayName.takeIf { it.isNotBlank() && !it.equals("Citizen", ignoreCase = true) }
             ?: com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.displayName?.takeIf { it.isNotBlank() }
             ?: sender.email.substringBefore("@").replaceFirstChar { it.uppercase() }.takeIf { it.isNotBlank() }
             ?: "පරිශීලක (User)"
 
+        val participants = listOfNotNull(
+            normSenderKey,
+            normReceiverKey,
+            sender.email.takeIf { it.isNotBlank() }?.lowercase(),
+            receiver.email.takeIf { it.isNotBlank() }?.lowercase(),
+            sender.userId.takeIf { it.isNotBlank() },
+            receiver.userId.takeIf { it.isNotBlank() }
+        ).distinct()
+
         val newDirect = DirectChatMessage(
             id = msgId,
             conversationId = convId,
-            senderId = DirectChatMessage.normalizeUserKey(senderKey),
+            senderId = normSenderKey,
+            senderEmail = sender.email,
+            senderUserId = sender.userId,
             senderName = resolvedSenderName,
             senderAvatarIndex = sender.avatarIndex,
-            receiverId = DirectChatMessage.normalizeUserKey(receiverUserId),
+            receiverId = normReceiverKey,
+            receiverEmail = receiver.email,
+            receiverUserId = receiver.userId,
+            participants = participants,
             text = cleanText,
             timestamp = System.currentTimeMillis()
         )
@@ -300,13 +337,17 @@ class ChatRepository(
         val resolvedCallerName = callerName.takeIf { it.isNotBlank() && !it.equals("Citizen", ignoreCase = true) }
             ?: callerKey.substringBefore("@").replaceFirstChar { it.uppercase() }.ifBlank { "User" }
 
+        val normCallerKey = DirectChatMessage.normalizeUserKey(callerKey)
+        val normReceiverKey = DirectChatMessage.normalizeUserKey(receiverKey)
+
         val callLogMsg = DirectChatMessage(
             id = msgId,
             conversationId = convId,
-            senderId = DirectChatMessage.normalizeUserKey(callerKey),
+            senderId = normCallerKey,
             senderName = resolvedCallerName,
             senderAvatarIndex = callerAvatarIndex,
-            receiverId = DirectChatMessage.normalizeUserKey(receiverKey),
+            receiverId = normReceiverKey,
+            participants = listOf(normCallerKey, normReceiverKey),
             text = textSummary,
             timestamp = timestamp,
             messageType = DirectChatMessage.TYPE_CALL_LOG,
@@ -353,6 +394,27 @@ class ChatRepository(
         return@withContext true
     }
 
+    suspend fun deleteMultipleDirectMessages(messageIds: Collection<String>, conversationId: String): Boolean = withContext(Dispatchers.IO) {
+        if (messageIds.isEmpty()) return@withContext true
+        val currentMap = _directMessages.value.toMutableMap()
+        val list = currentMap[conversationId]?.filter { !messageIds.contains(it.id) } ?: emptyList()
+        currentMap[conversationId] = list
+        _directMessages.value = currentMap
+
+        try {
+            val db = firestore
+            if (db != null) {
+                for (id in messageIds) {
+                    db.collection("direct_chats").document(id).delete()
+                }
+            }
+            return@withContext true
+        } catch (t: Throwable) {
+            Log.w("ChatRepo", "Error deleting multiple direct messages", t)
+        }
+        return@withContext true
+    }
+
     suspend fun clearDirectConversation(conversationId: String): Boolean = withContext(Dispatchers.IO) {
         val currentMap = _directMessages.value.toMutableMap()
         val toDelete = currentMap[conversationId] ?: emptyList()
@@ -374,20 +436,30 @@ class ChatRepository(
     }
 
     fun startListeningForIncomingDirectMessages(currentUserProfile: UserProfile) {
-        val myKey = DirectChatMessage.normalizeUserKey(currentUserProfile.email.ifBlank { currentUserProfile.userId })
-        if (myKey.isBlank() || myKey == "unknown_user") return
-        incomingDirectMessagesListener?.remove()
+        incomingDirectListeners.forEach { it.remove() }
+        incomingDirectListeners.clear()
+
+        val myKeys = listOfNotNull(
+            currentUserProfile.email.takeIf { it.isNotBlank() }?.let { DirectChatMessage.normalizeUserKey(it) },
+            currentUserProfile.userId.takeIf { it.isNotBlank() }?.let { DirectChatMessage.normalizeUserKey(it) },
+            currentUserProfile.email.takeIf { it.isNotBlank() }?.lowercase()?.trim(),
+            currentUserProfile.userId.takeIf { it.isNotBlank() }?.trim()
+        ).filter { it.isNotBlank() && it != "unknown_user" }.distinct()
+
+        if (myKeys.isEmpty()) return
 
         try {
             val db = firestore ?: return
-            incomingDirectMessagesListener = db.collection("direct_chats")
-                .whereEqualTo("receiverId", myKey)
+            val primaryKey = myKeys.first()
+
+            val listener = db.collection("direct_chats")
+                .whereEqualTo("receiverId", primaryKey)
                 .addSnapshotListener { snapshot, error ->
                     if (error != null || snapshot == null) return@addSnapshotListener
                     val newMessages = snapshot.documents.mapNotNull { doc ->
                         val data = doc.data ?: return@mapNotNull null
                         DirectChatMessage.fromMap(data).copy(id = doc.id)
-                    }.filter { it.timestamp > appStartTime && it.senderId != myKey }
+                    }.filter { it.timestamp > appStartTime && !myKeys.contains(it.senderId) && it.messageType != DirectChatMessage.TYPE_CALL_LOG }
 
                     val latest = newMessages.maxByOrNull { it.timestamp }
                     if (latest != null && latest.timestamp > lastNotifiedMessageTimestamp) {
@@ -401,6 +473,7 @@ class ChatRepository(
                         )
                     }
                 }
+            incomingDirectListeners.add(listener)
         } catch (e: Exception) {
             Log.w("ChatRepo", "Error listening for incoming user direct messages", e)
         }
@@ -409,6 +482,7 @@ class ChatRepository(
     fun onCleared() {
         communityListener?.remove()
         directListener?.remove()
-        incomingDirectMessagesListener?.remove()
+        incomingDirectListeners.forEach { it.remove() }
+        incomingDirectListeners.clear()
     }
 }

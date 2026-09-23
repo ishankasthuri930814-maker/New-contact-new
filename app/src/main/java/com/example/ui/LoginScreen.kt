@@ -189,15 +189,24 @@ fun LoginScreen(
 
                         override fun onError(error: FacebookException) {
                             val errorMsg = error.localizedMessage ?: ""
-                            val msg = when {
-                                errorMsg.contains("CONNECTION_FAILURE", ignoreCase = true) ->
-                                    "අන්තර්ජාල සම්බන්ධතාවය පරීක්ෂා කරන්න (Connection Failure)"
-                                errorMsg.contains("app is not accessible", ignoreCase = true) || errorMsg.contains("Development", ignoreCase = true) ->
-                                    "Facebook App එක Meta Dashboard හි Live කරන්න (In Development)"
-                                else ->
-                                    error.localizedMessage ?: "Facebook පිවිසුම් දෝෂයක් සිදු විය"
+                            Log.w("LoginScreen", "Facebook SDK error: $errorMsg, falling back to web flow")
+                            if (hostActivity != null) {
+                                authViewModel.signInWithFacebook(hostActivity)
+                            } else {
+                                val keyHash = com.example.util.AppSignatureHelper.getKeyHashBase64(context)
+                                    .ifBlank { "w4zp2BxYk+Mu4XVXccp6DbuFmnM=" }
+                                val msg = when {
+                                    errorMsg.contains("CONNECTION_FAILURE", ignoreCase = true) ->
+                                        "අන්තර්ජාල සම්බන්ධතාවය පරීක්ෂා කරන්න (Connection Failure)"
+                                    errorMsg.contains("key hash", ignoreCase = true) || errorMsg.contains("keyhash", ignoreCase = true) ->
+                                        "Facebook Developer Error: කරුණාකර developers.facebook.com හි ඔබේ App එකට මෙම Key Hash එක ඇතුළත් කරන්න:\n$keyHash"
+                                    errorMsg.contains("app is not accessible", ignoreCase = true) || errorMsg.contains("Development", ignoreCase = true) ->
+                                        "Facebook App එක Meta Dashboard හි Live කරන්න (In Development)"
+                                    else ->
+                                        error.localizedMessage ?: "Facebook පිවිසුම් දෝෂයක් සිදු විය"
+                                }
+                                authViewModel.setAuthError(msg)
                             }
-                            authViewModel.setAuthError(msg)
                         }
                     }
                 )
@@ -737,7 +746,8 @@ fun LoginScreen(
                                         listOf("public_profile", "email")
                                     )
                                 } catch (e: Exception) {
-                                    authViewModel.setAuthError("Facebook Sign-In දෝෂයක්: ${e.message}")
+                                    // Direct fallback to Web OAuth
+                                    authViewModel.signInWithFacebook(hostActivity)
                                 }
                             } else {
                                 authViewModel.setAuthError("Activity context හමු නොවීය")

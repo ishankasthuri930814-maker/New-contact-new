@@ -308,92 +308,130 @@ fun PoliceScreen(
                 Column(
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    // Top Section: App Navigation Bar (Directory, Chat, Profile)
-                    NavigationBar(
-                        containerColor = MaterialTheme.colorScheme.surface,
-                        contentColor = MaterialTheme.colorScheme.primary,
-                        tonalElevation = 0.dp
+                    // Custom Colorful Pill Navigation Row
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 10.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceEvenly,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        NavigationBarItem(
-                            selected = currentTab == MainScreenTab.DIRECTORY,
+                        // 1. නාමාවලිය (Directory) - Emerald Green Theme
+                        val isDirSelected = currentTab == MainScreenTab.DIRECTORY
+                        Surface(
                             onClick = { currentTab = MainScreenTab.DIRECTORY },
-                            icon = {
+                            shape = RoundedCornerShape(20.dp),
+                            color = if (isDirSelected) Color(0xFF1B5E20) else Color(0xFFE8F5E9),
+                            border = BorderStroke(
+                                width = if (isDirSelected) 2.dp else 1.dp,
+                                color = if (isDirSelected) Color(0xFF4CAF50) else Color(0xFFA5D6A7)
+                            ),
+                            shadowElevation = if (isDirSelected) 4.dp else 0.dp,
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(horizontal = 3.dp)
+                                .testTag("nav_item_directory")
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(vertical = 10.dp, horizontal = 4.dp),
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
                                 Icon(
                                     imageVector = Icons.Default.Phone,
-                                    contentDescription = "Directory"
+                                    contentDescription = "Directory",
+                                    tint = if (isDirSelected) Color.White else Color(0xFF2E7D32),
+                                    modifier = Modifier.size(18.dp)
                                 )
-                            },
-                            label = {
+                                Spacer(modifier = Modifier.width(4.dp))
                                 Text(
                                     text = com.example.util.AppStrings.navDirectory(uiState.selectedLanguage),
                                     style = MaterialTheme.typography.labelSmall.copy(
-                                        fontWeight = if (currentTab == MainScreenTab.DIRECTORY) FontWeight.Bold else FontWeight.Normal
+                                        fontWeight = if (isDirSelected) FontWeight.ExtraBold else FontWeight.Bold,
+                                        fontSize = 11.sp,
+                                        color = if (isDirSelected) Color.White else Color(0xFF1B5E20)
                                     )
                                 )
-                            },
-                            colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = MaterialTheme.colorScheme.onPrimary,
-                                selectedTextColor = MaterialTheme.colorScheme.primary,
-                                indicatorColor = MaterialTheme.colorScheme.primary,
-                                unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                                unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
-                            ),
-                            modifier = Modifier.testTag("nav_item_directory")
-                        )
+                            }
+                        }
 
-                        NavigationBarItem(
-                            selected = currentTab == MainScreenTab.CHAT,
+                        // 2. සංවාද (Chat) - Royal Blue / Navy Theme
+                        val isChatSelected = currentTab == MainScreenTab.CHAT
+                        Surface(
                             onClick = { currentTab = MainScreenTab.CHAT },
-                            icon = {
+                            shape = RoundedCornerShape(20.dp),
+                            color = if (isChatSelected) Color(0xFF0D47A1) else Color(0xFFE3F2FD),
+                            border = BorderStroke(
+                                width = if (isChatSelected) 2.dp else 1.dp,
+                                color = if (isChatSelected) Color(0xFF2196F3) else Color(0xFF90CAF9)
+                            ),
+                            shadowElevation = if (isChatSelected) 4.dp else 0.dp,
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(horizontal = 3.dp)
+                                .testTag("nav_item_chat")
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(vertical = 10.dp, horizontal = 4.dp),
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
                                 Icon(
                                     imageVector = Icons.Default.Forum,
-                                    contentDescription = "Chat"
+                                    contentDescription = "Chat",
+                                    tint = if (isChatSelected) Color.White else Color(0xFF1565C0),
+                                    modifier = Modifier.size(18.dp)
                                 )
-                            },
-                            label = {
+                                Spacer(modifier = Modifier.width(4.dp))
                                 Text(
                                     text = com.example.util.AppStrings.navChat(uiState.selectedLanguage),
                                     style = MaterialTheme.typography.labelSmall.copy(
-                                        fontWeight = if (currentTab == MainScreenTab.CHAT) FontWeight.Bold else FontWeight.Normal
+                                        fontWeight = if (isChatSelected) FontWeight.ExtraBold else FontWeight.Bold,
+                                        fontSize = 11.sp,
+                                        color = if (isChatSelected) Color.White else Color(0xFF0D47A1)
                                     )
                                 )
-                            },
-                            colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = MaterialTheme.colorScheme.onPrimary,
-                                selectedTextColor = MaterialTheme.colorScheme.primary,
-                                indicatorColor = MaterialTheme.colorScheme.primary,
-                                unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                                unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
-                            ),
-                            modifier = Modifier.testTag("nav_item_chat")
-                        )
+                            }
+                        }
 
-                        NavigationBarItem(
-                            selected = currentTab == MainScreenTab.PROFILE,
+                        // 3. මගේ Profile (Profile) - Deep Purple Theme
+                        val isProfileSelected = currentTab == MainScreenTab.PROFILE
+                        Surface(
                             onClick = { currentTab = MainScreenTab.PROFILE },
-                            icon = {
+                            shape = RoundedCornerShape(20.dp),
+                            color = if (isProfileSelected) Color(0xFF4A148C) else Color(0xFFF3E5F5),
+                            border = BorderStroke(
+                                width = if (isProfileSelected) 2.dp else 1.dp,
+                                color = if (isProfileSelected) Color(0xFF9C27B0) else Color(0xFFCE93D8)
+                            ),
+                            shadowElevation = if (isProfileSelected) 4.dp else 0.dp,
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(horizontal = 3.dp)
+                                .testTag("nav_item_profile")
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(vertical = 10.dp, horizontal = 4.dp),
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
                                 Icon(
                                     imageVector = Icons.Default.Person,
-                                    contentDescription = "Profile"
+                                    contentDescription = "Profile",
+                                    tint = if (isProfileSelected) Color.White else Color(0xFF6A1B9A),
+                                    modifier = Modifier.size(18.dp)
                                 )
-                            },
-                            label = {
+                                Spacer(modifier = Modifier.width(4.dp))
                                 Text(
                                     text = com.example.util.AppStrings.navProfile(uiState.selectedLanguage),
                                     style = MaterialTheme.typography.labelSmall.copy(
-                                        fontWeight = if (currentTab == MainScreenTab.PROFILE) FontWeight.Bold else FontWeight.Normal
+                                        fontWeight = if (isProfileSelected) FontWeight.ExtraBold else FontWeight.Bold,
+                                        fontSize = 11.sp,
+                                        color = if (isProfileSelected) Color.White else Color(0xFF4A148C)
                                     )
                                 )
-                            },
-                            colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = MaterialTheme.colorScheme.onPrimary,
-                                selectedTextColor = MaterialTheme.colorScheme.primary,
-                                indicatorColor = MaterialTheme.colorScheme.primary,
-                                unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                                unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
-                            ),
-                            modifier = Modifier.testTag("nav_item_profile")
-                        )
+                            }
+                        }
                     }
 
                     Divider(
@@ -1579,6 +1617,7 @@ fun PoliceScreen(
                 InAppCallDialog(
                     incomingCall = chatUiState.incomingCall,
                     activeCall = chatUiState.activeCall,
+                    currentUserProfile = chatUiState.currentUserProfile,
                     isMuted = chatUiState.isMuted,
                     isSpeakerOn = chatUiState.isSpeakerOn,
                     onAcceptCall = { callId -> checkAudioPermissionAndAcceptCall(callId) },

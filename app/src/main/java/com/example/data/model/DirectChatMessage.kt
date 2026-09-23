@@ -4,9 +4,14 @@ data class DirectChatMessage(
     val id: String = "",
     val conversationId: String = "", // e.g. userA__userB (normalized)
     val senderId: String = "",
+    val senderEmail: String = "",
+    val senderUserId: String = "",
     val senderName: String = "",
     val senderAvatarIndex: Int = 0,
     val receiverId: String = "",
+    val receiverEmail: String = "",
+    val receiverUserId: String = "",
+    val participants: List<String> = emptyList(),
     val text: String = "",
     val timestamp: Long = System.currentTimeMillis(),
     val isRead: Boolean = false,
@@ -19,9 +24,14 @@ data class DirectChatMessage(
             "id" to id,
             "conversationId" to conversationId,
             "senderId" to senderId,
+            "senderEmail" to senderEmail,
+            "senderUserId" to senderUserId,
             "senderName" to senderName,
             "senderAvatarIndex" to senderAvatarIndex,
             "receiverId" to receiverId,
+            "receiverEmail" to receiverEmail,
+            "receiverUserId" to receiverUserId,
+            "participants" to participants,
             "text" to text,
             "timestamp" to timestamp,
             "isRead" to isRead,
@@ -50,13 +60,20 @@ data class DirectChatMessage(
         }
 
         fun fromMap(map: Map<String, Any?>): DirectChatMessage {
+            @Suppress("UNCHECKED_CAST")
+            val rawParticipants = map["participants"] as? List<String> ?: emptyList()
             return DirectChatMessage(
                 id = map["id"] as? String ?: "",
                 conversationId = map["conversationId"] as? String ?: "",
                 senderId = map["senderId"] as? String ?: "",
+                senderEmail = map["senderEmail"] as? String ?: "",
+                senderUserId = map["senderUserId"] as? String ?: "",
                 senderName = map["senderName"] as? String ?: "",
                 senderAvatarIndex = (map["senderAvatarIndex"] as? Number)?.toInt() ?: 0,
                 receiverId = map["receiverId"] as? String ?: "",
+                receiverEmail = map["receiverEmail"] as? String ?: "",
+                receiverUserId = map["receiverUserId"] as? String ?: "",
+                participants = rawParticipants,
                 text = map["text"] as? String ?: "",
                 timestamp = (map["timestamp"] as? Number)?.toLong() ?: System.currentTimeMillis(),
                 isRead = map["isRead"] as? Boolean ?: false,

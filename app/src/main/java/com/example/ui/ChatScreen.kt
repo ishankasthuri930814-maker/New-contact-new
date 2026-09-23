@@ -11,6 +11,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -52,10 +53,18 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.Phone
+import androidx.compose.material.icons.filled.PhoneInTalk
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Traffic
 import androidx.compose.material.icons.filled.Verified
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Contacts
+import androidx.compose.material.icons.filled.PhoneCallback
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -173,53 +182,88 @@ fun ChatScreen(
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
     ) {
-        // Main Mode Navigation: Community vs Registered Citizens 1-on-1
+        // Main Mode Navigation: Modern Segmented Pill Switcher
         if (uiState.chatMode != ChatMode.DIRECT_CHAT_ROOM) {
-            PrimaryTabRow(
-                selectedTabIndex = if (uiState.chatMode == ChatMode.COMMUNITY_ROOM) 0 else 1,
-                containerColor = MaterialTheme.colorScheme.surface,
-                contentColor = MaterialTheme.colorScheme.primary
+            Surface(
+                color = MaterialTheme.colorScheme.surface,
+                shadowElevation = 2.dp,
+                modifier = Modifier.fillMaxWidth()
             ) {
-                val isCommunity = uiState.chatMode == ChatMode.COMMUNITY_ROOM
-                Tab(
-                    selected = isCommunity,
-                    onClick = { viewModel.setChatMode(ChatMode.COMMUNITY_ROOM) },
-                    text = {
-                        Text(
-                            text = "පොදු සංවාද (Community)",
-                            fontWeight = FontWeight.Bold,
-                            color = if (isCommunity) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 8.dp)
+                        .background(
+                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
+                            RoundedCornerShape(24.dp)
                         )
-                    },
-                    icon = {
-                        Icon(
-                            imageVector = Icons.Default.Forum,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp),
-                            tint = if (isCommunity) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        .padding(3.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    // 1. පළමුව: පුද්ගලික සංවාද (Private 1-on-1)
+                    val isDirect = uiState.chatMode == ChatMode.REGISTERED_USERS
+                    Surface(
+                        onClick = { viewModel.setChatMode(ChatMode.REGISTERED_USERS) },
+                        shape = RoundedCornerShape(20.dp),
+                        color = if (isDirect) MaterialTheme.colorScheme.surface else Color.Transparent,
+                        shadowElevation = if (isDirect) 2.dp else 0.dp,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(vertical = 10.dp, horizontal = 4.dp),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.People,
+                                contentDescription = null,
+                                modifier = Modifier.size(17.dp),
+                                tint = if (isDirect) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "පුද්ගලික (1-on-1)",
+                                style = MaterialTheme.typography.labelLarge.copy(
+                                    fontWeight = if (isDirect) FontWeight.Bold else FontWeight.Medium,
+                                    color = if (isDirect) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontSize = 13.sp
+                                )
+                            )
+                        }
                     }
-                )
-                val isDirect = uiState.chatMode == ChatMode.REGISTERED_USERS
-                Tab(
-                    selected = isDirect,
-                    onClick = { viewModel.setChatMode(ChatMode.REGISTERED_USERS) },
-                    text = {
-                        Text(
-                            text = "පුද්ගලික සංවාද (1-on-1)",
-                            fontWeight = FontWeight.Bold,
-                            color = if (isDirect) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    },
-                    icon = {
-                        Icon(
-                            imageVector = Icons.Default.People,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp),
-                            tint = if (isDirect) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+
+                    // 2. දෙවනුව: පොදු සංවාද (Public Community)
+                    val isCommunity = uiState.chatMode == ChatMode.COMMUNITY_ROOM
+                    Surface(
+                        onClick = { viewModel.setChatMode(ChatMode.COMMUNITY_ROOM) },
+                        shape = RoundedCornerShape(20.dp),
+                        color = if (isCommunity) MaterialTheme.colorScheme.surface else Color.Transparent,
+                        shadowElevation = if (isCommunity) 2.dp else 0.dp,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(vertical = 10.dp, horizontal = 4.dp),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Forum,
+                                contentDescription = null,
+                                modifier = Modifier.size(17.dp),
+                                tint = if (isCommunity) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "පොදු සංවාද",
+                                style = MaterialTheme.typography.labelLarge.copy(
+                                    fontWeight = if (isCommunity) FontWeight.Bold else FontWeight.Medium,
+                                    color = if (isCommunity) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontSize = 13.sp
+                                )
+                            )
+                        }
                     }
-                )
+                }
             }
         }
 
@@ -268,22 +312,6 @@ fun ChatScreen(
             }
         }
     }
-
-    // In-App Call Overlay
-    if (uiState.activeCall != null || uiState.incomingCall != null) {
-        InAppCallDialog(
-            incomingCall = uiState.incomingCall,
-            activeCall = uiState.activeCall,
-            isMuted = uiState.isMuted,
-            isSpeakerOn = uiState.isSpeakerOn,
-            onAcceptCall = { callId -> checkAudioPermissionAndAcceptCall(callId) },
-            onDeclineCall = { callId -> viewModel.declineIncomingCall(callId) },
-            onEndCall = { callId -> viewModel.endActiveCall(callId) },
-            onToggleMute = { viewModel.toggleMute() },
-            onToggleSpeaker = { viewModel.toggleSpeaker() },
-            onDismiss = { viewModel.dismissCallDialog() }
-        )
-    }
 }
 
 private fun makePhoneCall(context: Context, user: UserProfile) {
@@ -311,7 +339,23 @@ fun RegisteredUsersDirectoryContent(
     val myEmail = uiState.currentUserProfile.email
     val myId = uiState.currentUserProfile.userId
 
-    val filteredList = uiState.registeredUsers.filter { user ->
+    val distinctUsers = uiState.registeredUsers
+        .groupBy {
+            val key = DirectChatMessage.normalizeUserKey(it.email).ifBlank {
+                DirectChatMessage.normalizeUserKey(it.userId)
+            }
+            if (key != "unknown_user" && key.isNotBlank()) key else it.userId
+        }
+        .map { (_, list) ->
+            list.maxByOrNull { user ->
+                (if (user.phoneNumber.isNotBlank()) 10 else 0) +
+                (if (user.displayName.isNotBlank() && !user.displayName.equals("Citizen", ignoreCase = true)) 5 else 0) +
+                (if (user.avatarIndex > 0) 2 else 0) +
+                user.joinedTimestamp
+            } ?: list.first()
+        }
+
+    val filteredList = distinctUsers.filter { user ->
         val notMe = (user.email.isBlank() || user.email != myEmail) &&
                 (user.userId.isBlank() || user.userId != myId)
         val query = uiState.searchQuery.trim().lowercase()
@@ -321,69 +365,165 @@ fun RegisteredUsersDirectoryContent(
                 user.badge.lowercase().contains(query))
     }
 
+    var selectedDirectoryTab by remember { mutableStateOf(0) } // 0: Contacts, 1: Call Logs
+
+    // Extract all call logs across all conversations
+    val allCallLogs = remember(uiState.directMessagesMap, myEmail, myId) {
+        uiState.directMessagesMap.values.flatten()
+            .filter { it.messageType == DirectChatMessage.TYPE_CALL_LOG }
+            .sortedByDescending { it.timestamp }
+    }
+
     Column(modifier = Modifier.fillMaxSize()) {
-        // Search & Privacy Banner
+        // Sub-Tab Switcher: 📇 සාමාජික ලැයිස්තුව (Contact List) | 📞 ඇමතුම් ලැයිස්තුව (Call Logs)
         Surface(
             color = MaterialTheme.colorScheme.surface,
-            shadowElevation = 2.dp
+            shadowElevation = 3.dp,
+            modifier = Modifier.fillMaxWidth()
         ) {
-            Column(modifier = Modifier.padding(12.dp)) {
-                OutlinedTextField(
-                    value = uiState.searchQuery,
-                    onValueChange = { viewModel.onSearchQueryChange(it) },
-                    placeholder = {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 6.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                // Tab 1: Contact List
+                FilterChip(
+                    selected = selectedDirectoryTab == 0,
+                    onClick = { selectedDirectoryTab = 0 },
+                    label = {
                         Text(
-                            "සාමාජිකයින් හෝ නිලධාරීන් සොයන්න...",
-                            fontSize = 13.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                            text = "📇 සාමාජික ලැයිස්තුව (${distinctUsers.size})",
+                            style = MaterialTheme.typography.labelMedium.copy(
+                                fontWeight = if (selectedDirectoryTab == 0) FontWeight.ExtraBold else FontWeight.Medium,
+                                fontSize = 12.sp
+                            )
                         )
                     },
                     leadingIcon = {
                         Icon(
-                            Icons.Default.Search,
+                            imageVector = Icons.Default.Contacts,
                             contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary
+                            modifier = Modifier.size(16.dp)
                         )
                     },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(50.dp),
-                    shape = RoundedCornerShape(24.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = MaterialTheme.colorScheme.primary,
-                        unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                        selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                        selectedLeadingIconColor = MaterialTheme.colorScheme.primary
                     ),
-                    singleLine = true
+                    shape = RoundedCornerShape(20.dp),
+                    modifier = Modifier.weight(1f)
                 )
 
-                Spacer(modifier = Modifier.height(8.dp))
-
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier
-                        .background(
-                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f),
-                            RoundedCornerShape(8.dp)
+                // Tab 2: Call Logs
+                FilterChip(
+                    selected = selectedDirectoryTab == 1,
+                    onClick = { selectedDirectoryTab = 1 },
+                    label = {
+                        Text(
+                            text = "📞 Call Logs (${allCallLogs.size})",
+                            style = MaterialTheme.typography.labelMedium.copy(
+                                fontWeight = if (selectedDirectoryTab == 1) FontWeight.ExtraBold else FontWeight.Medium,
+                                fontSize = 12.sp
+                            )
                         )
-                        .padding(horizontal = 8.dp, vertical = 6.dp)
-                ) {
-                    Icon(
-                        Icons.Default.Lock,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(14.dp)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = "🔒 පරිශීලකයින්ගේ Email සහ රහස්‍ය තොරතුරු ආරක්ෂා කර ඇත. සෘජුව Chat සහ Call ලබාගත හැක.",
-                        style = MaterialTheme.typography.bodySmall.copy(
-                            fontSize = 11.sp,
-                            color = MaterialTheme.colorScheme.onSurface
+                    },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Default.PhoneCallback,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp)
                         )
-                    )
-                }
+                    },
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = Color(0xFFE8F5E9),
+                        selectedLabelColor = Color(0xFF1B5E20),
+                        selectedLeadingIconColor = Color(0xFF2E7D32)
+                    ),
+                    shape = RoundedCornerShape(20.dp),
+                    modifier = Modifier.weight(1f)
+                )
             }
         }
+
+        if (selectedDirectoryTab == 1) {
+            // === CALL LOGS TAB ===
+            CallLogsListContent(
+                callLogs = allCallLogs,
+                registeredUsers = distinctUsers,
+                myEmail = myEmail,
+                myId = myId,
+                onInAppCallUser = onInAppCallUser,
+                onStartDirectChat = onStartDirectChat,
+                onDeleteCallLog = { msg ->
+                    viewModel.deleteDirectMessage(msg.id)
+                }
+            )
+        } else {
+            // === CONTACT LIST TAB ===
+            // Search & Privacy Banner
+            Surface(
+                color = MaterialTheme.colorScheme.surface,
+                shadowElevation = 1.dp
+            ) {
+                Column(modifier = Modifier.padding(12.dp)) {
+                    OutlinedTextField(
+                        value = uiState.searchQuery,
+                        onValueChange = { viewModel.onSearchQueryChange(it) },
+                        placeholder = {
+                            Text(
+                                "සාමාජිකයින් හෝ නිලධාරීන් සොයන්න...",
+                                fontSize = 13.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                            )
+                        },
+                        leadingIcon = {
+                            Icon(
+                                Icons.Default.Search,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(50.dp),
+                        shape = RoundedCornerShape(24.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+                        ),
+                        singleLine = true
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .background(
+                                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f),
+                                RoundedCornerShape(8.dp)
+                            )
+                            .padding(horizontal = 8.dp, vertical = 6.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Lock,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "🔒 පරිශීලකයින්ගේ Contact List එක සහ සජීවී Call Log ආරක්ෂිතව පිහිටුවා ඇත.",
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        )
+                    }
+                }
+            }
 
         if (filteredList.isEmpty()) {
             Box(
@@ -487,55 +627,391 @@ fun RegisteredUsersDirectoryContent(
                             }
 
                             // Action buttons: In-App Voice Call, Regular Phone Call, Direct Chat
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                // 1. In-App Call Button (Green phone icon)
-                                IconButton(
-                                    onClick = { onInAppCallUser(user) },
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                // 1. In-App Call Button (Vibrant Emerald Gradient)
+                                Box(
                                     modifier = Modifier
-                                        .size(38.dp)
-                                        .background(Color(0xFF2E7D32).copy(alpha = 0.2f), CircleShape)
-                                        .testTag("in_app_call_user_${user.userId}")
+                                        .size(40.dp)
+                                        .shadow(elevation = 3.dp, shape = CircleShape)
+                                        .clip(CircleShape)
+                                        .background(
+                                            Brush.verticalGradient(
+                                                listOf(Color(0xFF00C853), Color(0xFF1B5E20))
+                                            )
+                                        )
+                                        .border(1.dp, Color.White.copy(alpha = 0.25f), CircleShape)
+                                        .clickable { onInAppCallUser(user) }
+                                        .testTag("in_app_call_user_${user.userId}"),
+                                    contentAlignment = Alignment.Center
                                 ) {
                                     Icon(
-                                        imageVector = Icons.Default.Phone,
+                                        imageVector = Icons.Default.PhoneInTalk,
                                         contentDescription = "In-App Voice Call",
-                                        tint = Color(0xFF4CAF50),
-                                        modifier = Modifier.size(18.dp)
+                                        tint = Color.White,
+                                        modifier = Modifier.size(20.dp)
                                     )
                                 }
-                                Spacer(modifier = Modifier.width(4.dp))
 
-                                // 2. Regular Phone Call (if has number)
+                                // 2. Regular Phone Call (Vibrant Ocean/Cyan Gradient)
                                 if (user.phoneNumber.isNotBlank()) {
-                                    IconButton(
-                                        onClick = { onCallUser(user) },
+                                    Box(
                                         modifier = Modifier
-                                            .size(38.dp)
-                                            .background(Color(0xFF0288D1).copy(alpha = 0.18f), CircleShape)
+                                            .size(40.dp)
+                                            .shadow(elevation = 3.dp, shape = CircleShape)
+                                            .clip(CircleShape)
+                                            .background(
+                                                Brush.verticalGradient(
+                                                    listOf(Color(0xFF00B0FF), Color(0xFF0277BD))
+                                                )
+                                            )
+                                            .border(1.dp, Color.White.copy(alpha = 0.25f), CircleShape)
+                                            .clickable { onCallUser(user) }
+                                            .testTag("phone_call_user_${user.userId}"),
+                                        contentAlignment = Alignment.Center
                                     ) {
                                         Icon(
                                             imageVector = Icons.Default.Call,
                                             contentDescription = "Regular Phone Call",
-                                            tint = Color(0xFF0288D1),
-                                            modifier = Modifier.size(18.dp)
+                                            tint = Color.White,
+                                            modifier = Modifier.size(20.dp)
                                         )
                                     }
-                                    Spacer(modifier = Modifier.width(4.dp))
                                 }
 
-                                // 3. Direct Chat
-                                IconButton(
-                                    onClick = { onStartDirectChat(user) },
+                                // 3. Direct Chat (Vibrant Royal Indigo Gradient)
+                                Box(
                                     modifier = Modifier
-                                        .size(38.dp)
-                                        .background(MaterialTheme.colorScheme.primaryContainer, CircleShape)
+                                        .size(40.dp)
+                                        .shadow(elevation = 3.dp, shape = CircleShape)
+                                        .clip(CircleShape)
+                                        .background(
+                                            Brush.verticalGradient(
+                                                listOf(Color(0xFF2979FF), Color(0xFF0D47A1))
+                                            )
+                                        )
+                                        .border(1.dp, Color.White.copy(alpha = 0.25f), CircleShape)
+                                        .clickable { onStartDirectChat(user) }
+                                        .testTag("chat_user_${user.userId}"),
+                                    contentAlignment = Alignment.Center
                                 ) {
                                     Icon(
                                         imageVector = Icons.Default.Chat,
                                         contentDescription = "Direct Chat",
-                                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                        tint = Color.White,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+}
+
+@Composable
+fun CallLogsListContent(
+    callLogs: List<DirectChatMessage>,
+    registeredUsers: List<UserProfile>,
+    myEmail: String,
+    myId: String,
+    onInAppCallUser: (UserProfile) -> Unit,
+    onStartDirectChat: (UserProfile) -> Unit,
+    onDeleteCallLog: (DirectChatMessage) -> Unit
+) {
+    var selectedCallLogIds by remember { mutableStateOf(setOf<String>()) }
+    val isSelectionMode = selectedCallLogIds.isNotEmpty()
+    var showBatchDeleteDialog by remember { mutableStateOf(false) }
+
+    val myNormKey = remember(myEmail, myId) { DirectChatMessage.normalizeUserKey(myEmail.ifBlank { myId }) }
+
+    if (showBatchDeleteDialog) {
+        AlertDialog(
+            onDismissRequest = { showBatchDeleteDialog = false },
+            title = { Text("තෝරාගත් Call Logs මකන්නද?") },
+            text = { Text("තෝරාගත් ඇමතුම් සටහන් ${selectedCallLogIds.size} ක් මකා දැමීමට අවශ්‍ය බව තහවුරු කරන්න.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showBatchDeleteDialog = false
+                        callLogs.filter { selectedCallLogIds.contains(it.id) }.forEach {
+                            onDeleteCallLog(it)
+                        }
+                        selectedCallLogIds = emptySet()
+                    }
+                ) {
+                    Text("මකන්න (Delete Selected)", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.ExtraBold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showBatchDeleteDialog = false }) {
+                    Text("අවලංගු කරන්න (Cancel)")
+                }
+            }
+        )
+    }
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        if (isSelectionMode) {
+            Surface(
+                color = MaterialTheme.colorScheme.errorContainer,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "සටහන් ${selectedCallLogIds.size} ක් තෝරාගෙන ඇත",
+                        style = MaterialTheme.typography.titleSmall.copy(
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onErrorContainer
+                        )
+                    )
+                    Row {
+                        IconButton(onClick = { showBatchDeleteDialog = true }) {
+                            Icon(
+                                imageVector = Icons.Default.Delete,
+                                contentDescription = "Delete Selected",
+                                tint = MaterialTheme.colorScheme.error
+                            )
+                        }
+                        IconButton(onClick = { selectedCallLogIds = emptySet() }) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Clear Selection",
+                                tint = MaterialTheme.colorScheme.onErrorContainer
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        if (callLogs.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(32.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.PhoneCallback,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
+                        modifier = Modifier.size(52.dp)
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = "තවමත් ඇමතුම් සටහන් (Call Logs) නොමැත",
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = "සාමාජිකයින් අතර සිදුකෙරෙන සියලුම In-App Voice Calls වල සටහන් මෙහි සුරැකේ.",
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        )
+                    )
+                }
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(callLogs, key = { it.id }) { log ->
+                    val isMe = log.senderId == myNormKey ||
+                            log.senderId == myId ||
+                            (log.senderId.isNotBlank() && log.senderId == myEmail)
+
+                    val otherUserKey = if (isMe) log.receiverId else log.senderId
+                    val fallbackName = if (isMe) log.text.ifBlank { "User" } else log.senderName.ifBlank { "User" }
+                    val otherUser = registeredUsers.firstOrNull {
+                        (it.email.isNotBlank() && DirectChatMessage.normalizeUserKey(it.email) == DirectChatMessage.normalizeUserKey(otherUserKey)) ||
+                        (it.userId.isNotBlank() && it.userId == otherUserKey)
+                    } ?: UserProfile(
+                        userId = otherUserKey,
+                        displayName = fallbackName,
+                        email = if (otherUserKey.contains("@")) otherUserKey else ""
+                    )
+
+                    val isSelected = selectedCallLogIds.contains(log.id)
+
+                    val toggleSelect = {
+                        selectedCallLogIds = if (isSelected) {
+                            selectedCallLogIds - log.id
+                        } else {
+                            selectedCallLogIds + log.id
+                        }
+                    }
+
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                if (isSelectionMode) {
+                                    toggleSelect()
+                                } else {
+                                    onStartDirectChat(otherUser)
+                                }
+                            },
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface
+                        ),
+                        border = BorderStroke(
+                            width = if (isSelected) 2.dp else 1.dp,
+                            color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                        ),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            if (isSelectionMode) {
+                                Checkbox(
+                                    checked = isSelected,
+                                    onCheckedChange = { toggleSelect() },
+                                    modifier = Modifier.padding(end = 8.dp)
+                                )
+                            }
+
+                            UserAvatarView(
+                                avatarIndex = otherUser.avatarIndex,
+                                displayName = otherUser.displayName,
+                                size = 44.dp
+                            )
+
+                            Spacer(modifier = Modifier.width(12.dp))
+
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = otherUser.displayName.ifBlank { "User" },
+                                    style = MaterialTheme.typography.titleMedium.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 14.sp,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                )
+
+                                val isConnected = log.callStatus == "CONNECTED"
+                                val isDeclined = log.callStatus == "DECLINED"
+                                val isMissed = log.callStatus == "MISSED" || (!isConnected && !isDeclined)
+
+                                val (statusLabel, statusColor, statusIcon) = when {
+                                    isMe && isConnected -> Triple("↗ ගනු ලැබූ ඇමතුම (Outgoing)", Color(0xFF2E7D32), Icons.AutoMirrored.Filled.CallMade)
+                                    isMe && isDeclined -> Triple("↗ ප්‍රතික්ෂේප වූ ඇමතුම", Color(0xFFC62828), Icons.Default.CallEnd)
+                                    isMe -> Triple("↗ පිළිතුරු නොලැබුණි", Color(0xFFE65100), Icons.AutoMirrored.Filled.CallMade)
+                                    isConnected -> Triple("↙ ලැබුණු ඇමතුම (Incoming)", Color(0xFF2E7D32), Icons.AutoMirrored.Filled.CallReceived)
+                                    isDeclined -> Triple("↙ ප්‍රතික්ෂේප කළ ඇමතුම", Color(0xFFC62828), Icons.Default.CallEnd)
+                                    else -> Triple("↙🔴 මඟහැරුණු ඇමතුම (Missed)", Color(0xFFD32F2F), Icons.AutoMirrored.Filled.CallMissed)
+                                }
+
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = statusIcon,
+                                        contentDescription = null,
+                                        tint = statusColor,
+                                        modifier = Modifier.size(13.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = statusLabel,
+                                        style = MaterialTheme.typography.bodySmall.copy(
+                                            color = statusColor,
+                                            fontWeight = FontWeight.SemiBold,
+                                            fontSize = 11.sp
+                                        )
+                                    )
+                                }
+
+                                val timeFormat = SimpleDateFormat("yyyy-MM-dd hh:mm a", Locale.getDefault())
+                                val formattedTime = timeFormat.format(Date(log.timestamp))
+
+                                Text(
+                                    text = formattedTime + if (isConnected && log.callDurationSeconds > 0) " • කාලය: ${log.callDurationSeconds}s" else "",
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        fontSize = 10.sp
+                                    )
+                                )
+                            }
+
+                            // Action Menu (Call Back & Options)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                IconButton(
+                                    onClick = { onInAppCallUser(otherUser) },
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .background(Color(0xFF1B5E20), CircleShape)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.PhoneInTalk,
+                                        contentDescription = "Call Back",
+                                        tint = Color.White,
                                         modifier = Modifier.size(18.dp)
                                     )
+                                }
+
+                                var showLogMenu by remember { mutableStateOf(false) }
+                                Box {
+                                    IconButton(onClick = { showLogMenu = true }) {
+                                        Icon(
+                                            imageVector = Icons.Default.MoreVert,
+                                            contentDescription = "Options",
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                    DropdownMenu(
+                                        expanded = showLogMenu,
+                                        onDismissRequest = { showLogMenu = false }
+                                    ) {
+                                        DropdownMenuItem(
+                                            text = { Text("තෝරන්න (Select)") },
+                                            leadingIcon = { Icon(Icons.Default.CheckCircle, contentDescription = null) },
+                                            onClick = {
+                                                showLogMenu = false
+                                                toggleSelect()
+                                            }
+                                        )
+                                        DropdownMenuItem(
+                                            text = { Text("සංවාදය ආරම්භ කරන්න") },
+                                            leadingIcon = { Icon(Icons.Default.Chat, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+                                            onClick = {
+                                                showLogMenu = false
+                                                onStartDirectChat(otherUser)
+                                            }
+                                        )
+                                        DropdownMenuItem(
+                                            text = { Text("සටහන මකන්න (Delete Log)", color = MaterialTheme.colorScheme.error) },
+                                            leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+                                            onClick = {
+                                                showLogMenu = false
+                                                onDeleteCallLog(log)
+                                            }
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -562,9 +1038,12 @@ fun DirectPrivateChatContent(
     val focusManager = LocalFocusManager.current
     var showOptionsMenu by remember { mutableStateOf(false) }
     var showClearConfirmDialog by remember { mutableStateOf(false) }
+    var showBatchDeleteConfirmDialog by remember { mutableStateOf(false) }
+    var selectedMessageIds by remember { mutableStateOf(setOf<String>()) }
+    val isSelectionMode = selectedMessageIds.isNotEmpty()
 
     LaunchedEffect(messages.size) {
-        if (messages.isNotEmpty()) {
+        if (messages.isNotEmpty() && !isSelectionMode) {
             listState.animateScrollToItem(messages.size - 1)
         }
     }
@@ -579,9 +1058,10 @@ fun DirectPrivateChatContent(
                     onClick = {
                         showClearConfirmDialog = false
                         viewModel.clearCurrentDirectConversation()
+                        selectedMessageIds = emptySet()
                     }
                 ) {
-                    Text("මකන්න (Clear)", color = MaterialTheme.colorScheme.error)
+                    Text("මකන්න (Clear All)", color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
@@ -592,121 +1072,236 @@ fun DirectPrivateChatContent(
         )
     }
 
+    if (showBatchDeleteConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showBatchDeleteConfirmDialog = false },
+            title = { Text("තෝරාගත් පණිවිඩ මකන්නද?") },
+            text = { Text("තෝරාගත් පණිවිඩ/සටහන් ${selectedMessageIds.size} ක් මකා දැමීමට අවශ්‍ය බව තහවුරු කරන්න.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showBatchDeleteConfirmDialog = false
+                        viewModel.deleteSelectedDirectMessages(selectedMessageIds)
+                        selectedMessageIds = emptySet()
+                    }
+                ) {
+                    Text("මකන්න (Delete)", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showBatchDeleteConfirmDialog = false }) {
+                    Text("අවලංගු කරන්න (Cancel)")
+                }
+            }
+        )
+    }
+
     Column(modifier = Modifier.fillMaxSize()) {
-        // Direct Chat Header Bar
+        // Direct Chat Header Bar (Switches to Selection Bar when items selected)
         Surface(
-            color = Color(0xFF003366),
+            color = if (isSelectionMode) Color(0xFFB71C1C) else Color(0xFF003366),
             shadowElevation = 4.dp
         ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(onClick = onBack) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Back",
-                        tint = Color.White
-                    )
-                }
-
-                UserAvatarView(
-                    avatarIndex = activeUser.avatarIndex,
-                    displayName = activeUser.displayName,
-                    size = 38.dp
-                )
-
-                Spacer(modifier = Modifier.width(10.dp))
-
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = activeUser.displayName.ifBlank { "User" },
-                        style = MaterialTheme.typography.titleMedium.copy(
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White,
-                            fontSize = 15.sp
-                        ),
-                        maxLines = 1
-                    )
-                    Text(
-                        text = "🔒 Direct Private Chat • ${activeUser.district}",
-                        style = MaterialTheme.typography.bodySmall.copy(
-                            color = Color.White.copy(alpha = 0.8f),
-                            fontSize = 11.sp
-                        ),
-                        maxLines = 1
-                    )
-                }
-
-                // Action Buttons: In-App Voice Call, Phone Call, & More Options
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    // 1. In-App Voice Call (Internet Call)
-                    IconButton(
-                        onClick = { onInAppCallUser(activeUser) },
-                        modifier = Modifier
-                            .background(Color(0xFF2E7D32), CircleShape)
-                            .size(38.dp)
-                            .testTag("in_app_call_button")
-                    ) {
+            if (isSelectionMode) {
+                // Multi-Selection Action Header
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(onClick = { selectedMessageIds = emptySet() }) {
                         Icon(
-                            imageVector = Icons.Default.Phone,
-                            contentDescription = "In-App Voice Call",
-                            tint = Color.White,
-                            modifier = Modifier.size(19.dp)
+                            imageVector = Icons.Default.CallEnd,
+                            contentDescription = "Cancel Selection",
+                            tint = Color.White
                         )
                     }
 
-                    // 2. Regular Phone Call (if has number)
-                    if (activeUser.phoneNumber.isNotBlank()) {
-                        Spacer(modifier = Modifier.width(6.dp))
-                        IconButton(
-                            onClick = { onCallUser(activeUser) },
+                    Text(
+                        text = "${selectedMessageIds.size} ක් තෝරා ඇත (${selectedMessageIds.size} Selected)",
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp
+                        ),
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(horizontal = 8.dp)
+                    )
+
+                    // Select All / Deselect All Button
+                    IconButton(
+                        onClick = {
+                            if (selectedMessageIds.size == messages.size) {
+                                selectedMessageIds = emptySet()
+                            } else {
+                                selectedMessageIds = messages.map { it.id }.toSet()
+                            }
+                        }
+                    ) {
+                        Icon(
+                            imageVector = if (selectedMessageIds.size == messages.size) Icons.Default.Security else Icons.Default.Forum,
+                            contentDescription = "Select All",
+                            tint = Color.White
+                        )
+                    }
+
+                    // Delete Selected Button
+                    IconButton(
+                        onClick = { showBatchDeleteConfirmDialog = true },
+                        modifier = Modifier
+                            .background(Color.White.copy(alpha = 0.25f), CircleShape)
+                            .size(38.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Delete,
+                            contentDescription = "Delete Selected",
+                            tint = Color.White,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+            } else {
+                // Normal Direct Chat Header
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(onClick = onBack) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back",
+                            tint = Color.White
+                        )
+                    }
+
+                    UserAvatarView(
+                        avatarIndex = activeUser.avatarIndex,
+                        displayName = activeUser.displayName,
+                        size = 38.dp
+                    )
+
+                    Spacer(modifier = Modifier.width(10.dp))
+
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = activeUser.displayName.ifBlank { "User" },
+                            style = MaterialTheme.typography.titleMedium.copy(
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White,
+                                fontSize = 15.sp
+                            ),
+                            maxLines = 1
+                        )
+                        Text(
+                            text = "🔒 Direct Private Chat • ${activeUser.district}",
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                color = Color.White.copy(alpha = 0.8f),
+                                fontSize = 11.sp
+                            ),
+                            maxLines = 1
+                        )
+                    }
+
+                    // Action Buttons: In-App Voice Call, Phone Call, & More Options
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        // 1. In-App Voice Call (Internet Call)
+                        Box(
                             modifier = Modifier
-                                .background(Color.White.copy(alpha = 0.2f), CircleShape)
                                 .size(38.dp)
-                                .testTag("regular_phone_call_button")
+                                .shadow(elevation = 2.dp, shape = CircleShape)
+                                .clip(CircleShape)
+                                .background(
+                                    Brush.verticalGradient(
+                                        listOf(Color(0xFF00C853), Color(0xFF1B5E20))
+                                    )
+                                )
+                                .border(1.dp, Color.White.copy(alpha = 0.3f), CircleShape)
+                                .clickable { onInAppCallUser(activeUser) }
+                                .testTag("in_app_call_button"),
+                            contentAlignment = Alignment.Center
                         ) {
                             Icon(
-                                imageVector = Icons.Default.Call,
-                                contentDescription = "Regular Phone Call",
+                                imageVector = Icons.Default.PhoneInTalk,
+                                contentDescription = "In-App Voice Call",
                                 tint = Color.White,
                                 modifier = Modifier.size(19.dp)
                             )
                         }
-                    }
 
-                    Spacer(modifier = Modifier.width(4.dp))
-
-                    // 3. Overflow Menu (Clear Conversation)
-                    Box {
-                        IconButton(
-                            onClick = { showOptionsMenu = true },
-                            modifier = Modifier.size(36.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.MoreVert,
-                                contentDescription = "More Options",
-                                tint = Color.White,
-                                modifier = Modifier.size(20.dp)
-                            )
+                        // 2. Regular Phone Call (if has number)
+                        if (activeUser.phoneNumber.isNotBlank()) {
+                            Box(
+                                modifier = Modifier
+                                    .size(38.dp)
+                                    .shadow(elevation = 2.dp, shape = CircleShape)
+                                    .clip(CircleShape)
+                                    .background(
+                                        Brush.verticalGradient(
+                                            listOf(Color(0xFF00B0FF), Color(0xFF0277BD))
+                                        )
+                                    )
+                                    .border(1.dp, Color.White.copy(alpha = 0.3f), CircleShape)
+                                    .clickable { onCallUser(activeUser) }
+                                    .testTag("regular_phone_call_button"),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Call,
+                                    contentDescription = "Regular Phone Call",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(19.dp)
+                                )
+                            }
                         }
 
-                        DropdownMenu(
-                            expanded = showOptionsMenu,
-                            onDismissRequest = { showOptionsMenu = false }
-                        ) {
-                            DropdownMenuItem(
-                                text = { Text("සංවාදය හිස් කරන්න (Clear Chat)", color = MaterialTheme.colorScheme.error) },
-                                leadingIcon = {
-                                    Icon(Icons.Default.CleaningServices, contentDescription = null, tint = MaterialTheme.colorScheme.error)
-                                },
-                                onClick = {
-                                    showOptionsMenu = false
-                                    showClearConfirmDialog = true
-                                }
-                            )
+                        // 3. Overflow Menu (Clear Conversation / Select Messages)
+                        Box {
+                            IconButton(
+                                onClick = { showOptionsMenu = true },
+                                modifier = Modifier.size(36.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.MoreVert,
+                                    contentDescription = "More Options",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+
+                            DropdownMenu(
+                                expanded = showOptionsMenu,
+                                onDismissRequest = { showOptionsMenu = false }
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text("පණිවිඩ තෝරන්න (Select Messages)") },
+                                    leadingIcon = {
+                                        Icon(Icons.Default.Delete, contentDescription = null)
+                                    },
+                                    onClick = {
+                                        showOptionsMenu = false
+                                        if (messages.isNotEmpty()) {
+                                            selectedMessageIds = setOf(messages.last().id)
+                                        }
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("සංවාදය හිස් කරන්න (Clear Chat)", color = MaterialTheme.colorScheme.error) },
+                                    leadingIcon = {
+                                        Icon(Icons.Default.CleaningServices, contentDescription = null, tint = MaterialTheme.colorScheme.error)
+                                    },
+                                    onClick = {
+                                        showOptionsMenu = false
+                                        showClearConfirmDialog = true
+                                    }
+                                )
+                            }
                         }
                     }
                 }
@@ -756,11 +1351,23 @@ fun DirectPrivateChatContent(
                         val isMe = msg.senderId == myNormKey ||
                                 msg.senderId == uiState.currentUserProfile.userId ||
                                 (msg.senderId.isNotBlank() && msg.senderId == uiState.currentUserProfile.email)
+                        val isSelected = selectedMessageIds.contains(msg.id)
+
+                        val toggleSelection = {
+                            selectedMessageIds = if (isSelected) {
+                                selectedMessageIds - msg.id
+                            } else {
+                                selectedMessageIds + msg.id
+                            }
+                        }
 
                         if (msg.messageType == DirectChatMessage.TYPE_CALL_LOG) {
                             DirectCallLogItem(
                                 message = msg,
                                 isMe = isMe,
+                                isSelectionMode = isSelectionMode,
+                                isSelected = isSelected,
+                                onToggleSelection = toggleSelection,
                                 onCallBack = { onInAppCallUser(activeUser) },
                                 onDelete = { viewModel.deleteDirectMessage(msg.id) }
                             )
@@ -768,6 +1375,9 @@ fun DirectPrivateChatContent(
                             DirectMessageItem(
                                 message = msg,
                                 isMe = isMe,
+                                isSelectionMode = isSelectionMode,
+                                isSelected = isSelected,
+                                onToggleSelection = toggleSelection,
                                 onDelete = { viewModel.deleteDirectMessage(msg.id) }
                             )
                         }
@@ -834,10 +1444,22 @@ fun DirectPrivateChatContent(
     }
 }
 
+data class CallLogVisualConfig(
+    val titleText: String,
+    val statusText: String,
+    val iconVector: androidx.compose.ui.graphics.vector.ImageVector,
+    val containerBg: Color,
+    val borderClr: Color,
+    val mainColor: Color
+)
+
 @Composable
 fun DirectCallLogItem(
     message: DirectChatMessage,
     isMe: Boolean,
+    isSelectionMode: Boolean = false,
+    isSelected: Boolean = false,
+    onToggleSelection: () -> Unit = {},
     onCallBack: () -> Unit,
     onDelete: () -> Unit,
     modifier: Modifier = Modifier
@@ -850,11 +1472,10 @@ fun DirectCallLogItem(
     val isDeclined = message.callStatus == "DECLINED"
     val isMissed = message.callStatus == "MISSED" || (!isConnected && !isDeclined)
 
-    val (titleText, statusText, iconVector, containerBg, borderClr, mainColor) = when {
+    val config = when {
         isMe -> {
-            // Outgoing call (ගනු ලැබූ ඇමතුම)
             when {
-                isConnected -> Tuple6(
+                isConnected -> CallLogVisualConfig(
                     "ගනු ලැබූ ඇමතුම (Outgoing Call)",
                     "🟢 පිළිගන්නා ලදී (Answered)",
                     Icons.AutoMirrored.Filled.CallMade,
@@ -862,7 +1483,7 @@ fun DirectCallLogItem(
                     Color(0xFF81C784),
                     Color(0xFF2E7D32)
                 )
-                isDeclined -> Tuple6(
+                isDeclined -> CallLogVisualConfig(
                     "ගනු ලැබූ ඇමතුම (Outgoing Call)",
                     "🔴 ප්‍රතික්ෂේප විය (Declined)",
                     Icons.Default.CallEnd,
@@ -870,7 +1491,7 @@ fun DirectCallLogItem(
                     Color(0xFFEF9A9A),
                     Color(0xFFC62828)
                 )
-                else -> Tuple6(
+                else -> CallLogVisualConfig(
                     "ගනු ලැබූ ඇමතුම (Outgoing Call)",
                     "⚠️ පිළිතුරු නොලැබුණි (Unanswered)",
                     Icons.AutoMirrored.Filled.CallMade,
@@ -881,9 +1502,8 @@ fun DirectCallLogItem(
             }
         }
         else -> {
-            // Incoming call (ලැබුණු ඇමතුම)
             when {
-                isConnected -> Tuple6(
+                isConnected -> CallLogVisualConfig(
                     "ලැබුණු ඇමතුම (Incoming Call)",
                     "🟢 ඔබ විසින් පිළිගන්නා ලදී",
                     Icons.AutoMirrored.Filled.CallReceived,
@@ -891,7 +1511,7 @@ fun DirectCallLogItem(
                     Color(0xFF81C784),
                     Color(0xFF2E7D32)
                 )
-                isDeclined -> Tuple6(
+                isDeclined -> CallLogVisualConfig(
                     "ප්‍රතික්ෂේප කළ ඇමතුම (Declined Call)",
                     "ඔබ විසින් ප්‍රතික්ෂේප කළ",
                     Icons.Default.CallEnd,
@@ -899,7 +1519,7 @@ fun DirectCallLogItem(
                     Color(0xFFE0E0E0),
                     Color(0xFF616161)
                 )
-                else -> Tuple6(
+                else -> CallLogVisualConfig(
                     "මඟහැරුණු ඇමතුම (Missed Call)",
                     "🔴 මඟහැරුණි (Missed Call)",
                     Icons.AutoMirrored.Filled.CallMissed,
@@ -911,17 +1531,44 @@ fun DirectCallLogItem(
         }
     }
 
-    Box(
+    val titleText = config.titleText
+    val statusText = config.statusText
+    val iconVector = config.iconVector
+    val containerBg = config.containerBg
+    val borderClr = config.borderClr
+    val mainColor = config.mainColor
+
+    Row(
         modifier = modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp),
-        contentAlignment = if (isMe) Alignment.CenterEnd else Alignment.CenterStart
+        horizontalArrangement = if (isMe) Arrangement.End else Arrangement.Start,
+        verticalAlignment = Alignment.CenterVertically
     ) {
+        if (isSelectionMode) {
+            androidx.compose.material3.Checkbox(
+                checked = isSelected,
+                onCheckedChange = { onToggleSelection() },
+                modifier = Modifier.padding(end = 4.dp)
+            )
+        }
+
         Card(
             shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = containerBg),
-            border = BorderStroke(1.dp, borderClr),
-            modifier = Modifier.widthIn(max = 340.dp)
+            colors = CardDefaults.cardColors(
+                containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer else containerBg
+            ),
+            border = BorderStroke(
+                if (isSelected) 2.dp else 1.dp,
+                if (isSelected) MaterialTheme.colorScheme.primary else borderClr
+            ),
+            modifier = Modifier
+                .widthIn(max = 340.dp)
+                .clickable {
+                    if (isSelectionMode) {
+                        onToggleSelection()
+                    }
+                }
         ) {
             Column(modifier = Modifier.padding(12.dp)) {
                 // Top Direction Indicator Badge
@@ -1003,37 +1650,47 @@ fun DirectCallLogItem(
                         }
                     }
 
-                    Box {
-                        IconButton(
-                            onClick = { showMenu = true },
-                            modifier = Modifier.size(28.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.MoreVert,
-                                contentDescription = "Options",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(16.dp)
-                            )
-                        }
+                    if (!isSelectionMode) {
+                        Box {
+                            IconButton(
+                                onClick = { showMenu = true },
+                                modifier = Modifier.size(28.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.MoreVert,
+                                    contentDescription = "Options",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
 
-                        DropdownMenu(
-                            expanded = showMenu,
-                            onDismissRequest = { showMenu = false }
-                        ) {
-                            DropdownMenuItem(
-                                text = { Text("මකන්න (Delete Log)", color = MaterialTheme.colorScheme.error) },
-                                leadingIcon = {
-                                    Icon(
-                                        imageVector = Icons.Default.Delete,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.error
-                                    )
-                                },
-                                onClick = {
-                                    showMenu = false
-                                    onDelete()
-                                }
-                            )
+                            DropdownMenu(
+                                expanded = showMenu,
+                                onDismissRequest = { showMenu = false }
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text("තෝරන්න (Select)") },
+                                    leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null) },
+                                    onClick = {
+                                        showMenu = false
+                                        onToggleSelection()
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("මකන්න (Delete Log)", color = MaterialTheme.colorScheme.error) },
+                                    leadingIcon = {
+                                        Icon(
+                                            imageVector = Icons.Default.Delete,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.error
+                                        )
+                                    },
+                                    onClick = {
+                                        showMenu = false
+                                        onDelete()
+                                    }
+                                )
+                            }
                         }
                     }
                 }
@@ -1069,19 +1726,13 @@ fun DirectCallLogItem(
     }
 }
 
-private data class Tuple6<A, B, C, D, E, F>(
-    val a: A,
-    val b: B,
-    val c: C,
-    val d: D,
-    val e: E,
-    val f: F
-)
-
 @Composable
 fun DirectMessageItem(
     message: DirectChatMessage,
     isMe: Boolean,
+    isSelectionMode: Boolean = false,
+    isSelected: Boolean = false,
+    onToggleSelection: () -> Unit = {},
     onDelete: (() -> Unit)? = null
 ) {
     val timeFormat = SimpleDateFormat("hh:mm a", Locale.getDefault())
@@ -1097,7 +1748,15 @@ fun DirectMessageItem(
         horizontalArrangement = if (isMe) Arrangement.End else Arrangement.Start,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        if (isMe) {
+        if (isSelectionMode) {
+            androidx.compose.material3.Checkbox(
+                checked = isSelected,
+                onCheckedChange = { onToggleSelection() },
+                modifier = Modifier.padding(end = 4.dp)
+            )
+        }
+
+        if (isMe && !isSelectionMode) {
             Box {
                 IconButton(
                     onClick = { showMenu = true },
@@ -1111,6 +1770,14 @@ fun DirectMessageItem(
                     )
                 }
                 DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
+                    DropdownMenuItem(
+                        text = { Text("තෝරන්න (Select)") },
+                        leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null) },
+                        onClick = {
+                            showMenu = false
+                            onToggleSelection()
+                        }
+                    )
                     DropdownMenuItem(
                         text = { Text("පිටපත් කරන්න (Copy)") },
                         leadingIcon = { Icon(Icons.Default.ContentCopy, contentDescription = null) },
@@ -1147,14 +1814,32 @@ fun DirectMessageItem(
                     bottomEnd = if (isMe) 4.dp else 16.dp
                 ),
                 colors = CardDefaults.cardColors(
-                    containerColor = if (isMe) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant
-                )
+                    containerColor = if (isSelected) {
+                        MaterialTheme.colorScheme.primaryContainer
+                    } else if (isMe) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.surfaceVariant
+                    }
+                ),
+                border = if (isSelected) BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null,
+                modifier = Modifier.clickable {
+                    if (isSelectionMode) {
+                        onToggleSelection()
+                    }
+                }
             ) {
                 Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)) {
                     Text(
                         text = message.text,
                         style = MaterialTheme.typography.bodyMedium.copy(
-                            color = if (isMe) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
+                            color = if (isSelected) {
+                                MaterialTheme.colorScheme.onPrimaryContainer
+                            } else if (isMe) {
+                                MaterialTheme.colorScheme.onPrimary
+                            } else {
+                                MaterialTheme.colorScheme.onSurface
+                            },
                             lineHeight = 20.sp
                         )
                     )
@@ -1167,7 +1852,7 @@ fun DirectMessageItem(
             )
         }
 
-        if (!isMe) {
+        if (!isMe && !isSelectionMode) {
             Spacer(modifier = Modifier.width(4.dp))
             Box {
                 IconButton(
@@ -1182,6 +1867,14 @@ fun DirectMessageItem(
                     )
                 }
                 DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
+                    DropdownMenuItem(
+                        text = { Text("තෝරන්න (Select)") },
+                        leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null) },
+                        onClick = {
+                            showMenu = false
+                            onToggleSelection()
+                        }
+                    )
                     DropdownMenuItem(
                         text = { Text("පිටපත් කරන්න (Copy)") },
                         leadingIcon = { Icon(Icons.Default.ContentCopy, contentDescription = null) },

@@ -159,7 +159,19 @@ class CallRepository(
                     val data = snapshot.data ?: return@addSnapshotListener
                     val updatedSession = CallSession.fromMap(data).copy(callId = snapshot.id)
 
-                    _activeCall.value = updatedSession
+                    val isCaller = myKeys.contains(updatedSession.callerId) ||
+                            (updatedSession.callerEmail.isNotBlank() && myKeys.contains(updatedSession.callerEmail)) ||
+                            (updatedSession.callerUserId.isNotBlank() && myKeys.contains(updatedSession.callerUserId))
+
+                    if (updatedSession.status == CallSession.STATUS_RINGING) {
+                        if (!isCaller) {
+                            _incomingCall.value = updatedSession
+                        } else {
+                            _activeCall.value = updatedSession
+                        }
+                    } else {
+                        _activeCall.value = updatedSession
+                    }
 
                     if (updatedSession.status == CallSession.STATUS_CONNECTED) {
                         AppNotificationManager.stopIncomingCallRingtone(context)
@@ -171,9 +183,7 @@ class CallRepository(
                         AppNotificationManager.stopIncomingCallRingtone(context)
                         AppNotificationManager.dismissIncomingCallNotification(context)
                         if (updatedSession.connectedAt == 0L && updatedSession.status != CallSession.STATUS_DECLINED) {
-                            val isReceiver = _incomingCall.value != null ||
-                                    myKeys.contains(updatedSession.receiverId) ||
-                                    updatedSession.targetKeys.any { myKeys.contains(it) }
+                            val isReceiver = !isCaller
                             if (isReceiver) {
                                 AppNotificationManager.showMissedCallNotification(context, updatedSession.callerName)
                             }

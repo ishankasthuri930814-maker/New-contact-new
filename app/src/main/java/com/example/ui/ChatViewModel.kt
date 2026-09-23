@@ -24,8 +24,8 @@ enum class ChatMode {
 }
 
 data class ChatUiState(
-    val chatMode: ChatMode = ChatMode.COMMUNITY_ROOM,
-    val previousChatMode: ChatMode = ChatMode.REGISTERED_USERS,
+    val chatMode: ChatMode = ChatMode.REGISTERED_USERS,
+    val previousChatMode: ChatMode = ChatMode.COMMUNITY_ROOM,
     // Community
     val messages: List<ChatMessage> = emptyList(),
     val selectedChannel: String = "general",
@@ -209,6 +209,24 @@ class ChatViewModel(
         }
     }
 
+    fun deleteSelectedDirectMessages(messageIds: Set<String>) {
+        if (messageIds.isEmpty()) return
+        val active = _uiState.value.activeDirectUser ?: return
+        val myKey = _uiState.value.currentUserProfile.email.ifBlank { _uiState.value.currentUserProfile.userId }
+        val otherKey = active.email.ifBlank { active.userId }
+        val convId = DirectChatMessage.createConversationId(myKey, otherKey)
+        viewModelScope.launch {
+            chatRepository.deleteMultipleDirectMessages(messageIds, convId)
+        }
+    }
+
+    fun deleteSelectedCommunityMessages(messageIds: Set<String>) {
+        if (messageIds.isEmpty()) return
+        viewModelScope.launch {
+            chatRepository.deleteMultipleCommunityMessages(messageIds)
+        }
+    }
+
     fun clearCurrentDirectConversation() {
         val active = _uiState.value.activeDirectUser ?: return
         val myKey = _uiState.value.currentUserProfile.email.ifBlank { _uiState.value.currentUserProfile.userId }
@@ -274,12 +292,11 @@ class ChatViewModel(
 
         if (state.chatMode == ChatMode.DIRECT_CHAT_ROOM) {
             val other = state.activeDirectUser ?: return
-            val otherKey = other.email.ifBlank { other.userId }
             viewModelScope.launch {
                 _uiState.update { it.copy(isSending = true, inputText = "") }
                 chatRepository.sendDirectMessage(
                     sender = profile,
-                    receiverUserId = otherKey,
+                    receiver = other,
                     text = text
                 )
                 _uiState.update { it.copy(isSending = false) }
