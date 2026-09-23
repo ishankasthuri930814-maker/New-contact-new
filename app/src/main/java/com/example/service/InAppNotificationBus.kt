@@ -8,6 +8,7 @@ data class InAppNotification(
     val id: String = System.currentTimeMillis().toString(),
     val title: String,
     val body: String,
+    val imageUrl: String? = null,
     val timestamp: Long = System.currentTimeMillis(),
     val data: Map<String, String> = emptyMap()
 )

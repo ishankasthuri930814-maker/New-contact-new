@@ -15,14 +15,22 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
 
 private val DarkColorScheme = darkColorScheme(
-    primary = Navy80,
-    secondary = NavyGrey80,
-    tertiary = Gold80,
+    primary = Color(0xFF60A5FA),
+    secondary = Color(0xFF93C5FD),
+    tertiary = Color(0xFFFBBF24),
     background = Color(0xFF0F172A),
     surface = Color(0xFF1E293B),
-    onPrimary = Color(0xFF0F2A4A),
-    onSecondary = Color(0xFF0F2A4A),
-    onTertiary = Color(0xFF0F2A4A)
+    surfaceVariant = Color(0xFF334155),
+    onPrimary = Color(0xFF0F172A),
+    onSecondary = Color(0xFF0F172A),
+    onTertiary = Color(0xFF0F172A),
+    onBackground = Color(0xFFF8FAFC),
+    onSurface = Color(0xFFF8FAFC),
+    onSurfaceVariant = Color(0xFFCBD5E1),
+    primaryContainer = Color(0xFF1E3A8A),
+    onPrimaryContainer = Color(0xFFDBEAFE),
+    outline = Color(0xFF64748B),
+    outlineVariant = Color(0xFF334155)
 )
 
 private val LightColorScheme = lightColorScheme(
@@ -31,11 +39,17 @@ private val LightColorScheme = lightColorScheme(
     tertiary = PoliceGold,
     background = SurfaceLight,
     surface = Color.White,
+    surfaceVariant = Color(0xFFF1F5F9),
     onPrimary = Color.White,
     onSecondary = Color.White,
     onTertiary = Color.White,
     onBackground = OnSurfaceLight,
-    onSurface = OnSurfaceLight
+    onSurface = OnSurfaceLight,
+    onSurfaceVariant = Color(0xFF475569),
+    primaryContainer = Color(0xFFE0F2FE),
+    onPrimaryContainer = Color(0xFF0369A1),
+    outline = Color(0xFFCBD5E1),
+    outlineVariant = Color(0xFFE2E8F0)
 )
 
 @Composable

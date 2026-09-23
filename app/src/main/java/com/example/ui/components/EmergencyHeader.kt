@@ -53,7 +53,8 @@ import com.example.ui.theme.PoliceNavy
 fun EmergencyHeader(
     onEmergencyCall: (String) -> Unit,
     modifier: Modifier = Modifier,
-    appConfig: AppConfig = AppConfig()
+    appConfig: AppConfig = AppConfig(),
+    selectedLanguage: com.example.util.AppLanguage = com.example.util.AppLanguage.SINHALA
 ) {
     val theme = appConfig.theme
     val header = appConfig.header
@@ -61,6 +62,36 @@ fun EmergencyHeader(
     val accentColor = theme.getAccentColor()
     val emergencyRed = theme.getEmergencyRed()
     val headerTextColor = theme.getHeaderTextColor()
+
+    val badgeLabel = when (selectedLanguage) {
+        com.example.util.AppLanguage.SINHALA -> "නිල නාමාවලිය"
+        com.example.util.AppLanguage.TAMIL -> "அதிகாரபூர்வ விபரம்"
+        com.example.util.AppLanguage.ENGLISH -> header.badgeText
+    }
+
+    val bannerTitle = when (selectedLanguage) {
+        com.example.util.AppLanguage.SINHALA -> "ශ්‍රී ලංකා පොලිස් තොරතුරු නාමාවලිය"
+        com.example.util.AppLanguage.TAMIL -> "இலங்கை பொலிஸ் தொடர்பு விபரங்கள்"
+        com.example.util.AppLanguage.ENGLISH -> header.title
+    }
+
+    val bannerSubtitle = when (selectedLanguage) {
+        com.example.util.AppLanguage.SINHALA -> "පොලිස් ස්ථාන, නිලධාරීන් සහ හදිසි සේවා සබඳතා"
+        com.example.util.AppLanguage.TAMIL -> "பொலிஸ் நிலையங்கள், அதிகாரிகள் மற்றும் அவசர சேவைகள்"
+        com.example.util.AppLanguage.ENGLISH -> header.subtitle
+    }
+
+    val emergencyBadge = when (selectedLanguage) {
+        com.example.util.AppLanguage.SINHALA -> "119 හදිසි ඇමතුම"
+        com.example.util.AppLanguage.TAMIL -> "119 அவசரம்"
+        com.example.util.AppLanguage.ENGLISH -> header.emergencyBadgeText
+    }
+
+    val quickActionsLabel = when (selectedLanguage) {
+        com.example.util.AppLanguage.SINHALA -> "⚡ ක්ෂණික හදිසි ඇමතුම් (Quick Hotlines)"
+        com.example.util.AppLanguage.TAMIL -> "⚡ அவசர துரித அழைப்புகள் (Quick Hotlines)"
+        com.example.util.AppLanguage.ENGLISH -> "⚡ Quick Emergency Hotlines"
+    }
 
     Column(modifier = modifier.fillMaxWidth()) {
         // Hero Gradient Banner Card (If enabled in remote config)
@@ -111,7 +142,7 @@ fun EmergencyHeader(
                                     )
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Text(
-                                        text = header.badgeText,
+                                        text = badgeLabel,
                                         style = MaterialTheme.typography.labelSmall.copy(
                                             fontWeight = FontWeight.Bold,
                                             letterSpacing = 1.sp
@@ -132,13 +163,13 @@ fun EmergencyHeader(
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Call,
-                                    contentDescription = header.emergencyBadgeText,
+                                    contentDescription = emergencyBadge,
                                     tint = Color.White,
                                     modifier = Modifier.size(16.dp)
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
-                                    text = header.emergencyBadgeText,
+                                    text = emergencyBadge,
                                     style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.ExtraBold),
                                     color = Color.White
                                 )
@@ -147,7 +178,7 @@ fun EmergencyHeader(
 
                         Column {
                             Text(
-                                text = header.title,
+                                text = bannerTitle,
                                 style = MaterialTheme.typography.titleLarge.copy(
                                     fontWeight = FontWeight.Bold,
                                     color = headerTextColor
@@ -155,7 +186,7 @@ fun EmergencyHeader(
                             )
                             Spacer(modifier = Modifier.height(2.dp))
                             Text(
-                                text = header.subtitle,
+                                text = bannerSubtitle,
                                 style = MaterialTheme.typography.bodySmall.copy(
                                     color = headerTextColor.copy(alpha = 0.85f)
                                 )
@@ -193,7 +224,7 @@ fun EmergencyHeader(
             Spacer(modifier = Modifier.height(14.dp))
 
             Text(
-                text = appConfig.quickActionsTitle,
+                text = quickActionsLabel,
                 style = MaterialTheme.typography.titleSmall.copy(
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface

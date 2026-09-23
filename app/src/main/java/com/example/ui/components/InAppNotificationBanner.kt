@@ -39,6 +39,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -46,6 +47,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import coil.compose.AsyncImage
 import com.example.service.InAppNotification
 import com.example.ui.theme.EmergencyRed
 import com.example.ui.theme.PoliceGold
@@ -217,6 +219,19 @@ fun InAppMessageDialog(
                 )
 
                 Spacer(modifier = Modifier.height(12.dp))
+
+                if (!notification.imageUrl.isNullOrBlank()) {
+                    AsyncImage(
+                        model = notification.imageUrl,
+                        contentDescription = "Notification Image",
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(180.dp)
+                            .clip(RoundedCornerShape(14.dp)),
+                        contentScale = ContentScale.Crop
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                }
 
                 Card(
                     shape = RoundedCornerShape(14.dp),

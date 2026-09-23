@@ -2,8 +2,10 @@ package com.example.ui
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -31,11 +33,16 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalance
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.ArrowDropUp
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Dialpad
 import androidx.compose.material.icons.filled.DirectionsBus
 import androidx.compose.material.icons.filled.Fireplace
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.LocalHospital
 import androidx.compose.material.icons.filled.LocalPolice
@@ -47,8 +54,12 @@ import androidx.compose.material.icons.filled.SearchOff
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Divider
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
@@ -67,6 +78,8 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.text.style.TextOverflow
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
@@ -90,6 +103,7 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -121,11 +135,22 @@ import com.example.data.model.AppConfig
 import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Logout
+import androidx.compose.material.icons.filled.Forum
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.ui.components.EmergencyHeader
 import com.example.ui.theme.PoliceGold
 import com.example.ui.theme.PoliceNavy
+
+enum class MainScreenTab {
+    DIRECTORY,
+    CHAT,
+    PROFILE
+}
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -141,6 +166,7 @@ fun PoliceScreen(
     val context = LocalContext.current
     val activity = remember(context) { context.findActivity() }
     val keyboardController = LocalSoftwareKeyboardController.current
+    val focusManager = LocalFocusManager.current
     val snackbarHostState = remember { SnackbarHostState() }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var showInfoDialog by remember { mutableStateOf(true) }
@@ -149,6 +175,14 @@ fun PoliceScreen(
     var aiSearchQuery by remember { mutableStateOf("") }
     var contactForQrDialog by remember { mutableStateOf<PoliceContact?>(null) }
     var showManualUpdateDialog by remember { mutableStateOf(false) }
+    var showLanguageMenu by remember { mutableStateOf(false) }
+    var currentTab by remember { mutableStateOf(MainScreenTab.DIRECTORY) }
+    val chatViewModel: ChatViewModel = viewModel(
+        factory = ChatViewModel.Factory(context)
+    )
+    val profileViewModel: ProfileViewModel = viewModel(
+        factory = ProfileViewModel.Factory(context)
+    )
     val coroutineScope = rememberCoroutineScope()
     val updateStatus by AppUpdateManager.updateStatus.collectAsStateWithLifecycle()
     val currentNotice by AppNoticeManager.currentNotice.collectAsStateWithLifecycle()
@@ -230,7 +264,103 @@ fun PoliceScreen(
         modifier = modifier.fillMaxSize(),
         contentWindowInsets = WindowInsets.navigationBars,
         snackbarHost = { SnackbarHost(snackbarHostState) },
-        bottomBar = { BannerAdView() },
+        bottomBar = {
+            Surface(
+                tonalElevation = 6.dp,
+                shadowElevation = 8.dp,
+                color = MaterialTheme.colorScheme.surface
+            ) {
+                Column {
+                    NavigationBar(
+                        containerColor = MaterialTheme.colorScheme.surface,
+                        contentColor = MaterialTheme.colorScheme.primary,
+                        tonalElevation = 0.dp
+                    ) {
+                        NavigationBarItem(
+                            selected = currentTab == MainScreenTab.DIRECTORY,
+                            onClick = { currentTab = MainScreenTab.DIRECTORY },
+                            icon = {
+                                Icon(
+                                    imageVector = Icons.Default.Phone,
+                                    contentDescription = "Directory"
+                                )
+                            },
+                            label = {
+                                Text(
+                                    text = com.example.util.AppStrings.navDirectory(uiState.selectedLanguage),
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        fontWeight = if (currentTab == MainScreenTab.DIRECTORY) FontWeight.Bold else FontWeight.Normal
+                                    )
+                                )
+                            },
+                            colors = NavigationBarItemDefaults.colors(
+                                selectedIconColor = MaterialTheme.colorScheme.onPrimary,
+                                selectedTextColor = MaterialTheme.colorScheme.primary,
+                                indicatorColor = MaterialTheme.colorScheme.primary,
+                                unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            ),
+                            modifier = Modifier.testTag("nav_item_directory")
+                        )
+
+                        NavigationBarItem(
+                            selected = currentTab == MainScreenTab.CHAT,
+                            onClick = { currentTab = MainScreenTab.CHAT },
+                            icon = {
+                                Icon(
+                                    imageVector = Icons.Default.Forum,
+                                    contentDescription = "Chat"
+                                )
+                            },
+                            label = {
+                                Text(
+                                    text = com.example.util.AppStrings.navChat(uiState.selectedLanguage),
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        fontWeight = if (currentTab == MainScreenTab.CHAT) FontWeight.Bold else FontWeight.Normal
+                                    )
+                                )
+                            },
+                            colors = NavigationBarItemDefaults.colors(
+                                selectedIconColor = MaterialTheme.colorScheme.onPrimary,
+                                selectedTextColor = MaterialTheme.colorScheme.primary,
+                                indicatorColor = MaterialTheme.colorScheme.primary,
+                                unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            ),
+                            modifier = Modifier.testTag("nav_item_chat")
+                        )
+
+                        NavigationBarItem(
+                            selected = currentTab == MainScreenTab.PROFILE,
+                            onClick = { currentTab = MainScreenTab.PROFILE },
+                            icon = {
+                                Icon(
+                                    imageVector = Icons.Default.Person,
+                                    contentDescription = "Profile"
+                                )
+                            },
+                            label = {
+                                Text(
+                                    text = com.example.util.AppStrings.navProfile(uiState.selectedLanguage),
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        fontWeight = if (currentTab == MainScreenTab.PROFILE) FontWeight.Bold else FontWeight.Normal
+                                    )
+                                )
+                            },
+                            colors = NavigationBarItemDefaults.colors(
+                                selectedIconColor = MaterialTheme.colorScheme.onPrimary,
+                                selectedTextColor = MaterialTheme.colorScheme.primary,
+                                indicatorColor = MaterialTheme.colorScheme.primary,
+                                unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            ),
+                            modifier = Modifier.testTag("nav_item_profile")
+                        )
+                    }
+                    BannerAdView()
+                }
+            }
+        },
         topBar = {
             TopAppBar(
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -257,8 +387,13 @@ fun PoliceScreen(
                         Spacer(modifier = Modifier.width(10.dp))
                         Column {
                             Text(
-                                text = "ALL Police Contact",
-                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                                text = com.example.util.AppStrings.appTitle(uiState.selectedLanguage),
+                                style = MaterialTheme.typography.titleMedium.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 15.sp
+                                ),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 if (uiState.isOfflineMode) {
@@ -270,12 +405,14 @@ fun PoliceScreen(
                                     )
                                     Spacer(modifier = Modifier.width(4.dp))
                                     Text(
-                                        text = "Offline Mode (සුරැකි දත්ත)",
+                                        text = com.example.util.AppStrings.offlineBanner(uiState.selectedLanguage),
                                         style = MaterialTheme.typography.labelSmall.copy(
                                             color = Color(0xFFFFD54F),
-                                            fontSize = 11.sp,
+                                            fontSize = 10.sp,
                                             fontWeight = FontWeight.Medium
-                                        )
+                                        ),
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
                                     )
                                 } else {
                                     Box(
@@ -298,6 +435,98 @@ fun PoliceScreen(
                     }
                 },
                 actions = {
+                    // Language Switcher Dropdown (සිංහල / English / தமிழ்)
+                    Box {
+                        Surface(
+                            onClick = { showLanguageMenu = true },
+                            shape = RoundedCornerShape(18.dp),
+                            color = Color.White.copy(alpha = 0.2f),
+                            border = BorderStroke(1.dp, PoliceGold.copy(alpha = 0.7f)),
+                            modifier = Modifier
+                                .padding(end = 4.dp)
+                                .testTag("top_language_switcher_button")
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "${uiState.selectedLanguage.flag} ${uiState.selectedLanguage.displayName}",
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = Color.White,
+                                        fontSize = 11.sp
+                                    )
+                                )
+                                Spacer(modifier = Modifier.width(2.dp))
+                                Icon(
+                                    imageVector = Icons.Default.ArrowDropDown,
+                                    contentDescription = "Switch Language",
+                                    tint = PoliceGold,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
+
+                        DropdownMenu(
+                            expanded = showLanguageMenu,
+                            onDismissRequest = { showLanguageMenu = false },
+                            modifier = Modifier
+                                .background(Color.White)
+                                .testTag("language_dropdown_menu")
+                        ) {
+                            com.example.util.AppLanguage.values().forEach { lang ->
+                                val isSelected = uiState.selectedLanguage == lang
+                                DropdownMenuItem(
+                                    text = {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            Text(text = lang.flag, fontSize = 16.sp)
+                                            Column {
+                                                Text(
+                                                    text = lang.displayName,
+                                                    style = MaterialTheme.typography.bodyMedium.copy(
+                                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                                        color = if (isSelected) PoliceNavy else Color(0xFF1E293B)
+                                                    )
+                                                )
+                                                Text(
+                                                    text = lang.englishName,
+                                                    style = MaterialTheme.typography.labelSmall.copy(
+                                                        color = Color.Gray,
+                                                        fontSize = 10.sp
+                                                    )
+                                                )
+                                            }
+                                        }
+                                    },
+                                    trailingIcon = {
+                                        if (isSelected) {
+                                            Icon(
+                                                imageVector = Icons.Default.Check,
+                                                contentDescription = "Selected",
+                                                tint = PoliceGold,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
+                                    },
+                                    onClick = {
+                                        showLanguageMenu = false
+                                        if (uiState.selectedLanguage != lang) {
+                                            viewModel.setLanguage(lang)
+                                            Toast.makeText(
+                                                context,
+                                                com.example.util.AppStrings.languageSwitched(lang),
+                                                Toast.LENGTH_SHORT
+                                            ).show()
+                                        }
+                                    }
+                                )
+                            }
+                        }
+                    }
                     Surface(
                         onClick = {
                             aiSearchQuery = uiState.searchQuery
@@ -367,7 +596,7 @@ fun PoliceScreen(
                         )
                     }
                     IconButton(
-                        onClick = { showUserDialog = true },
+                        onClick = { currentTab = MainScreenTab.PROFILE },
                         modifier = Modifier.testTag("account_profile_button")
                     ) {
                         Icon(
@@ -386,19 +615,21 @@ fun PoliceScreen(
                 .padding(innerPadding)
                 .background(MaterialTheme.colorScheme.background)
         ) {
-            Column(modifier = Modifier.fillMaxSize()) {
-                // In-App Notification Banner if notification received in foreground
-                InAppNotificationBanner(
-                    notification = activeInAppBanner,
-                    onDismiss = { activeInAppBanner = null },
-                    onClick = {
-                        val n = activeInAppBanner
-                        activeInAppBanner = null
-                        if (n != null) {
-                            activeInAppDialog = n
-                        }
-                    }
-                )
+            when (currentTab) {
+                MainScreenTab.DIRECTORY -> {
+                    Column(modifier = Modifier.fillMaxSize()) {
+                        // In-App Notification Banner if notification received in foreground
+                        InAppNotificationBanner(
+                            notification = activeInAppBanner,
+                            onDismiss = { activeInAppBanner = null },
+                            onClick = {
+                                val n = activeInAppBanner
+                                activeInAppBanner = null
+                                if (n != null) {
+                                    activeInAppDialog = n
+                                }
+                            }
+                        )
 
                 // Search Field & Category Filter Bar Header Section
                 Surface(
@@ -411,58 +642,224 @@ fun PoliceScreen(
                             .fillMaxWidth()
                             .padding(horizontal = 16.dp, vertical = 12.dp)
                     ) {
-                        // Search Bar
-                        OutlinedTextField(
-                            value = uiState.searchQuery,
-                            onValueChange = { viewModel.onSearchQueryChange(it) },
-                            placeholder = {
-                                Text(
-                                    text = "Search station, officer, phone or email...",
-                                    style = MaterialTheme.typography.bodyMedium.copy(
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                                    )
-                                )
-                            },
-                            leadingIcon = {
-                                Icon(
-                                    imageVector = Icons.Default.Search,
-                                    contentDescription = "Search",
-                                    tint = PoliceNavy
-                                )
-                            },
-                            trailingIcon = {
-                                if (uiState.searchQuery.isNotEmpty()) {
-                                    IconButton(onClick = {
-                                        viewModel.onSearchQueryChange("")
-                                        keyboardController?.hide()
-                                        activity?.let { act ->
-                                            com.example.ads.AdMobManager.showInterstitialAd(act)
-                                        }
-                                    }) {
+                        // Search Bar & History Dropdown
+                        Box(modifier = Modifier.fillMaxWidth()) {
+                            Column(modifier = Modifier.fillMaxWidth()) {
+                                OutlinedTextField(
+                                    value = uiState.searchQuery,
+                                    onValueChange = { 
+                                        viewModel.onSearchQueryChange(it)
+                                    },
+                                    placeholder = {
+                                        Text(
+                                            text = com.example.util.AppStrings.searchPlaceholder(uiState.selectedLanguage),
+                                            style = MaterialTheme.typography.bodyMedium.copy(
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                                            )
+                                        )
+                                    },
+                                    leadingIcon = {
                                         Icon(
-                                            imageVector = Icons.Default.Clear,
-                                            contentDescription = "Clear search",
+                                            imageVector = Icons.Default.Search,
+                                            contentDescription = "Search",
                                             tint = PoliceNavy
                                         )
+                                    },
+                                    trailingIcon = {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            modifier = Modifier.padding(end = 4.dp)
+                                        ) {
+                                            if (uiState.searchQuery.isNotEmpty()) {
+                                                IconButton(onClick = {
+                                                    viewModel.onSearchQueryChange("")
+                                                    keyboardController?.hide()
+                                                    activity?.let { act ->
+                                                        com.example.ads.AdMobManager.showInterstitialAd(act)
+                                                    }
+                                                }) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.Clear,
+                                                        contentDescription = "Clear search",
+                                                        tint = PoliceNavy
+                                                    )
+                                                }
+                                            }
+                                            if (uiState.searchHistory.isNotEmpty()) {
+                                                IconButton(
+                                                    onClick = {
+                                                        viewModel.toggleSearchHistoryDropdown()
+                                                    },
+                                                    modifier = Modifier.testTag("search_history_dropdown_toggle")
+                                                ) {
+                                                    Icon(
+                                                        imageVector = if (uiState.isSearchHistoryDropdownOpen) Icons.Default.ArrowDropUp else Icons.Default.ArrowDropDown,
+                                                        contentDescription = "Search History",
+                                                        tint = if (uiState.isSearchHistoryDropdownOpen) PoliceGold else PoliceNavy
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    },
+                                    singleLine = true,
+                                    shape = RoundedCornerShape(16.dp),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedContainerColor = Color.White,
+                                        unfocusedContainerColor = Color.White,
+                                        focusedBorderColor = PoliceGold,
+                                        unfocusedBorderColor = Color.Transparent,
+                                        focusedTextColor = PoliceNavy,
+                                        unfocusedTextColor = PoliceNavy
+                                    ),
+                                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                                    keyboardActions = KeyboardActions(
+                                        onSearch = {
+                                            viewModel.submitSearch(uiState.searchQuery)
+                                            keyboardController?.hide()
+                                            focusManager.clearFocus()
+                                        }
+                                    ),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .onFocusChanged { focusState ->
+                                            if (focusState.isFocused && uiState.searchHistory.isNotEmpty() && uiState.searchQuery.isEmpty()) {
+                                                viewModel.setSearchHistoryDropdownOpen(true)
+                                            }
+                                        }
+                                        .testTag("search_text_field")
+                                )
+
+                                // Search History Dropdown Card
+                                AnimatedVisibility(
+                                    visible = uiState.isSearchHistoryDropdownOpen && uiState.searchHistory.isNotEmpty(),
+                                    enter = expandVertically() + fadeIn(),
+                                    exit = shrinkVertically() + fadeOut()
+                                ) {
+                                    Card(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(top = 8.dp)
+                                            .testTag("search_history_dropdown_card"),
+                                        shape = RoundedCornerShape(16.dp),
+                                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                                        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
+                                    ) {
+                                        Column(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(horizontal = 14.dp, vertical = 10.dp)
+                                        ) {
+                                            // Header
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.History,
+                                                        contentDescription = null,
+                                                        tint = PoliceNavy,
+                                                        modifier = Modifier.size(18.dp)
+                                                    )
+                                                    Spacer(modifier = Modifier.width(6.dp))
+                                                    Text(
+                                                        text = com.example.util.AppStrings.recentSearches(uiState.selectedLanguage),
+                                                        style = MaterialTheme.typography.labelMedium.copy(
+                                                            fontWeight = FontWeight.Bold,
+                                                            color = PoliceNavy
+                                                        )
+                                                    )
+                                                }
+                                                TextButton(
+                                                    onClick = { viewModel.clearSearchHistory() },
+                                                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.DeleteSweep,
+                                                        contentDescription = null,
+                                                        tint = Color.Gray,
+                                                        modifier = Modifier.size(16.dp)
+                                                    )
+                                                    Spacer(modifier = Modifier.width(4.dp))
+                                                    Text(
+                                                        text = com.example.util.AppStrings.clearAll(uiState.selectedLanguage),
+                                                        style = MaterialTheme.typography.labelSmall.copy(
+                                                            color = Color.Gray,
+                                                            fontWeight = FontWeight.Medium
+                                                        )
+                                                    )
+                                                }
+                                            }
+
+                                            Divider(
+                                                color = Color(0xFFF1F5F9),
+                                                thickness = 1.dp,
+                                                modifier = Modifier.padding(vertical = 6.dp)
+                                            )
+
+                                            // History items
+                                            val visibleHistory = if (uiState.searchQuery.isBlank()) {
+                                                uiState.searchHistory.take(8)
+                                            } else {
+                                                uiState.searchHistory.filter { 
+                                                    it.contains(uiState.searchQuery, ignoreCase = true) 
+                                                }.take(8).ifEmpty { uiState.searchHistory.take(5) }
+                                            }
+
+                                            visibleHistory.forEach { historyItem ->
+                                                Row(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .clip(RoundedCornerShape(8.dp))
+                                                        .clickable {
+                                                            viewModel.selectHistoryItem(historyItem)
+                                                            keyboardController?.hide()
+                                                            focusManager.clearFocus()
+                                                        }
+                                                        .padding(vertical = 8.dp, horizontal = 4.dp),
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.SpaceBetween
+                                                ) {
+                                                    Row(
+                                                        modifier = Modifier.weight(1f),
+                                                        verticalAlignment = Alignment.CenterVertically
+                                                    ) {
+                                                        Icon(
+                                                            imageVector = Icons.Default.History,
+                                                            contentDescription = null,
+                                                            tint = Color.Gray,
+                                                            modifier = Modifier.size(16.dp)
+                                                        )
+                                                        Spacer(modifier = Modifier.width(10.dp))
+                                                        Text(
+                                                            text = historyItem,
+                                                            style = MaterialTheme.typography.bodyMedium.copy(
+                                                                color = Color(0xFF1E293B),
+                                                                fontWeight = FontWeight.Medium
+                                                            ),
+                                                            maxLines = 1,
+                                                            overflow = TextOverflow.Ellipsis
+                                                        )
+                                                    }
+                                                    IconButton(
+                                                        onClick = { viewModel.removeHistoryItem(historyItem) },
+                                                        modifier = Modifier.size(24.dp)
+                                                    ) {
+                                                        Icon(
+                                                            imageVector = Icons.Default.Close,
+                                                            contentDescription = "Remove from history",
+                                                            tint = Color.LightGray,
+                                                            modifier = Modifier.size(14.dp)
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        }
                                     }
                                 }
-                            },
-                            singleLine = true,
-                            shape = RoundedCornerShape(16.dp),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedContainerColor = Color.White,
-                                unfocusedContainerColor = Color.White,
-                                focusedBorderColor = PoliceGold,
-                                unfocusedBorderColor = Color.Transparent,
-                                focusedTextColor = PoliceNavy,
-                                unfocusedTextColor = PoliceNavy
-                            ),
-                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                            keyboardActions = KeyboardActions(onSearch = { keyboardController?.hide() }),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .testTag("search_text_field")
-                        )
+                            }
+                        }
 
                         Spacer(modifier = Modifier.height(10.dp))
 
@@ -478,7 +875,7 @@ fun PoliceScreen(
                                     onClick = { viewModel.onCategorySelect(category) },
                                     label = {
                                         Text(
-                                            text = "${category.displayName} (${category.sinhalaName})",
+                                            text = category.getLocalizedName(uiState.selectedLanguage),
                                             style = MaterialTheme.typography.labelMedium.copy(
                                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
                                             )
@@ -526,7 +923,8 @@ fun PoliceScreen(
                                 EmergencyHeader(
                                     onEmergencyCall = { number -> viewModel.makePhoneCall(context, number) },
                                     modifier = Modifier.padding(bottom = 8.dp),
-                                    appConfig = appConfig
+                                    appConfig = appConfig,
+                                    selectedLanguage = uiState.selectedLanguage
                                 )
                             }
                         }
@@ -628,13 +1026,32 @@ fun PoliceScreen(
                                     onShareClick = { c -> viewModel.shareContact(context, c) },
                                     onCardClick = { c -> viewModel.openContactDetail(c) },
                                     onNavigationClick = { c -> viewModel.startNavigation(context, c) },
-                                    onQrCodeClick = { c -> contactForQrDialog = c }
+                                    onQrCodeClick = { c -> contactForQrDialog = c },
+                                    selectedLanguage = uiState.selectedLanguage
                                 )
                             }
                         }
                     }
                 }
             }
+        }
+        MainScreenTab.CHAT -> {
+            ChatScreen(
+                viewModel = chatViewModel,
+                selectedLanguage = uiState.selectedLanguage,
+                modifier = Modifier.fillMaxSize()
+            )
+        }
+        MainScreenTab.PROFILE -> {
+            ProfileScreen(
+                viewModel = profileViewModel,
+                currentUserEmail = currentUser,
+                onLogout = onLogout,
+                selectedLanguage = uiState.selectedLanguage,
+                modifier = Modifier.fillMaxSize()
+            )
+        }
+    }
 
             // Contact Detail Modal Bottom Sheet
             uiState.selectedContactForDetail?.let { selectedContact ->
@@ -654,7 +1071,8 @@ fun PoliceScreen(
                     onShareClick = { c -> viewModel.shareContact(context, c) },
                     onFavoriteToggle = { c -> viewModel.toggleFavorite(c) },
                     onNavigationClick = { c -> viewModel.startNavigation(context, c) },
-                    onQrCodeClick = { c -> contactForQrDialog = c }
+                    onQrCodeClick = { c -> contactForQrDialog = c },
+                    selectedLanguage = uiState.selectedLanguage
                 )
             }
 

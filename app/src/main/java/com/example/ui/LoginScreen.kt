@@ -140,7 +140,11 @@ fun LoginScreen(
                     authViewModel.resetAuthState()
                 } else {
                     val msg = when (e.statusCode) {
-                        10 -> "Google Developer Error (10): කරුණාකර Firebase Console හි Android App එකට SHA-1 Fingerprint (A0:07:22:CC:E0:53:E5:AF:2A:0F:C2:97:B8:57:4A:2C:98:FE:C7:8E) ඇතුළත් කර ඇත්දැයි තහවුරු කරගන්න."
+                        10 -> {
+                            val runtimeSha1 = com.example.util.AppSignatureHelper.getSha1Fingerprint(context)
+                            val sha1ToDisplay = runtimeSha1.ifBlank { "1D:8C:A6:C9:01:02:EC:EC:3C:12:A2:F0:17:06:C3:33:50:34:3D:1C" }
+                            "Google Developer Error (10): කරුණාකර Firebase Console හි Android App එකට මෙම SHA-1 Fingerprint එක ඇතුළත් කරන්න:\n$sha1ToDisplay"
+                        }
                         12500 -> "Google Play Services Error (12500). කරුණාකර Google Play Services යාවත්කාලීන කර නැවත උත්සාහ කරන්න."
                         CommonStatusCodes.NETWORK_ERROR, 7 -> "අන්තර්ජාල සම්බන්ධතාවය පරීක්ෂා කර නැවත උත්සාහ කරන්න (Network Error)"
                         else -> "Google Sign-In Error (${e.statusCode}): ${e.localizedMessage ?: "නොදන්නා දෝෂයක්"}"

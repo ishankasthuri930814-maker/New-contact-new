@@ -66,10 +66,32 @@ fun ContactCard(
     onCardClick: (PoliceContact) -> Unit,
     onNavigationClick: (PoliceContact) -> Unit = {},
     onQrCodeClick: ((PoliceContact) -> Unit)? = null,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    selectedLanguage: com.example.util.AppLanguage = com.example.util.AppLanguage.SINHALA
 ) {
     val context = LocalContext.current
     val isEmergency = contact.rank == "HOTLINE" || contact.generalPhone == "119" || contact.generalPhone == "118"
+
+    val callBtnText = when (selectedLanguage) {
+        com.example.util.AppLanguage.SINHALA -> "ඇමතුම්"
+        com.example.util.AppLanguage.TAMIL -> "அழைக்க"
+        com.example.util.AppLanguage.ENGLISH -> "Call"
+    }
+    val phoneLabelText = when (selectedLanguage) {
+        com.example.util.AppLanguage.SINHALA -> "දුරකථන / Phone"
+        com.example.util.AppLanguage.TAMIL -> "தொலைபேசி / Phone"
+        com.example.util.AppLanguage.ENGLISH -> "Phone"
+    }
+    val mobileLabelText = when (selectedLanguage) {
+        com.example.util.AppLanguage.SINHALA -> "ජංගම / Mobile"
+        com.example.util.AppLanguage.TAMIL -> "கைபேசி / Mobile"
+        com.example.util.AppLanguage.ENGLISH -> "Mobile"
+    }
+    val pvtLabelText = when (selectedLanguage) {
+        com.example.util.AppLanguage.SINHALA -> "පුද්ගලික / PVT Number"
+        com.example.util.AppLanguage.TAMIL -> "தனிப்பட்ட / PVT Number"
+        com.example.util.AppLanguage.ENGLISH -> "Direct / PVT Number"
+    }
 
     Card(
         modifier = modifier
@@ -228,7 +250,7 @@ fun ContactCard(
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Column {
                                     Text(
-                                        text = "දුරකථන / Phone",
+                                        text = phoneLabelText,
                                         style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
                                         color = MaterialTheme.colorScheme.outline
                                     )
@@ -261,7 +283,7 @@ fun ContactCard(
                                 )
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Text(
-                                    text = "ඇමතුම්",
+                                    text = callBtnText,
                                     style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold, fontSize = 12.sp)
                                 )
                             }
@@ -296,7 +318,7 @@ fun ContactCard(
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Column {
                                     Text(
-                                        text = "ජංගම / Mobile",
+                                        text = mobileLabelText,
                                         style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
                                         color = MaterialTheme.colorScheme.outline
                                     )
@@ -330,7 +352,7 @@ fun ContactCard(
                                     )
                                     Spacer(modifier = Modifier.width(3.dp))
                                     Text(
-                                        text = "Call",
+                                        text = callBtnText,
                                         style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold, fontSize = 11.sp)
                                     )
                                 }
@@ -387,7 +409,7 @@ fun ContactCard(
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Column {
                                     Text(
-                                        text = "පුද්ගලික / PVT Number",
+                                        text = pvtLabelText,
                                         style = MaterialTheme.typography.labelSmall.copy(
                                             fontSize = 10.sp,
                                             fontWeight = FontWeight.Bold
@@ -427,7 +449,7 @@ fun ContactCard(
                                     )
                                     Spacer(modifier = Modifier.width(3.dp))
                                     Text(
-                                        text = "Call",
+                                        text = callBtnText,
                                         style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold, fontSize = 11.sp)
                                     )
                                 }

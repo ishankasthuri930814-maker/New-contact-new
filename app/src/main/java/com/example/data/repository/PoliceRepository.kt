@@ -842,4 +842,63 @@ class PoliceRepository(private val context: Context) {
             PoliceContact(id = "trv_caa", stationOrDesignation = "Civil Aviation Authority of Sri Lanka", rank = "AVIATION", generalPhone = "011-2358800", category = ContactCategory.TRAVEL)
         )
     }
+
+    // ==========================================
+    // SEARCH HISTORY PERSISTENCE (මෑත සෙවුම් ඉතිහාසය)
+    // ==========================================
+
+    fun getSearchHistory(): List<String> {
+        val json = prefs.getString("key_search_history", null) ?: return emptyList()
+        return try {
+            val jsonArray = JSONArray(json)
+            val list = mutableListOf<String>()
+            for (i in 0 until jsonArray.length()) {
+                val item = jsonArray.getString(i).trim()
+                if (item.isNotEmpty() && !list.contains(item)) {
+                    list.add(item)
+                }
+            }
+            list
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    fun saveSearchQuery(query: String): List<String> {
+        val trimmed = query.trim()
+        if (trimmed.isEmpty() || trimmed.length < 2) return getSearchHistory()
+        val current = getSearchHistory().toMutableList()
+        current.remove(trimmed)
+        current.add(0, trimmed)
+        val trimmedList = current.take(12)
+        val jsonArray = JSONArray(trimmedList)
+        prefs.edit().putString("key_search_history", jsonArray.toString()).apply()
+        return trimmedList
+    }
+
+    fun removeSearchQuery(query: String): List<String> {
+        val current = getSearchHistory().toMutableList()
+        current.remove(query.trim())
+        val jsonArray = JSONArray(current)
+        prefs.edit().putString("key_search_history", jsonArray.toString()).apply()
+        return current
+    }
+
+    fun clearSearchHistory() {
+        prefs.edit().remove("key_search_history").apply()
+    }
+
+    // ==========================================
+    // LANGUAGE PREFERENCES (භාෂා තේරීම)
+    // ==========================================
+
+    fun getSavedLanguage(): com.example.util.AppLanguage {
+        val code = prefs.getString("key_app_language", com.example.util.AppLanguage.SINHALA.code)
+            ?: com.example.util.AppLanguage.SINHALA.code
+        return com.example.util.AppLanguage.fromCode(code)
+    }
+
+    fun saveLanguage(language: com.example.util.AppLanguage) {
+        prefs.edit().putString("key_app_language", language.code).apply()
+    }
 }

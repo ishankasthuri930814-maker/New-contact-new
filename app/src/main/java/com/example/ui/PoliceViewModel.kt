@@ -28,7 +28,10 @@ data class PoliceUiState(
     val selectedCategory: ContactCategory = ContactCategory.POLICE,
     val selectedContactForDetail: PoliceContact? = null,
     val lastSyncTime: String = "",
-    val userMessage: String? = null
+    val userMessage: String? = null,
+    val searchHistory: List<String> = emptyList(),
+    val isSearchHistoryDropdownOpen: Boolean = false,
+    val selectedLanguage: com.example.util.AppLanguage = com.example.util.AppLanguage.SINHALA
 )
 
 class PoliceViewModel(private val repository: PoliceRepository) : ViewModel() {
@@ -44,6 +47,27 @@ class PoliceViewModel(private val repository: PoliceRepository) : ViewModel() {
 
         // 2. Observe network connectivity: when mobile data or Wi-Fi turns ON, auto-refresh live Google Sheet data!
         observeNetworkConnectivity()
+
+        // 3. Load saved search history from local storage
+        loadSearchHistory()
+
+        // 4. Load saved language preference
+        loadSavedLanguage()
+    }
+
+    private fun loadSavedLanguage() {
+        val savedLang = repository.getSavedLanguage()
+        _uiState.update { it.copy(selectedLanguage = savedLang) }
+    }
+
+    fun setLanguage(language: com.example.util.AppLanguage) {
+        repository.saveLanguage(language)
+        _uiState.update { it.copy(selectedLanguage = language) }
+    }
+
+    private fun loadSearchHistory() {
+        val history = repository.getSearchHistory()
+        _uiState.update { it.copy(searchHistory = history) }
     }
 
     private fun loadCachedContactsImmediately() {
@@ -136,6 +160,60 @@ class PoliceViewModel(private val repository: PoliceRepository) : ViewModel() {
                 searchQuery = query,
                 filteredContacts = filtered
             )
+        }
+    }
+
+    fun submitSearch(query: String) {
+        val trimmed = query.trim()
+        if (trimmed.isNotEmpty()) {
+            val updatedHistory = repository.saveSearchQuery(trimmed)
+            _uiState.update { state ->
+                val filtered = filterContactsList(state.contacts, trimmed, state.selectedCategory)
+                state.copy(
+                    searchQuery = trimmed,
+                    filteredContacts = filtered,
+                    searchHistory = updatedHistory,
+                    isSearchHistoryDropdownOpen = false
+                )
+            }
+        } else {
+            _uiState.update { it.copy(isSearchHistoryDropdownOpen = false) }
+        }
+    }
+
+    fun selectHistoryItem(item: String) {
+        submitSearch(item)
+    }
+
+    fun removeHistoryItem(item: String) {
+        val updatedHistory = repository.removeSearchQuery(item)
+        _uiState.update { state ->
+            state.copy(
+                searchHistory = updatedHistory,
+                isSearchHistoryDropdownOpen = updatedHistory.isNotEmpty()
+            )
+        }
+    }
+
+    fun clearSearchHistory() {
+        repository.clearSearchHistory()
+        _uiState.update { state ->
+            state.copy(
+                searchHistory = emptyList(),
+                isSearchHistoryDropdownOpen = false
+            )
+        }
+    }
+
+    fun toggleSearchHistoryDropdown() {
+        _uiState.update { state ->
+            state.copy(isSearchHistoryDropdownOpen = !state.isSearchHistoryDropdownOpen)
+        }
+    }
+
+    fun setSearchHistoryDropdownOpen(isOpen: Boolean) {
+        _uiState.update { state ->
+            state.copy(isSearchHistoryDropdownOpen = isOpen)
         }
     }
 

@@ -73,11 +73,44 @@ fun ContactDetailBottomSheet(
     onFavoriteToggle: (PoliceContact) -> Unit,
     onNavigationClick: (PoliceContact) -> Unit = {},
     onQrCodeClick: ((PoliceContact) -> Unit)? = null,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    selectedLanguage: com.example.util.AppLanguage = com.example.util.AppLanguage.SINHALA
 ) {
     val context = LocalContext.current
     val isEmergency = contact.rank == "HOTLINE" || contact.generalPhone == "119" || contact.generalPhone == "118"
     val scrollState = rememberScrollState()
+
+    val callBtnLabel = com.example.util.AppStrings.call(selectedLanguage)
+    val shareBtnLabel = when (selectedLanguage) {
+        com.example.util.AppLanguage.SINHALA -> "සම්පූර්ණ තොරතුරු Share කරන්න (Share All)"
+        com.example.util.AppLanguage.TAMIL -> "அனைத்து விபரங்களையும் பகிரவும் (Share All)"
+        com.example.util.AppLanguage.ENGLISH -> "Share Full Details"
+    }
+    val qrBtnLabel = when (selectedLanguage) {
+        com.example.util.AppLanguage.SINHALA -> "QR කේතය සහ Phone එකේ Save කරන්න"
+        com.example.util.AppLanguage.TAMIL -> "QR குறியீடு & சேமிக்கவும் (QR & Save)"
+        com.example.util.AppLanguage.ENGLISH -> "View QR & Save to Contacts"
+    }
+    val emailHeading = when (selectedLanguage) {
+        com.example.util.AppLanguage.SINHALA -> "විද්‍යුත් තැපෑල / Email Address"
+        com.example.util.AppLanguage.TAMIL -> "மின்னஞ்சல் முகவரி / Email Address"
+        com.example.util.AppLanguage.ENGLISH -> "Email Address"
+    }
+    val sendEmailText = when (selectedLanguage) {
+        com.example.util.AppLanguage.SINHALA -> "Email යවන්න"
+        com.example.util.AppLanguage.TAMIL -> "மின்னஞ்சல் அனுப்புக"
+        com.example.util.AppLanguage.ENGLISH -> "Send Email"
+    }
+    val generalLabel = when (selectedLanguage) {
+        com.example.util.AppLanguage.SINHALA -> "ප්‍රධාන දුරකථනය / General Phone"
+        com.example.util.AppLanguage.TAMIL -> "பொது தொலைபேசி / General Phone"
+        com.example.util.AppLanguage.ENGLISH -> "General Phone Line"
+    }
+    val mobileLabel = when (selectedLanguage) {
+        com.example.util.AppLanguage.SINHALA -> "ජංගම දුරකථනය / Mobile Phone"
+        com.example.util.AppLanguage.TAMIL -> "கைபேசி எண் / Mobile Phone"
+        com.example.util.AppLanguage.ENGLISH -> "Mobile Phone"
+    }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -513,7 +546,7 @@ fun ContactDetailBottomSheet(
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "සම්පූර්ණ තොරතුරු Share කරන්න (Share All)",
+                            text = shareBtnLabel,
                             style = MaterialTheme.typography.labelLarge.copy(
                                 fontWeight = FontWeight.Bold,
                                 color = Color.White
@@ -540,7 +573,7 @@ fun ContactDetailBottomSheet(
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = "QR කේතය සහ Phone එකේ Save කරන්න (QR & Save)",
+                                text = qrBtnLabel,
                                 style = MaterialTheme.typography.labelLarge.copy(
                                     fontWeight = FontWeight.Bold,
                                     color = Color.White

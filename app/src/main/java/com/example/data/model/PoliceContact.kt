@@ -22,17 +22,30 @@ data class PoliceContact(
     val isFavorite: Boolean = false
 )
 
-enum class ContactCategory(val displayName: String, val sinhalaName: String, val iconRes: String) {
-    POLICE("Police Contacts", "පොලිස් ඇමතුම්", "local_police"),
-    ALL("All", "සියල්ල", "all"),
-    EMERGENCY("Emergency", "හදිසි ඇමතුම්", "emergency"),
-    DIVISIONS("Divisions", "කොට්ඨාස", "domain"),
-    RANGES("DIG Ranges", "කලාප", "shield"),
-    SENIOR_OFFICERS("Senior Officers", "ජ්‍යෙෂ්ඨ නිලධාරීන්", "badge"),
-    FAVORITES("Favorites", "ප්‍රියතම", "star"),
-    FIRE_STATIONS("Fire Service", "ගිනි නිවීම් සේවා", "fire"),
-    SHORT_CODES("Short Codes", "කෙටි සංකේත", "dialpad"),
-    HOSPITALS("Hospitals", "රෝහල්", "hospital"),
-    GOVT_SERVICES("Govt & Depts", "රජයේ සේවා", "account_balance"),
-    TRAVEL("Travel & Transport", "ගමන් බිමන්", "directions_bus")
+enum class ContactCategory(
+    val displayName: String,
+    val sinhalaName: String,
+    val tamilName: String,
+    val iconRes: String
+) {
+    POLICE("Police Contacts", "පොලිස් ඇමතුම්", "காவல்துறை தொடர்புகள்", "local_police"),
+    ALL("All", "සියල්ල", "அனைத்தும்", "all"),
+    EMERGENCY("Emergency", "හදිසි ඇමතුම්", "அவசர அழைப்புகள்", "emergency"),
+    DIVISIONS("Divisions", "කොට්ඨාස", "பிரிவுகள்", "domain"),
+    RANGES("DIG Ranges", "කලාප", "டிஐஜி வலயங்கள்", "shield"),
+    SENIOR_OFFICERS("Senior Officers", "ජ්‍යෙෂ්ඨ නිලධාරීන්", "சிரேஷ்ட அதிகாரிகள்", "badge"),
+    FAVORITES("Favorites", "ප්‍රියතම", "விருப்பமானவை", "star"),
+    FIRE_STATIONS("Fire Service", "ගිනි නිවීම් සේවා", "தீயணைப்பு சேவை", "fire"),
+    SHORT_CODES("Short Codes", "කෙටි සංකේත", "குறுக்கு எண்கள்", "dialpad"),
+    HOSPITALS("Hospitals", "රෝහල්", "வைத்தியசாலைகள்", "hospital"),
+    GOVT_SERVICES("Govt & Depts", "රජයේ සේවා", "அரசு சேவைகள்", "account_balance"),
+    TRAVEL("Travel & Transport", "ගමන් බිමන්", "பயணம் மற்றும் போக்குவரத்து", "directions_bus");
+
+    fun getLocalizedName(lang: com.example.util.AppLanguage): String {
+        return when (lang) {
+            com.example.util.AppLanguage.SINHALA -> "$displayName ($sinhalaName)"
+            com.example.util.AppLanguage.TAMIL -> "$displayName ($tamilName)"
+            com.example.util.AppLanguage.ENGLISH -> displayName
+        }
+    }
 }
