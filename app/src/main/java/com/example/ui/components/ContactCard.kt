@@ -67,10 +67,154 @@ fun ContactCard(
     onNavigationClick: (PoliceContact) -> Unit = {},
     onQrCodeClick: ((PoliceContact) -> Unit)? = null,
     modifier: Modifier = Modifier,
-    selectedLanguage: com.example.util.AppLanguage = com.example.util.AppLanguage.SINHALA
+    selectedLanguage: com.example.util.AppLanguage = com.example.util.AppLanguage.SINHALA,
+    isCompactSearchMode: Boolean = false,
+    searchQuery: String = ""
 ) {
     val context = LocalContext.current
     val isEmergency = contact.rank == "HOTLINE" || contact.generalPhone == "119" || contact.generalPhone == "118"
+
+    val primaryPhone = contact.generalPhone.ifBlank {
+        contact.mobilePhone.ifBlank {
+            contact.officePhone2.ifBlank {
+                contact.officePhone3.ifBlank { contact.pvtNumber }
+            }
+        }
+    }
+
+    if (isCompactSearchMode) {
+        // Compact Search Mode View: Shows only Name, Station, Officer, and a prompt to tap for full details
+        Card(
+            modifier = modifier
+                .fillMaxWidth()
+                .testTag("contact_card_${contact.id}")
+                .clickable { onCardClick(contact) },
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = if (isEmergency) {
+                    EmergencyRed.copy(alpha = 0.07f)
+                } else {
+                    MaterialTheme.colorScheme.surface
+                }
+            ),
+            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(
+                    modifier = Modifier.weight(1f),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clip(CircleShape)
+                            .background(if (isEmergency) EmergencyRed.copy(alpha = 0.15f) else MaterialTheme.colorScheme.primaryContainer),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = if (isEmergency) Icons.Default.Phone else Icons.Default.LocationOn,
+                            contentDescription = null,
+                            tint = if (isEmergency) EmergencyRed else MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.width(12.dp))
+
+                    Column {
+                        // Rank or District Badge if available
+                        if (contact.rank.isNotBlank()) {
+                            Surface(
+                                shape = RoundedCornerShape(4.dp),
+                                color = if (isEmergency) EmergencyRed else MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(bottom = 2.dp)
+                            ) {
+                                Text(
+                                    text = contact.rank,
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        fontSize = 9.5.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White
+                                    ),
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
+
+                        // Station / Designation Name
+                        Text(
+                            text = contact.stationOrDesignation,
+                            style = MaterialTheme.typography.titleMedium.copy(
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.5.sp
+                            ),
+                            color = if (isEmergency) EmergencyRed else MaterialTheme.colorScheme.onSurface
+                        )
+
+                        // Officer Name
+                        if (contact.officerName.isNotBlank()) {
+                            Text(
+                                text = "👮 ${contact.officerName}",
+                                style = MaterialTheme.typography.bodySmall.copy(
+                                    fontSize = 11.5.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            )
+                        }
+
+                        // Tap for details prompt
+                        Text(
+                            text = "විස්තර බැලීමට තට්ටු කරන්න (Tap for details) ➔",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontSize = 10.5.sp,
+                                color = MaterialTheme.colorScheme.primary,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        )
+                    }
+                }
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (primaryPhone.isNotBlank()) {
+                        IconButton(
+                            onClick = { onCallClick(primaryPhone) },
+                            modifier = Modifier
+                                .size(38.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f))
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Phone,
+                                contentDescription = "Call",
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(4.dp))
+                    }
+
+                    IconButton(
+                        onClick = { onFavoriteToggle(contact) },
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Icon(
+                            imageVector = if (contact.isFavorite) Icons.Default.Star else Icons.Outlined.StarOutline,
+                            contentDescription = if (contact.isFavorite) "Favorite" else "Unfavorite",
+                            tint = if (contact.isFavorite) PoliceGold else MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+            }
+        }
+        return
+    }
 
     val callBtnText = when (selectedLanguage) {
         com.example.util.AppLanguage.SINHALA -> "ඇමතුම්"

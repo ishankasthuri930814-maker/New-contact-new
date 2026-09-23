@@ -270,7 +270,10 @@ fun PoliceScreen(
                 shadowElevation = 8.dp,
                 color = MaterialTheme.colorScheme.surface
             ) {
-                Column {
+                Column(
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    // Top Section: App Navigation Bar (Directory, Chat, Profile)
                     NavigationBar(
                         containerColor = MaterialTheme.colorScheme.surface,
                         contentColor = MaterialTheme.colorScheme.primary,
@@ -357,6 +360,13 @@ fun PoliceScreen(
                             modifier = Modifier.testTag("nav_item_profile")
                         )
                     }
+
+                    Divider(
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f),
+                        thickness = 0.5.dp
+                    )
+
+                    // Bottom-most Section: Banner Ad Space
                     BannerAdView()
                 }
             }
@@ -1027,7 +1037,9 @@ fun PoliceScreen(
                                     onCardClick = { c -> viewModel.openContactDetail(c) },
                                     onNavigationClick = { c -> viewModel.startNavigation(context, c) },
                                     onQrCodeClick = { c -> contactForQrDialog = c },
-                                    selectedLanguage = uiState.selectedLanguage
+                                    selectedLanguage = uiState.selectedLanguage,
+                                    isCompactSearchMode = uiState.searchQuery.isNotBlank(),
+                                    searchQuery = uiState.searchQuery
                                 )
                             }
                         }
