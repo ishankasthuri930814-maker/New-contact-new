@@ -344,7 +344,10 @@ class PoliceViewModel(private val repository: PoliceRepository) : ViewModel() {
 
         return contacts.filter { contact ->
             // Category filter
-            val matchesCategory = when (category) {
+            val matchesCategory = if (q.isNotEmpty() && category == ContactCategory.POLICE) {
+                // If user is actively searching with text, allow matching across all emergency & public safety contacts
+                true
+            } else when (category) {
                 ContactCategory.POLICE -> {
                     contact.category == ContactCategory.POLICE ||
                             contact.category == ContactCategory.DIVISIONS ||
@@ -369,25 +372,11 @@ class PoliceViewModel(private val repository: PoliceRepository) : ViewModel() {
                 ContactCategory.SENIOR_OFFICERS -> contact.category == ContactCategory.SENIOR_OFFICERS || contact.rank.contains("DIG", ignoreCase = true) || contact.rank.contains("IGP", ignoreCase = true) || contact.rank.contains("SSP", ignoreCase = true)
             }
 
-            // Text search filter
+            // Text search filter with Sinhala, Tamil, and English Multilingual Support
             val matchesQuery = if (q.isEmpty()) {
                 true
             } else {
-                contact.stationOrDesignation.lowercase().contains(q) ||
-                        contact.officerName.lowercase().contains(q) ||
-                        contact.rank.lowercase().contains(q) ||
-                        contact.generalPhone.lowercase().contains(q) ||
-                        contact.mobilePhone.lowercase().contains(q) ||
-                        contact.pvtNumber.lowercase().contains(q) ||
-                        contact.officePhone2.lowercase().contains(q) ||
-                        contact.officePhone3.lowercase().contains(q) ||
-                        contact.fax.lowercase().contains(q) ||
-                        contact.email.lowercase().contains(q) ||
-                        contact.oicTraffic.lowercase().contains(q) ||
-                        contact.oicCrime.lowercase().contains(q) ||
-                        contact.oicVice.lowercase().contains(q) ||
-                        contact.oicCommunityPolicing.lowercase().contains(q) ||
-                        contact.locationAddress.lowercase().contains(q)
+                com.example.util.MultiLanguageSearchHelper.matchesContact(contact, q)
             }
 
             matchesCategory && matchesQuery

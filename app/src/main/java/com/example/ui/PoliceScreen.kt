@@ -87,12 +87,14 @@ import android.content.ContextWrapper
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.speech.RecognizerIntent
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import androidx.compose.material.icons.filled.AdminPanelSettings
+import androidx.compose.material.icons.filled.Mic
 import com.example.ui.components.InAppCallDialog
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -237,6 +239,40 @@ fun PoliceScreen(
         } else {
             pendingAcceptCallId = callId
             audioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+        }
+    }
+
+    val speechRecognizerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val spokenText = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()
+            if (!spokenText.isNullOrBlank()) {
+                viewModel.onSearchQueryChange(spokenText)
+                viewModel.submitSearch(spokenText)
+                Toast.makeText(context, "Voice Search: $spokenText", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    val triggerVoiceSearch: () -> Unit = {
+        try {
+            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE, when (uiState.selectedLanguage) {
+                    com.example.util.AppLanguage.SINHALA -> "si-LK"
+                    com.example.util.AppLanguage.TAMIL -> "ta-LK"
+                    else -> "en-US"
+                })
+                putExtra(RecognizerIntent.EXTRA_PROMPT, when (uiState.selectedLanguage) {
+                    com.example.util.AppLanguage.SINHALA -> "පොලිස් ස්ථානය හෝ නම පවසන්න..."
+                    com.example.util.AppLanguage.TAMIL -> "காவல் நிலையத்தின் பெயரை கூறவும்..."
+                    else -> "Speak police station or location..."
+                })
+            }
+            speechRecognizerLauncher.launch(intent)
+        } catch (e: Exception) {
+            Toast.makeText(context, "Voice search is not supported on this device", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -753,6 +789,16 @@ fun PoliceScreen(
                                             verticalAlignment = Alignment.CenterVertically,
                                             modifier = Modifier.padding(end = 4.dp)
                                         ) {
+                                            IconButton(
+                                                onClick = triggerVoiceSearch,
+                                                modifier = Modifier.testTag("voice_search_button")
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Mic,
+                                                    contentDescription = "Voice Search (කථනයෙන් සොයන්න)",
+                                                    tint = PoliceGold
+                                                )
+                                            }
                                             if (uiState.searchQuery.isNotEmpty()) {
                                                 IconButton(onClick = {
                                                     viewModel.onSearchQueryChange("")
@@ -1620,6 +1666,9 @@ fun PoliceScreen(
                     currentUserProfile = chatUiState.currentUserProfile,
                     isMuted = chatUiState.isMuted,
                     isSpeakerOn = chatUiState.isSpeakerOn,
+                    isAudioConnected = chatUiState.isAudioConnected,
+                    micAmplitude = chatUiState.micAmplitude,
+                    speakerAmplitude = chatUiState.speakerAmplitude,
                     onAcceptCall = { callId -> checkAudioPermissionAndAcceptCall(callId) },
                     onDeclineCall = { callId -> chatViewModel.declineIncomingCall(callId) },
                     onEndCall = { callId -> chatViewModel.endActiveCall(callId) },

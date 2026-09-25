@@ -247,10 +247,14 @@ class ChatRepository(
     suspend fun sendDirectMessage(
         sender: UserProfile,
         receiver: UserProfile,
-        text: String
+        text: String,
+        imageUrl: String = "",
+        linkUrl: String = ""
     ): Boolean = withContext(Dispatchers.IO) {
         val cleanText = text.trim()
-        if (cleanText.isBlank()) return@withContext false
+        val cleanImg = imageUrl.trim()
+        val cleanLink = linkUrl.trim()
+        if (cleanText.isBlank() && cleanImg.isBlank() && cleanLink.isBlank()) return@withContext false
 
         val senderKey = sender.email.ifBlank { sender.userId }
         val receiverKey = receiver.email.ifBlank { receiver.userId }
@@ -270,11 +274,21 @@ class ChatRepository(
         val participants = listOfNotNull(
             normSenderKey,
             normReceiverKey,
-            sender.email.takeIf { it.isNotBlank() }?.lowercase(),
-            receiver.email.takeIf { it.isNotBlank() }?.lowercase(),
-            sender.userId.takeIf { it.isNotBlank() },
-            receiver.userId.takeIf { it.isNotBlank() }
-        ).distinct()
+            sender.email.takeIf { it.isNotBlank() }?.lowercase()?.trim(),
+            receiver.email.takeIf { it.isNotBlank() }?.lowercase()?.trim(),
+            sender.userId.takeIf { it.isNotBlank() }?.trim(),
+            receiver.userId.takeIf { it.isNotBlank() }?.trim(),
+            sender.phoneNumber.takeIf { it.isNotBlank() }?.trim(),
+            receiver.phoneNumber.takeIf { it.isNotBlank() }?.trim(),
+            sender.phoneNumber.takeIf { it.isNotBlank() }?.let { DirectChatMessage.normalizeUserKey(it) },
+            receiver.phoneNumber.takeIf { it.isNotBlank() }?.let { DirectChatMessage.normalizeUserKey(it) }
+        ).filter { it.isNotBlank() && it != "unknown_user" }.distinct()
+
+        val msgType = when {
+            cleanImg.isNotBlank() -> DirectChatMessage.TYPE_IMAGE
+            cleanLink.isNotBlank() -> DirectChatMessage.TYPE_LINK
+            else -> DirectChatMessage.TYPE_TEXT
+        }
 
         val newDirect = DirectChatMessage(
             id = msgId,
@@ -289,6 +303,9 @@ class ChatRepository(
             receiverUserId = receiver.userId,
             participants = participants,
             text = cleanText,
+            imageUrl = cleanImg,
+            linkUrl = cleanLink,
+            messageType = msgType,
             timestamp = System.currentTimeMillis()
         )
 
@@ -442,38 +459,81 @@ class ChatRepository(
         val myKeys = listOfNotNull(
             currentUserProfile.email.takeIf { it.isNotBlank() }?.let { DirectChatMessage.normalizeUserKey(it) },
             currentUserProfile.userId.takeIf { it.isNotBlank() }?.let { DirectChatMessage.normalizeUserKey(it) },
+            currentUserProfile.phoneNumber.takeIf { it.isNotBlank() }?.let { DirectChatMessage.normalizeUserKey(it) },
             currentUserProfile.email.takeIf { it.isNotBlank() }?.lowercase()?.trim(),
-            currentUserProfile.userId.takeIf { it.isNotBlank() }?.trim()
+            currentUserProfile.userId.takeIf { it.isNotBlank() }?.trim(),
+            currentUserProfile.phoneNumber.takeIf { it.isNotBlank() }?.trim()
         ).filter { it.isNotBlank() && it != "unknown_user" }.distinct()
 
         if (myKeys.isEmpty()) return
 
         try {
             val db = firestore ?: return
-            val primaryKey = myKeys.first()
 
-            val listener = db.collection("direct_chats")
-                .whereEqualTo("receiverId", primaryKey)
-                .addSnapshotListener { snapshot, error ->
-                    if (error != null || snapshot == null) return@addSnapshotListener
-                    val newMessages = snapshot.documents.mapNotNull { doc ->
-                        val data = doc.data ?: return@mapNotNull null
-                        DirectChatMessage.fromMap(data).copy(id = doc.id)
-                    }.filter { it.timestamp > appStartTime && !myKeys.contains(it.senderId) && it.messageType != DirectChatMessage.TYPE_CALL_LOG }
+            for (key in myKeys) {
+                // 1. Listen by participants array contains key
+                val listener = db.collection("direct_chats")
+                    .whereArrayContains("participants", key)
+                    .addSnapshotListener { snapshot, error ->
+                        if (error != null || snapshot == null) return@addSnapshotListener
 
-                    val latest = newMessages.maxByOrNull { it.timestamp }
-                    if (latest != null && latest.timestamp > lastNotifiedMessageTimestamp) {
-                        lastNotifiedMessageTimestamp = latest.timestamp
-                        com.example.util.AppNotificationManager.playMessageNotificationSound(context)
-                        com.example.util.AppNotificationManager.showDirectMessageNotification(
-                            context = context,
-                            senderName = latest.senderName,
-                            messageText = latest.text,
-                            conversationId = latest.conversationId
-                        )
+                        val allDirect = snapshot.documents.mapNotNull { doc ->
+                            val data = doc.data ?: return@mapNotNull null
+                            DirectChatMessage.fromMap(data).copy(id = doc.id)
+                        }
+
+                        // Group all messages by conversationId and update memory state immediately
+                        val grouped = allDirect.groupBy { it.conversationId }
+                        val currentMap = _directMessages.value.toMutableMap()
+                        for ((convId, msgList) in grouped) {
+                            val existing = currentMap[convId] ?: emptyList()
+                            val merged = (existing + msgList).distinctBy { it.id }.sortedBy { it.timestamp }
+                            currentMap[convId] = merged
+                        }
+                        _directMessages.value = currentMap
+
+                        // Check for new incoming notifications
+                        val newIncoming = allDirect.filter {
+                            it.timestamp > appStartTime &&
+                                    !myKeys.contains(it.senderId) &&
+                                    it.messageType != DirectChatMessage.TYPE_CALL_LOG
+                        }
+
+                        val latest = newIncoming.maxByOrNull { it.timestamp }
+                        if (latest != null && latest.timestamp > lastNotifiedMessageTimestamp) {
+                            lastNotifiedMessageTimestamp = latest.timestamp
+                            com.example.util.AppNotificationManager.playMessageNotificationSound(context)
+                            com.example.util.AppNotificationManager.showDirectMessageNotification(
+                                context = context,
+                                senderName = latest.senderName,
+                                messageText = latest.text,
+                                conversationId = latest.conversationId
+                            )
+                        }
                     }
-                }
-            incomingDirectListeners.add(listener)
+                incomingDirectListeners.add(listener)
+
+                // 2. Also listen by receiverId for direct addressed messages
+                val receiverListener = db.collection("direct_chats")
+                    .whereEqualTo("receiverId", key)
+                    .addSnapshotListener { snapshot, error ->
+                        if (error != null || snapshot == null) return@addSnapshotListener
+                        val docs = snapshot.documents.mapNotNull { doc ->
+                            val data = doc.data ?: return@mapNotNull null
+                            DirectChatMessage.fromMap(data).copy(id = doc.id)
+                        }
+                        if (docs.isNotEmpty()) {
+                            val grouped = docs.groupBy { it.conversationId }
+                            val currentMap = _directMessages.value.toMutableMap()
+                            for ((convId, msgList) in grouped) {
+                                val existing = currentMap[convId] ?: emptyList()
+                                currentMap[convId] = (existing + msgList).distinctBy { it.id }.sortedBy { it.timestamp }
+                            }
+                            _directMessages.value = currentMap
+                        }
+                    }
+                incomingDirectListeners.add(receiverListener)
+            }
         } catch (e: Exception) {
             Log.w("ChatRepo", "Error listening for incoming user direct messages", e)
         }

@@ -4,6 +4,8 @@ import android.content.Context
 import android.content.SharedPreferences
 import android.util.Log
 import com.example.data.model.UserProfile
+import com.example.data.model.DirectChatMessage
+import com.example.data.model.DeviceContactMatch
 import com.google.firebase.FirebaseApp
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
@@ -57,10 +59,12 @@ class UserProfileRepository(
                 val fbUser = auth.currentUser
                 if (fbUser != null) {
                     val email = fbUser.email ?: ""
+                    val phone = fbUser.phoneNumber ?: ""
                     val name = fbUser.displayName?.takeIf { it.isNotBlank() }
-                        ?: email.substringBefore("@").replaceFirstChar { it.uppercase() }
+                        ?: phone.takeIf { it.isNotBlank() }
+                        ?: email.substringBefore("@").replaceFirstChar { it.uppercase() }.ifBlank { "User" }
                     externalScope.launch {
-                        getOrCreateProfileForEmail(email, name, fbUser.uid)
+                        getOrCreateProfileForEmail(email, name, fbUser.uid, phone)
                     }
                 }
             }
@@ -171,6 +175,8 @@ class UserProfileRepository(
             putString("district", profile.district)
             putString("emergencyNote", profile.emergencyNote)
             putInt("avatarIndex", profile.avatarIndex)
+            putString("profilePhotoUrl", profile.profilePhotoUrl)
+            putString("customAlias", profile.customAlias)
             putString("badge", profile.badge)
             putLong("joinedTimestamp", profile.joinedTimestamp)
             putBoolean("isVerified", profile.isVerified)
@@ -183,26 +189,179 @@ class UserProfileRepository(
     }
 
     /**
+     * User custom alias (local contact renaming) support.
+     */
+    fun setUserAlias(userKey: String, customAlias: String) {
+        val cleanKey = DirectChatMessage.normalizeUserKey(userKey)
+        val aliasPrefs = context.getSharedPreferences("user_aliases_prefs", Context.MODE_PRIVATE)
+        if (customAlias.isBlank()) {
+            aliasPrefs.edit().remove(cleanKey).apply()
+        } else {
+            aliasPrefs.edit().putString(cleanKey, customAlias.trim()).apply()
+        }
+    }
+
+    fun getUserAlias(userKey: String): String? {
+        val cleanKey = DirectChatMessage.normalizeUserKey(userKey)
+        val aliasPrefs = context.getSharedPreferences("user_aliases_prefs", Context.MODE_PRIVATE)
+        return aliasPrefs.getString(cleanKey, null)
+    }
+
+    fun getAllUserAliases(): Map<String, String> {
+        val aliasPrefs = context.getSharedPreferences("user_aliases_prefs", Context.MODE_PRIVATE)
+        val result = mutableMapOf<String, String>()
+        for ((k, v) in aliasPrefs.all) {
+            if (v is String && v.isNotBlank()) {
+                result[k] = v
+            }
+        }
+        return result
+    }
+
+    /**
+     * Hide / Remove user from local directory list.
+     */
+    fun hideUser(userKey: String) {
+        val cleanKey = DirectChatMessage.normalizeUserKey(userKey)
+        val hiddenPrefs = context.getSharedPreferences("hidden_users_prefs", Context.MODE_PRIVATE)
+        hiddenPrefs.edit().putBoolean(cleanKey, true).apply()
+    }
+
+    fun unhideUser(userKey: String) {
+        val cleanKey = DirectChatMessage.normalizeUserKey(userKey)
+        val hiddenPrefs = context.getSharedPreferences("hidden_users_prefs", Context.MODE_PRIVATE)
+        hiddenPrefs.edit().remove(cleanKey).apply()
+    }
+
+    fun getHiddenUsers(): Set<String> {
+        val hiddenPrefs = context.getSharedPreferences("hidden_users_prefs", Context.MODE_PRIVATE)
+        return hiddenPrefs.all.keys
+    }
+
+    /**
+     * Read device phone contacts and match against registered app users.
+     */
+    fun readAndMatchDeviceContacts(context: Context): List<DeviceContactMatch> {
+        val matches = mutableListOf<DeviceContactMatch>()
+        val registered = _allRegisteredUsers.value
+
+        try {
+            val hasPermission = androidx.core.content.ContextCompat.checkSelfPermission(
+                context,
+                android.Manifest.permission.READ_CONTACTS
+            ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+
+            if (!hasPermission) return emptyList<DeviceContactMatch>()
+
+            val cursor = context.contentResolver.query(
+                android.provider.ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
+                arrayOf(
+                    android.provider.ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME,
+                    android.provider.ContactsContract.CommonDataKinds.Phone.NUMBER
+                ),
+                null,
+                null,
+                android.provider.ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME + " ASC"
+            )
+
+            val seenNumbers = mutableSetOf<String>()
+
+            cursor?.use {
+                val nameIdx = it.getColumnIndex(android.provider.ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME)
+                val numIdx = it.getColumnIndex(android.provider.ContactsContract.CommonDataKinds.Phone.NUMBER)
+
+                while (it.moveToNext()) {
+                    val rawName = if (nameIdx >= 0) it.getString(nameIdx) ?: "Contact" else "Contact"
+                    val rawNum = if (numIdx >= 0) it.getString(numIdx) ?: "" else ""
+                    val cleanNum = rawNum.replace(Regex("[^0-9+]"), "").trim()
+
+                    if (cleanNum.isNotBlank() && !seenNumbers.contains(cleanNum)) {
+                        seenNumbers.add(cleanNum)
+                        val last9 = cleanNum.takeLast(9)
+
+                        // Check if registered in app
+                        val matchedUser = registered.firstOrNull { user ->
+                            val userPhone = user.phoneNumber.replace(Regex("[^0-9+]"), "").trim()
+                            userPhone.isNotBlank() && (userPhone == cleanNum || (last9.length == 9 && userPhone.endsWith(last9)))
+                        }
+
+                        matches.add(
+                            DeviceContactMatch(
+                                name = rawName,
+                                phoneNumber = cleanNum,
+                                isAppUser = matchedUser != null,
+                                registeredProfile = matchedUser
+                            )
+                        )
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.w("UserProfileRepo", "Error reading device contacts", e)
+        }
+
+        return matches
+    }
+
+    /**
+     * Converts a selected profile image to an optimized Base64 JPEG string and syncs with Firebase.
+     */
+    suspend fun uploadProfilePhotoBase64(photoBase64: String): Boolean = withContext(Dispatchers.IO) {
+        val current = _currentProfile.value
+        val updated = current.copy(profilePhotoUrl = photoBase64)
+        saveProfileToCache(updated)
+
+        val docId = when {
+            updated.email.isNotBlank() -> getDocIdForEmail(updated.email)
+            updated.userId.isNotBlank() -> DirectChatMessage.normalizeUserKey(updated.userId)
+            updated.phoneNumber.isNotBlank() -> DirectChatMessage.normalizeUserKey(updated.phoneNumber)
+            else -> "user_${System.currentTimeMillis()}"
+        }
+
+        try {
+            firestore?.collection("users")?.document(docId)?.update("profilePhotoUrl", photoBase64)?.await()
+            Log.d("UserProfileRepo", "Uploaded profile photo to Firestore for $docId")
+            fetchAllRegisteredUsers()
+            return@withContext true
+        } catch (e: Exception) {
+            Log.e("UserProfileRepo", "Failed to upload photo to Firestore", e)
+            return@withContext false
+        }
+    }
+
+    /**
      * Initializes or loads the profile for the authenticated user.
      */
-    suspend fun getOrCreateProfileForEmail(email: String, fallbackName: String? = null, userId: String? = null): UserProfile = withContext(Dispatchers.IO) {
+    suspend fun getOrCreateProfileForEmail(
+        email: String,
+        fallbackName: String? = null,
+        userId: String? = null,
+        phone: String? = null
+    ): UserProfile = withContext(Dispatchers.IO) {
         val cleanEmail = email.trim().lowercase()
-        if (cleanEmail.isBlank()) {
-            return@withContext loadCachedProfile()
+        val cleanUserId = userId?.trim() ?: ""
+        val cleanPhone = phone?.trim() ?: ""
+
+        val docId = when {
+            cleanEmail.isNotBlank() -> getDocIdForEmail(cleanEmail)
+            cleanUserId.isNotBlank() -> DirectChatMessage.normalizeUserKey(cleanUserId)
+            cleanPhone.isNotBlank() -> DirectChatMessage.normalizeUserKey(cleanPhone)
+            else -> "user_${System.currentTimeMillis()}"
         }
 
-        val docId = getDocIdForEmail(cleanEmail)
-        val defaultName = fallbackName?.ifBlank { null } ?: cleanEmail.substringBefore("@").replaceFirstChar { it.uppercase() }
+        val defaultName = fallbackName?.ifBlank { null }
+            ?: cleanPhone.takeIf { it.isNotBlank() }
+            ?: cleanEmail.substringBefore("@").replaceFirstChar { it.uppercase() }.ifBlank { "User" }
 
         var profile = loadCachedProfile()
-        if (profile.email != cleanEmail) {
-            profile = profile.copy(
-                userId = userId ?: docId,
-                email = cleanEmail,
-                displayName = defaultName
-            )
-            saveProfileToCache(profile)
-        }
+        val updatedProfile = profile.copy(
+            userId = cleanUserId.ifBlank { profile.userId.ifBlank { docId } },
+            email = cleanEmail.ifBlank { profile.email },
+            displayName = profile.displayName.takeIf { it.isNotBlank() && !it.equals("Citizen", ignoreCase = true) } ?: defaultName,
+            phoneNumber = cleanPhone.ifBlank { profile.phoneNumber }
+        )
+        saveProfileToCache(updatedProfile)
+        profile = updatedProfile
 
         try {
             val db = firestore
@@ -215,26 +374,22 @@ class UserProfileRepository(
                     if (data != null) {
                         profile = UserProfile.fromMap(data)
                         saveProfileToCache(profile)
-                        Log.d("UserProfileRepo", "Loaded existing profile for $cleanEmail from Firestore")
+                        Log.d("UserProfileRepo", "Loaded existing profile for $docId from Firestore")
                     }
                 } else {
-                    val newProfile = profile.copy(
-                        userId = userId ?: docId,
-                        email = cleanEmail,
-                        displayName = defaultName
-                    )
-                    docRef.set(newProfile.toMap(), SetOptions.merge()).await()
-                    saveProfileToCache(newProfile)
-                    profile = newProfile
-                    Log.d("UserProfileRepo", "Created new single profile document for $cleanEmail in Firestore")
+                    docRef.set(profile.toMap(), SetOptions.merge()).await()
+                    Log.d("UserProfileRepo", "Created new profile document for $docId in Firestore")
                 }
 
                 // Also fetch all registered users for 1-on-1 directory
                 fetchAllRegisteredUsers()
             }
         } catch (t: Throwable) {
-            Log.w("UserProfileRepo", "Firestore sync failed, using local profile for $cleanEmail", t)
+            Log.w("UserProfileRepo", "Firestore sync failed, using local profile for $docId", t)
         }
+
+        // Start background incoming call & message monitoring service
+        com.example.service.CallBackgroundService.start(context, profile)
 
         return@withContext profile
     }
@@ -279,16 +434,21 @@ class UserProfileRepository(
         )
         saveProfileToCache(updated)
 
-        if (updated.email.isNotBlank()) {
-            val docId = getDocIdForEmail(updated.email)
-            try {
-                firestore?.collection("users")?.document(docId)?.set(updated.toMap(), SetOptions.merge())?.await()
-                Log.d("UserProfileRepo", "Successfully updated profile in Firestore for ${updated.email}")
-                fetchAllRegisteredUsers()
-                return@withContext true
-            } catch (t: Throwable) {
-                Log.w("UserProfileRepo", "Could not sync profile to Firestore", t)
-            }
+        val docId = when {
+            updated.email.isNotBlank() -> getDocIdForEmail(updated.email)
+            updated.userId.isNotBlank() -> DirectChatMessage.normalizeUserKey(updated.userId)
+            updated.phoneNumber.isNotBlank() -> DirectChatMessage.normalizeUserKey(updated.phoneNumber)
+            else -> "user_${System.currentTimeMillis()}"
+        }
+
+        try {
+            firestore?.collection("users")?.document(docId)?.set(updated.toMap(), SetOptions.merge())?.await()
+            Log.d("UserProfileRepo", "Successfully updated profile in Firestore for $docId")
+            fetchAllRegisteredUsers()
+            com.example.service.CallBackgroundService.start(context, updated)
+            return@withContext true
+        } catch (t: Throwable) {
+            Log.w("UserProfileRepo", "Could not sync profile to Firestore", t)
         }
         return@withContext true
     }

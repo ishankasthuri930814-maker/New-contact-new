@@ -13,9 +13,11 @@ data class DirectChatMessage(
     val receiverUserId: String = "",
     val participants: List<String> = emptyList(),
     val text: String = "",
+    val imageUrl: String = "",
+    val linkUrl: String = "",
     val timestamp: Long = System.currentTimeMillis(),
     val isRead: Boolean = false,
-    val messageType: String = TYPE_TEXT, // "TEXT" or "CALL_LOG"
+    val messageType: String = TYPE_TEXT, // "TEXT", "IMAGE", "LINK", or "CALL_LOG"
     val callDurationSeconds: Int = 0,
     val callStatus: String = "" // "CONNECTED", "MISSED", "DECLINED"
 ) {
@@ -33,6 +35,8 @@ data class DirectChatMessage(
             "receiverUserId" to receiverUserId,
             "participants" to participants,
             "text" to text,
+            "imageUrl" to imageUrl,
+            "linkUrl" to linkUrl,
             "timestamp" to timestamp,
             "isRead" to isRead,
             "messageType" to messageType,
@@ -43,6 +47,8 @@ data class DirectChatMessage(
 
     companion object {
         const val TYPE_TEXT = "TEXT"
+        const val TYPE_IMAGE = "IMAGE"
+        const val TYPE_LINK = "LINK"
         const val TYPE_CALL_LOG = "CALL_LOG"
 
         fun normalizeUserKey(raw: String): String {
@@ -61,7 +67,7 @@ data class DirectChatMessage(
 
         fun fromMap(map: Map<String, Any?>): DirectChatMessage {
             @Suppress("UNCHECKED_CAST")
-            val rawParticipants = map["participants"] as? List<String> ?: emptyList()
+            val rawParticipants = (map["participants"] as? List<*>)?.mapNotNull { it?.toString() } ?: emptyList()
             return DirectChatMessage(
                 id = map["id"] as? String ?: "",
                 conversationId = map["conversationId"] as? String ?: "",
@@ -75,6 +81,8 @@ data class DirectChatMessage(
                 receiverUserId = map["receiverUserId"] as? String ?: "",
                 participants = rawParticipants,
                 text = map["text"] as? String ?: "",
+                imageUrl = map["imageUrl"] as? String ?: "",
+                linkUrl = map["linkUrl"] as? String ?: "",
                 timestamp = (map["timestamp"] as? Number)?.toLong() ?: System.currentTimeMillis(),
                 isRead = map["isRead"] as? Boolean ?: false,
                 messageType = map["messageType"] as? String ?: TYPE_TEXT,

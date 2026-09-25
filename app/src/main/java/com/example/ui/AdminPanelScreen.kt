@@ -91,6 +91,7 @@ import com.example.data.model.PoliceContact
 import com.example.ui.components.BulkImportDialog
 import com.example.ui.components.ContactQrDialog
 import com.example.ui.components.AdminUpdateSettingsCard
+import com.example.ui.components.AdminAgoraSettingsCard
 import com.example.ui.theme.PoliceGold
 import com.example.ui.theme.PoliceNavy
 import kotlinx.coroutines.delay
@@ -305,6 +306,17 @@ fun AdminPanelScreen(
                 // 2. GitHub In-App Auto-Update Settings & Management Card
                 item {
                     AdminUpdateSettingsCard(
+                        onShowMessage = { msg ->
+                            scope.launch {
+                                snackbarHostState.showSnackbar(msg)
+                            }
+                        }
+                    )
+                }
+
+                // 2.1 Agora Real-Time Voice & Chat Engine Settings Card
+                item {
+                    AdminAgoraSettingsCard(
                         onShowMessage = { msg ->
                             scope.launch {
                                 snackbarHostState.showSnackbar(msg)

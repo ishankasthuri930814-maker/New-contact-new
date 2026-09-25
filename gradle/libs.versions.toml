@@ -45,9 +45,11 @@ googleid = "1.1.1"
 zxingCore = "3.5.3"
 playServicesAuth = "21.3.0"
 facebookLogin = "17.0.2"
+agoraVoice = "4.2.2"
 
 
 [libraries]
+agora-voice = { group = "io.agora.rtc", name = "voice-sdk", version.ref = "agoraVoice" }
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitVersion" }

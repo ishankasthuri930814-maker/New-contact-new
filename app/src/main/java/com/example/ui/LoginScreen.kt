@@ -43,6 +43,9 @@ import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import android.widget.Toast
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.testTag
@@ -571,6 +574,7 @@ fun LoginScreen(
 
                     // Error Message Banner (Local validation or Firebase Auth Error or Blocked reason)
                     val activeError = localValidationError ?: (authState as? AuthState.Error)?.message ?: uiState.errorMessage
+                    val clipboardManager = LocalClipboardManager.current
                     AnimatedVisibility(
                         visible = !activeError.isNullOrBlank(),
                         enter = fadeIn(),
@@ -586,24 +590,59 @@ fun LoginScreen(
                                 ),
                                 shape = RoundedCornerShape(12.dp)
                             ) {
-                                Row(
+                                Column(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .padding(12.dp),
-                                    verticalAlignment = Alignment.CenterVertically
+                                        .padding(12.dp)
                                 ) {
-                                    Icon(
-                                        imageVector = Icons.Filled.ErrorOutline,
-                                        contentDescription = "Error",
-                                        tint = MaterialTheme.colorScheme.error,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text(
-                                        text = activeError,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onErrorContainer
-                                    )
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Filled.ErrorOutline,
+                                            contentDescription = "Error",
+                                            tint = MaterialTheme.colorScheme.error,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(
+                                            text = activeError,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onErrorContainer,
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                    }
+
+                                    // Extract SHA-1 or Key Hash for quick copy button
+                                    val extractedKey = remember(activeError) {
+                                        val lines = activeError.split("\n")
+                                        lines.lastOrNull { line ->
+                                            line.contains(":") || line.endsWith("=")
+                                        }?.trim()
+                                    }
+
+                                    if (!extractedKey.isNullOrBlank() && (activeError.contains("SHA-1") || activeError.contains("Key Hash") || activeError.contains("developer"))) {
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                        Button(
+                                            onClick = {
+                                                clipboardManager.setText(AnnotatedString(extractedKey))
+                                                Toast.makeText(context, "Key / Fingerprint පිටපත් කරගන්නා ලදී!", Toast.LENGTH_SHORT).show()
+                                            },
+                                            modifier = Modifier.align(Alignment.End),
+                                            colors = ButtonDefaults.buttonColors(
+                                                containerColor = MaterialTheme.colorScheme.error,
+                                                contentColor = MaterialTheme.colorScheme.onError
+                                            ),
+                                            shape = RoundedCornerShape(8.dp),
+                                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+                                        ) {
+                                            Text(
+                                                text = "📋 Fingerprint / Key Hash පිටපත් කරන්න (Copy)",
+                                                style = MaterialTheme.typography.labelSmall
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         }

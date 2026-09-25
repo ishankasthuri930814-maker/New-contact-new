@@ -360,9 +360,12 @@ fun RegisteredUsersDirectoryContent(
                 (user.userId.isBlank() || user.userId != myId)
         val query = uiState.searchQuery.trim().lowercase()
         notMe && (query.isEmpty() ||
-                user.displayName.lowercase().contains(query) ||
-                user.district.lowercase().contains(query) ||
-                user.badge.lowercase().contains(query))
+                com.example.util.MultiLanguageSearchHelper.matchesUser(
+                    displayName = user.displayName,
+                    district = user.district,
+                    badge = user.badge,
+                    rawQuery = query
+                ))
     }
 
     var selectedDirectoryTab by remember { mutableStateOf(0) } // 0: Contacts, 1: Call Logs
@@ -515,7 +518,7 @@ fun RegisteredUsersDirectoryContent(
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = "🔒 පරිශීලකයින්ගේ Contact List එක සහ සජීවී Call Log ආරක්ෂිතව පිහිටුවා ඇත.",
+                            text = "🔒 Agora HD Voice & 1-on-1 Direct Chat සක්‍රියයි (All Features Active)",
                             style = MaterialTheme.typography.bodySmall.copy(
                                 fontSize = 11.sp,
                                 color = MaterialTheme.colorScheme.onSurface
@@ -1340,6 +1343,17 @@ fun DirectPrivateChatContent(
                     )
                 }
             } else {
+                val myKeys = remember(uiState.currentUserProfile) {
+                    listOfNotNull(
+                        uiState.currentUserProfile.email.takeIf { it.isNotBlank() },
+                        uiState.currentUserProfile.userId.takeIf { it.isNotBlank() },
+                        uiState.currentUserProfile.phoneNumber.takeIf { it.isNotBlank() },
+                        uiState.currentUserProfile.email.takeIf { it.isNotBlank() }?.let { DirectChatMessage.normalizeUserKey(it) },
+                        uiState.currentUserProfile.userId.takeIf { it.isNotBlank() }?.let { DirectChatMessage.normalizeUserKey(it) },
+                        uiState.currentUserProfile.phoneNumber.takeIf { it.isNotBlank() }?.let { DirectChatMessage.normalizeUserKey(it) }
+                    ).map { it.lowercase().trim() }.distinct()
+                }
+
                 LazyColumn(
                     state = listState,
                     modifier = Modifier.fillMaxSize(),
@@ -1347,10 +1361,9 @@ fun DirectPrivateChatContent(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     items(messages, key = { it.id }) { msg ->
-                        val myNormKey = DirectChatMessage.normalizeUserKey(uiState.currentUserProfile.email.ifBlank { uiState.currentUserProfile.userId })
-                        val isMe = msg.senderId == myNormKey ||
-                                msg.senderId == uiState.currentUserProfile.userId ||
-                                (msg.senderId.isNotBlank() && msg.senderId == uiState.currentUserProfile.email)
+                        val isMe = myKeys.contains(msg.senderId.lowercase().trim()) ||
+                                (msg.senderEmail.isNotBlank() && myKeys.contains(msg.senderEmail.lowercase().trim())) ||
+                                (msg.senderUserId.isNotBlank() && myKeys.contains(msg.senderUserId.lowercase().trim()))
                         val isSelected = selectedMessageIds.contains(msg.id)
 
                         val toggleSelection = {

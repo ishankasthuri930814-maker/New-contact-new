@@ -3,6 +3,8 @@ package com.example.data.repository
 import android.content.Context
 import android.media.AudioManager
 import android.util.Log
+import com.example.audio.AgoraCallManager
+import com.example.audio.VoiceCallEngine
 import com.example.data.model.CallSession
 import com.example.data.model.DirectChatMessage
 import com.example.data.model.UserProfile
@@ -38,6 +40,18 @@ class CallRepository(
     private val _isSpeakerOn = MutableStateFlow(true)
     val isSpeakerOn: StateFlow<Boolean> = _isSpeakerOn.asStateFlow()
 
+    val voiceEngine = VoiceCallEngine(context, externalScope)
+    val agoraCallManager = AgoraCallManager(context, externalScope)
+
+    private val _isAudioConnected = MutableStateFlow(false)
+    val isAudioConnected: StateFlow<Boolean> = _isAudioConnected.asStateFlow()
+
+    private val _micAmplitude = MutableStateFlow(0f)
+    val micAmplitude: StateFlow<Float> = _micAmplitude.asStateFlow()
+
+    private val _speakerAmplitude = MutableStateFlow(0f)
+    val speakerAmplitude: StateFlow<Float> = _speakerAmplitude.asStateFlow()
+
     private val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
 
     private val firestore: FirebaseFirestore? by lazy {
@@ -60,6 +74,72 @@ class CallRepository(
 
     init {
         AppNotificationManager.initializeChannels(context)
+
+        externalScope.launch {
+            voiceEngine.isAudioConnected.collect { c ->
+                if (!agoraCallManager.isAgoraActive.value) {
+                    _isAudioConnected.value = c
+                }
+            }
+        }
+        externalScope.launch {
+            agoraCallManager.isAudioConnected.collect { c ->
+                if (agoraCallManager.isAgoraActive.value) {
+                    _isAudioConnected.value = c
+                }
+            }
+        }
+        externalScope.launch {
+            voiceEngine.micAmplitude.collect { amp ->
+                if (!agoraCallManager.isAgoraActive.value) {
+                    _micAmplitude.value = amp
+                }
+            }
+        }
+        externalScope.launch {
+            agoraCallManager.micAmplitude.collect { amp ->
+                if (agoraCallManager.isAgoraActive.value) {
+                    _micAmplitude.value = amp
+                }
+            }
+        }
+        externalScope.launch {
+            voiceEngine.speakerAmplitude.collect { amp ->
+                if (!agoraCallManager.isAgoraActive.value) {
+                    _speakerAmplitude.value = amp
+                }
+            }
+        }
+        externalScope.launch {
+            agoraCallManager.speakerAmplitude.collect { amp ->
+                if (agoraCallManager.isAgoraActive.value) {
+                    _speakerAmplitude.value = amp
+                }
+            }
+        }
+    }
+
+    private fun startVoiceStream(session: CallSession, amCaller: Boolean) {
+        val myIdentifier = myKeys.firstOrNull() ?: if (amCaller) session.callerId else session.receiverId
+        agoraCallManager.onFallbackNeeded = {
+            Log.i(TAG, "Starting fallback native VoiceCallEngine for call: ${session.callId}")
+            voiceEngine.startVoice(session, amCaller)
+        }
+        val agoraStarted = agoraCallManager.joinVoiceCall(session, myIdentifier, amCaller)
+        if (agoraStarted) {
+            Log.d(TAG, "Agora Voice Calling active with App ID ${agoraCallManager.agoraAppId.value} for call: ${session.callId}")
+        } else {
+            Log.d(TAG, "Starting native VoiceCallEngine for call: ${session.callId}")
+            voiceEngine.startVoice(session, amCaller)
+        }
+    }
+
+    private fun stopVoiceStream() {
+        voiceEngine.stopVoice()
+        agoraCallManager.leaveVoiceCall()
+        _isAudioConnected.value = false
+        _micAmplitude.value = 0f
+        _speakerAmplitude.value = 0f
     }
 
     fun startListeningForIncomingCalls(userProfile: UserProfile) {
@@ -176,10 +256,12 @@ class CallRepository(
                     if (updatedSession.status == CallSession.STATUS_CONNECTED) {
                         AppNotificationManager.stopIncomingCallRingtone(context)
                         _incomingCall.value = null
+                        startVoiceStream(updatedSession, amCaller = isCaller)
                     } else if (updatedSession.status == CallSession.STATUS_ENDED ||
                         updatedSession.status == CallSession.STATUS_DECLINED ||
                         updatedSession.status == CallSession.STATUS_MISSED
                     ) {
+                        stopVoiceStream()
                         AppNotificationManager.stopIncomingCallRingtone(context)
                         AppNotificationManager.dismissIncomingCallNotification(context)
                         if (updatedSession.connectedAt == 0L && updatedSession.status != CallSession.STATUS_DECLINED) {
@@ -210,6 +292,10 @@ class CallRepository(
         ).filter { it.isNotBlank() && it != "unknown_user" }.distinct()
 
         val callId = UUID.randomUUID().toString()
+        val (localIp, localPort) = voiceEngine.prepareEndpoint()
+
+        val channelName = "call_" + callId.replace("-", "").take(40)
+
         val session = CallSession(
             callId = callId,
             callerId = callerKey,
@@ -229,6 +315,10 @@ class CallRepository(
             targetKeys = targetKeys,
             status = CallSession.STATUS_RINGING,
             callType = "VOICE",
+            callerHost = localIp,
+            callerPort = localPort,
+            agoraChannel = channelName,
+            agoraAppId = agoraCallManager.agoraAppId.value.ifBlank { com.example.audio.AgoraCallManager.DEFAULT_AGORA_APP_ID },
             startedAt = System.currentTimeMillis()
         )
 
@@ -268,19 +358,25 @@ class CallRepository(
         _incomingCall.value = null
 
         val current = _activeCall.value ?: CallSession(callId = callId)
+        val (localIp, localPort) = voiceEngine.prepareEndpoint()
         val connected = current.copy(
             status = CallSession.STATUS_CONNECTED,
-            connectedAt = System.currentTimeMillis()
+            connectedAt = System.currentTimeMillis(),
+            receiverHost = localIp,
+            receiverPort = localPort
         )
         _activeCall.value = connected
         applyAudioHardwareSettings()
+        startVoiceStream(connected, amCaller = false)
 
         try {
             val db = firestore
             db?.collection("active_calls")?.document(callId)?.update(
                 mapOf(
                     "status" to CallSession.STATUS_CONNECTED,
-                    "connectedAt" to System.currentTimeMillis()
+                    "connectedAt" to System.currentTimeMillis(),
+                    "receiverHost" to localIp,
+                    "receiverPort" to localPort
                 )
             )?.await()
         } catch (e: Exception) {
@@ -289,6 +385,7 @@ class CallRepository(
     }
 
     suspend fun declineCall(callId: String) = withContext(Dispatchers.IO) {
+        stopVoiceStream()
         AppNotificationManager.stopIncomingCallRingtone(context)
         AppNotificationManager.dismissIncomingCallNotification(context)
         _incomingCall.value = null
@@ -313,6 +410,7 @@ class CallRepository(
     }
 
     suspend fun endCall(callId: String) = withContext(Dispatchers.IO) {
+        stopVoiceStream()
         AppNotificationManager.stopIncomingCallRingtone(context)
         AppNotificationManager.dismissIncomingCallNotification(context)
         _incomingCall.value = null
@@ -342,6 +440,7 @@ class CallRepository(
     }
 
     fun dismissCallDialog() {
+        stopVoiceStream()
         AppNotificationManager.stopIncomingCallRingtone(context)
         _activeCall.value = null
         _incomingCall.value = null
@@ -351,6 +450,8 @@ class CallRepository(
     fun toggleMute() {
         val newMute = !_isMuted.value
         _isMuted.value = newMute
+        voiceEngine.setMuted(newMute)
+        agoraCallManager.setMuted(newMute)
         try {
             audioManager?.isMicrophoneMute = newMute
         } catch (e: Exception) {
@@ -361,6 +462,8 @@ class CallRepository(
     fun toggleSpeaker() {
         val newSpeaker = !_isSpeakerOn.value
         _isSpeakerOn.value = newSpeaker
+        voiceEngine.setSpeakerOn(newSpeaker)
+        agoraCallManager.setSpeakerphone(newSpeaker)
         try {
             audioManager?.isSpeakerphoneOn = newSpeaker
         } catch (e: Exception) {
@@ -388,6 +491,7 @@ class CallRepository(
     }
 
     fun onCleared() {
+        stopVoiceStream()
         incomingCallListener?.remove()
         activeCallListener?.remove()
         AppNotificationManager.stopIncomingCallRingtone(context)

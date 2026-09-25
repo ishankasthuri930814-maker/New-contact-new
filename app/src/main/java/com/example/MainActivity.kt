@@ -210,11 +210,21 @@ class MainActivity : ComponentActivity() {
                     // Attempt showing App Open Ad on cold launch once view is active ONLY if authenticated
                     if (authUiState.isAuthenticated) {
                         com.example.ads.AdMobManager.showAppOpenAdIfAvailable(this@MainActivity, isColdStart = true)
+                        val cachedProfile = com.example.data.repository.UserProfileRepository(applicationContext).loadCachedProfile()
+                        if (cachedProfile.email.isNotBlank() || cachedProfile.userId.isNotBlank()) {
+                            com.example.service.CallBackgroundService.start(applicationContext, cachedProfile)
+                        }
                     }
                 }
 
                 LaunchedEffect(authUiState.isAuthenticated) {
                     com.example.ads.AdMobManager.isUserAuthenticated = authUiState.isAuthenticated
+                    if (authUiState.isAuthenticated) {
+                        val cachedProfile = com.example.data.repository.UserProfileRepository(applicationContext).loadCachedProfile()
+                        if (cachedProfile.email.isNotBlank() || cachedProfile.userId.isNotBlank()) {
+                            com.example.service.CallBackgroundService.start(applicationContext, cachedProfile)
+                        }
+                    }
                 }
 
                 var showAdminPanel by remember { mutableStateOf(false) }

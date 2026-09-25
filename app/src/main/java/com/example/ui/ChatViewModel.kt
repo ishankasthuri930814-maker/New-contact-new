@@ -43,15 +43,48 @@ data class ChatUiState(
     val activeCall: CallSession? = null,
     val incomingCall: CallSession? = null,
     val isMuted: Boolean = false,
-    val isSpeakerOn: Boolean = true
+    val isSpeakerOn: Boolean = true,
+    val isAudioConnected: Boolean = false,
+    val micAmplitude: Float = 0f,
+    val speakerAmplitude: Float = 0f
 ) {
     val activeDirectMessages: List<DirectChatMessage>
         get() {
             val other = activeDirectUser ?: return emptyList()
-            val myKey = currentUserProfile.email.ifBlank { currentUserProfile.userId }
-            val otherKey = other.email.ifBlank { other.userId }
+
+            val myKeys = listOfNotNull(
+                currentUserProfile.email.takeIf { it.isNotBlank() },
+                currentUserProfile.userId.takeIf { it.isNotBlank() },
+                currentUserProfile.phoneNumber.takeIf { it.isNotBlank() },
+                currentUserProfile.email.takeIf { it.isNotBlank() }?.let { DirectChatMessage.normalizeUserKey(it) },
+                currentUserProfile.userId.takeIf { it.isNotBlank() }?.let { DirectChatMessage.normalizeUserKey(it) },
+                currentUserProfile.phoneNumber.takeIf { it.isNotBlank() }?.let { DirectChatMessage.normalizeUserKey(it) }
+            ).map { it.lowercase().trim() }.distinct()
+
+            val otherKeys = listOfNotNull(
+                other.email.takeIf { it.isNotBlank() },
+                other.userId.takeIf { it.isNotBlank() },
+                other.phoneNumber.takeIf { it.isNotBlank() },
+                other.email.takeIf { it.isNotBlank() }?.let { DirectChatMessage.normalizeUserKey(it) },
+                other.userId.takeIf { it.isNotBlank() }?.let { DirectChatMessage.normalizeUserKey(it) },
+                other.phoneNumber.takeIf { it.isNotBlank() }?.let { DirectChatMessage.normalizeUserKey(it) }
+            ).map { it.lowercase().trim() }.distinct()
+
+            val myKey = currentUserProfile.email.ifBlank { currentUserProfile.userId.ifBlank { currentUserProfile.phoneNumber } }
+            val otherKey = other.email.ifBlank { other.userId.ifBlank { other.phoneNumber } }
             val convId = DirectChatMessage.createConversationId(myKey, otherKey)
-            return directMessagesMap[convId] ?: emptyList()
+
+            val directList = directMessagesMap[convId] ?: emptyList()
+
+            // Cross-match from all incoming conversations in case conversationId normalization varied
+            val crossList = directMessagesMap.values.flatten().filter { msg ->
+                val msgParticipants = msg.participants.map { it.lowercase().trim() }
+                val hasMe = myKeys.any { it in msgParticipants || it == msg.senderId.lowercase().trim() || it == msg.receiverId.lowercase().trim() }
+                val hasOther = otherKeys.any { it in msgParticipants || it == msg.senderId.lowercase().trim() || it == msg.receiverId.lowercase().trim() }
+                hasMe && hasOther
+            }
+
+            return (directList + crossList).distinctBy { it.id }.sortedBy { it.timestamp }
         }
 }
 
@@ -127,6 +160,24 @@ class ChatViewModel(
         viewModelScope.launch {
             callRepository.isSpeakerOn.collect { speaker ->
                 _uiState.update { it.copy(isSpeakerOn = speaker) }
+            }
+        }
+
+        viewModelScope.launch {
+            callRepository.isAudioConnected.collect { connected ->
+                _uiState.update { it.copy(isAudioConnected = connected) }
+            }
+        }
+
+        viewModelScope.launch {
+            callRepository.micAmplitude.collect { amp ->
+                _uiState.update { it.copy(micAmplitude = amp) }
+            }
+        }
+
+        viewModelScope.launch {
+            callRepository.speakerAmplitude.collect { amp ->
+                _uiState.update { it.copy(speakerAmplitude = amp) }
             }
         }
     }

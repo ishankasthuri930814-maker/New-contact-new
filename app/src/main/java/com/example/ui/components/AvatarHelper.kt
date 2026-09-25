@@ -1,5 +1,6 @@
 package com.example.ui.components
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
@@ -18,16 +19,21 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import android.graphics.BitmapFactory
+import android.util.Base64
 
 data class AvatarOption(
     val id: Int,
@@ -57,37 +63,62 @@ object AvatarHelper {
 fun UserAvatarView(
     avatarIndex: Int,
     displayName: String = "",
+    photoUrl: String = "",
     size: Dp = 44.dp,
     modifier: Modifier = Modifier,
     showBorder: Boolean = false,
     borderColor: Color = Color.White
 ) {
-    val avatar = AvatarHelper.getAvatar(avatarIndex)
-    Box(
-        modifier = modifier
-            .size(size)
-            .clip(CircleShape)
-            .background(Brush.linearGradient(avatar.gradientColors))
-            .then(
-                if (showBorder) Modifier.border(2.dp, borderColor, CircleShape) else Modifier
-            ),
-        contentAlignment = Alignment.Center
-    ) {
-        if (displayName.isNotBlank() && avatarIndex == 3) {
-            val initial = displayName.trim().take(1).uppercase()
-            Text(
-                text = initial,
-                color = Color.White,
-                fontWeight = FontWeight.Bold,
-                fontSize = (size.value * 0.45f).sp
-            )
-        } else {
-            Icon(
-                imageVector = avatar.icon,
-                contentDescription = avatar.name,
-                tint = Color.White,
-                modifier = Modifier.size(size * 0.58f)
-            )
+    val customBitmap = remember(photoUrl) {
+        if (photoUrl.isNotBlank()) {
+            try {
+                val clean = if (photoUrl.contains(",")) photoUrl.substringAfter(",") else photoUrl
+                val bytes = Base64.decode(clean, Base64.DEFAULT)
+                BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap()
+            } catch (e: Exception) {
+                null
+            }
+        } else null
+    }
+
+    if (customBitmap != null) {
+        Image(
+            bitmap = customBitmap,
+            contentDescription = displayName.ifBlank { "Avatar" },
+            contentScale = ContentScale.Crop,
+            modifier = modifier
+                .size(size)
+                .clip(CircleShape)
+                .then(if (showBorder) Modifier.border(2.dp, borderColor, CircleShape) else Modifier)
+        )
+    } else {
+        val avatar = AvatarHelper.getAvatar(avatarIndex)
+        Box(
+            modifier = modifier
+                .size(size)
+                .clip(CircleShape)
+                .background(Brush.linearGradient(avatar.gradientColors))
+                .then(
+                    if (showBorder) Modifier.border(2.dp, borderColor, CircleShape) else Modifier
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            if (displayName.isNotBlank() && avatarIndex == 3) {
+                val initial = displayName.trim().take(1).uppercase()
+                Text(
+                    text = initial,
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = (size.value * 0.45f).sp
+                )
+            } else {
+                Icon(
+                    imageVector = avatar.icon,
+                    contentDescription = avatar.name,
+                    tint = Color.White,
+                    modifier = Modifier.size(size * 0.58f)
+                )
+            }
         }
     }
 }
