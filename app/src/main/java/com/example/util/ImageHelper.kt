@@ -16,8 +16,8 @@ import kotlin.math.max
 
 object ImageHelper {
     private const val TAG = "ImageHelper"
-    private const val MAX_DIMENSION = 640
-    private const val COMPRESS_QUALITY = 78
+    private const val MAX_DIMENSION = 300
+    private const val COMPRESS_QUALITY = 75
 
     /**
      * Converts a Uri to an optimized, compressed Base64 JPEG string.

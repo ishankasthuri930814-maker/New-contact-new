@@ -26,6 +26,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -182,6 +184,7 @@ fun PoliceScreen(
     var showAiSearchDialog by remember { mutableStateOf(false) }
     var aiSearchQuery by remember { mutableStateOf("") }
     var contactForQrDialog by remember { mutableStateOf<PoliceContact?>(null) }
+    var editingContact by remember { mutableStateOf<PoliceContact?>(null) }
     var showManualUpdateDialog by remember { mutableStateOf(false) }
     var showLanguageMenu by remember { mutableStateOf(false) }
     var currentTab by remember { mutableStateOf(MainScreenTab.DIRECTORY) }
@@ -1156,6 +1159,7 @@ fun PoliceScreen(
                                     onCardClick = { c -> viewModel.openContactDetail(c) },
                                     onNavigationClick = { c -> viewModel.startNavigation(context, c) },
                                     onQrCodeClick = { c -> contactForQrDialog = c },
+                                    onEditClick = { c -> editingContact = c },
                                     selectedLanguage = uiState.selectedLanguage,
                                     isCompactSearchMode = uiState.searchQuery.isNotBlank(),
                                     searchQuery = uiState.searchQuery
@@ -1203,7 +1207,136 @@ fun PoliceScreen(
                     onFavoriteToggle = { c -> viewModel.toggleFavorite(c) },
                     onNavigationClick = { c -> viewModel.startNavigation(context, c) },
                     onQrCodeClick = { c -> contactForQrDialog = c },
+                    onEditClick = { c ->
+                        editingContact = c
+                    },
                     selectedLanguage = uiState.selectedLanguage
+                )
+            }
+
+            // Edit Contact Dialog
+            val activeEditingContact = editingContact
+            if (activeEditingContact != null) {
+                var editStation by remember(activeEditingContact.id) { mutableStateOf(activeEditingContact.stationOrDesignation) }
+                var editOfficer by remember(activeEditingContact.id) { mutableStateOf(activeEditingContact.officerName) }
+                var editRank by remember(activeEditingContact.id) { mutableStateOf(activeEditingContact.rank) }
+                var editGenPhone by remember(activeEditingContact.id) { mutableStateOf(activeEditingContact.generalPhone) }
+                var editMobPhone by remember(activeEditingContact.id) { mutableStateOf(activeEditingContact.mobilePhone) }
+                var editPvtPhone by remember(activeEditingContact.id) { mutableStateOf(activeEditingContact.pvtNumber) }
+                var editAddress by remember(activeEditingContact.id) { mutableStateOf(activeEditingContact.locationAddress) }
+                var editEmail by remember(activeEditingContact.id) { mutableStateOf(activeEditingContact.email) }
+
+                AlertDialog(
+                    onDismissRequest = { editingContact = null },
+                    title = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.LocalPolice, contentDescription = null, tint = PoliceNavy)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "සම්බන්ධතාව සංස්කරණය (Edit Contact)",
+                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                            )
+                        }
+                    },
+                    text = {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .verticalScroll(rememberScrollState()),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            OutlinedTextField(
+                                value = editStation,
+                                onValueChange = { editStation = it },
+                                label = { Text("ස්ථානය හෝ තනතුර (Station/Title)") },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true
+                            )
+                            OutlinedTextField(
+                                value = editOfficer,
+                                onValueChange = { editOfficer = it },
+                                label = { Text("නිලධාරී නම (Officer Name)") },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true
+                            )
+                            OutlinedTextField(
+                                value = editRank,
+                                onValueChange = { editRank = it },
+                                label = { Text("නිලය (Rank)") },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true
+                            )
+                            OutlinedTextField(
+                                value = editGenPhone,
+                                onValueChange = { editGenPhone = it },
+                                label = { Text("ප්‍රධාන දුරකථන (General Phone)") },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true
+                            )
+                            OutlinedTextField(
+                                value = editMobPhone,
+                                onValueChange = { editMobPhone = it },
+                                label = { Text("ජංගම දුරකථන (Mobile Phone)") },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true
+                            )
+                            OutlinedTextField(
+                                value = editPvtPhone,
+                                onValueChange = { editPvtPhone = it },
+                                label = { Text("පුද්ගලික අංකය (PVT Phone)") },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true
+                            )
+                            OutlinedTextField(
+                                value = editAddress,
+                                onValueChange = { editAddress = it },
+                                label = { Text("ලිපිනය (Address)") },
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            OutlinedTextField(
+                                value = editEmail,
+                                onValueChange = { editEmail = it },
+                                label = { Text("විද්‍යුත් තැපෑල (Email)") },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true
+                            )
+                        }
+                    },
+                    confirmButton = {
+                        Button(
+                            onClick = {
+                                val updated = activeEditingContact.copy(
+                                    stationOrDesignation = editStation.trim(),
+                                    officerName = editOfficer.trim(),
+                                    rank = editRank.trim(),
+                                    generalPhone = editGenPhone.trim(),
+                                    mobilePhone = editMobPhone.trim(),
+                                    pvtNumber = editPvtPhone.trim(),
+                                    locationAddress = editAddress.trim(),
+                                    email = editEmail.trim()
+                                )
+                                viewModel.saveContact(
+                                    contact = updated,
+                                    onSuccess = {
+                                        editingContact = null
+                                        viewModel.closeContactDetail()
+                                        Toast.makeText(context, "සම්බන්ධතාව සාර්ථකව යාවත්කාලීන විය!", Toast.LENGTH_SHORT).show()
+                                    },
+                                    onError = { err ->
+                                        Toast.makeText(context, err, Toast.LENGTH_SHORT).show()
+                                    }
+                                )
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = PoliceNavy)
+                        ) {
+                            Text("සුරකින්න (Save)")
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { editingContact = null }) {
+                            Text("අවලංගු කරන්න (Cancel)")
+                        }
+                    }
                 )
             }
 

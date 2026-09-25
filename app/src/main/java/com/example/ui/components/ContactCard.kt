@@ -18,6 +18,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Directions
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Phone
@@ -66,6 +67,7 @@ fun ContactCard(
     onCardClick: (PoliceContact) -> Unit,
     onNavigationClick: (PoliceContact) -> Unit = {},
     onQrCodeClick: ((PoliceContact) -> Unit)? = null,
+    onEditClick: ((PoliceContact) -> Unit)? = null,
     modifier: Modifier = Modifier,
     selectedLanguage: com.example.util.AppLanguage = com.example.util.AppLanguage.SINHALA,
     isCompactSearchMode: Boolean = false,
@@ -306,6 +308,20 @@ fun ContactCard(
                 }
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (onEditClick != null) {
+                        IconButton(
+                            onClick = { onEditClick(contact) },
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Edit,
+                                contentDescription = "Edit Contact",
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+
                     IconButton(
                         onClick = { onNavigationClick(contact) },
                         modifier = Modifier.size(36.dp)

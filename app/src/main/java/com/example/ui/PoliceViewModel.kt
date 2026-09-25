@@ -12,6 +12,8 @@ import androidx.lifecycle.viewModelScope
 import com.example.data.model.ContactCategory
 import com.example.data.model.PoliceContact
 import com.example.data.repository.PoliceRepository
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -40,6 +42,7 @@ class PoliceViewModel(private val repository: PoliceRepository) : ViewModel() {
     val uiState: StateFlow<PoliceUiState> = _uiState.asStateFlow()
 
     private var hasObservedInitialNetwork = false
+    private var searchJob: Job? = null
 
     init {
         // 1. Immediately load local offline contacts (retrieved in previous session) so UI shows contacts with 0 delay
@@ -155,11 +158,16 @@ class PoliceViewModel(private val repository: PoliceRepository) : ViewModel() {
 
     fun onSearchQueryChange(query: String) {
         _uiState.update { state ->
-            val filtered = filterContactsList(state.contacts, query, state.selectedCategory)
             state.copy(
                 searchQuery = query,
-                filteredContacts = filtered
+                isSearchHistoryDropdownOpen = query.isNotBlank() && state.searchHistory.isNotEmpty()
             )
+        }
+        searchJob?.cancel()
+        searchJob = viewModelScope.launch(Dispatchers.Default) {
+            val state = _uiState.value
+            val filtered = filterContactsList(state.contacts, query, state.selectedCategory)
+            _uiState.update { it.copy(filteredContacts = filtered) }
         }
     }
 
@@ -168,13 +176,17 @@ class PoliceViewModel(private val repository: PoliceRepository) : ViewModel() {
         if (trimmed.isNotEmpty()) {
             val updatedHistory = repository.saveSearchQuery(trimmed)
             _uiState.update { state ->
-                val filtered = filterContactsList(state.contacts, trimmed, state.selectedCategory)
                 state.copy(
                     searchQuery = trimmed,
-                    filteredContacts = filtered,
                     searchHistory = updatedHistory,
                     isSearchHistoryDropdownOpen = false
                 )
+            }
+            searchJob?.cancel()
+            searchJob = viewModelScope.launch(Dispatchers.Default) {
+                val state = _uiState.value
+                val filtered = filterContactsList(state.contacts, trimmed, state.selectedCategory)
+                _uiState.update { it.copy(filteredContacts = filtered) }
             }
         } else {
             _uiState.update { it.copy(isSearchHistoryDropdownOpen = false) }

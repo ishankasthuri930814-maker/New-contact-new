@@ -18,6 +18,7 @@ data class ProfileUiState(
     val editPhoneNumber: String = "",
     val editDistrict: String = "Colombo",
     val editEmergencyNote: String = "",
+    val editProfilePhotoUrl: String = "",
     val selectedAvatarIndex: Int = 0,
     val isPhonePublic: Boolean = false,
     val allowDirectMessages: Boolean = true,
@@ -44,6 +45,7 @@ class ProfileViewModel(
                         editPhoneNumber = if (it.editPhoneNumber.isBlank()) prof.phoneNumber else it.editPhoneNumber,
                         editDistrict = if (it.editDistrict.isBlank()) prof.district else it.editDistrict,
                         editEmergencyNote = if (it.editEmergencyNote.isBlank()) prof.emergencyNote else it.editEmergencyNote,
+                        editProfilePhotoUrl = if (it.editProfilePhotoUrl.isBlank()) prof.profilePhotoUrl else it.editProfilePhotoUrl,
                         selectedAvatarIndex = prof.avatarIndex,
                         isPhonePublic = prof.isPhonePublic,
                         allowDirectMessages = prof.allowDirectMessages,
@@ -65,6 +67,7 @@ class ProfileViewModel(
                     editPhoneNumber = loaded.phoneNumber,
                     editDistrict = loaded.district,
                     editEmergencyNote = loaded.emergencyNote,
+                    editProfilePhotoUrl = loaded.profilePhotoUrl,
                     selectedAvatarIndex = loaded.avatarIndex,
                     isPhonePublic = loaded.isPhonePublic,
                     allowDirectMessages = loaded.allowDirectMessages,
@@ -80,6 +83,14 @@ class ProfileViewModel(
     fun onDistrictChange(district: String) = _uiState.update { it.copy(editDistrict = district) }
     fun onEmergencyNoteChange(note: String) = _uiState.update { it.copy(editEmergencyNote = note) }
     fun onAvatarSelect(index: Int) = _uiState.update { it.copy(selectedAvatarIndex = index) }
+    fun onPhotoSelected(base64: String) {
+        _uiState.update { it.copy(editProfilePhotoUrl = base64) }
+        saveProfile()
+    }
+    fun onRemovePhoto() {
+        _uiState.update { it.copy(editProfilePhotoUrl = "") }
+        saveProfile()
+    }
     fun onPhonePublicToggle(value: Boolean) = _uiState.update { it.copy(isPhonePublic = value) }
     fun onDirectMessagesToggle(value: Boolean) = _uiState.update { it.copy(allowDirectMessages = value) }
     fun onDirectCallsToggle(value: Boolean) = _uiState.update { it.copy(allowDirectCalls = value) }
@@ -97,7 +108,8 @@ class ProfileViewModel(
                 avatarIndex = state.selectedAvatarIndex,
                 isPhonePublic = state.isPhonePublic,
                 allowDirectMessages = state.allowDirectMessages,
-                allowDirectCalls = state.allowDirectCalls
+                allowDirectCalls = state.allowDirectCalls,
+                profilePhotoUrl = state.editProfilePhotoUrl
             )
             _uiState.update {
                 it.copy(

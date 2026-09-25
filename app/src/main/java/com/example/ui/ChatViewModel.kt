@@ -321,6 +321,20 @@ class ChatViewModel(
         }
     }
 
+    fun renameUser(userKey: String, newAlias: String) {
+        userProfileRepository.setUserAlias(userKey, newAlias)
+        viewModelScope.launch {
+            userProfileRepository.fetchAllRegisteredUsers()
+        }
+    }
+
+    fun hideUser(userKey: String) {
+        userProfileRepository.hideUser(userKey)
+        viewModelScope.launch {
+            userProfileRepository.fetchAllRegisteredUsers()
+        }
+    }
+
     fun onInputTextChange(text: String) {
         _uiState.update { it.copy(inputText = text) }
     }

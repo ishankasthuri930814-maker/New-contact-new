@@ -339,6 +339,49 @@ fun RegisteredUsersDirectoryContent(
     val myEmail = uiState.currentUserProfile.email
     val myId = uiState.currentUserProfile.userId
 
+    var userToRename by remember { mutableStateOf<UserProfile?>(null) }
+    var activeMenuUserKey by remember { mutableStateOf<String?>(null) }
+
+    if (userToRename != null) {
+        val target = userToRename!!
+        val currentName = target.displayName.ifBlank { "User" }
+        var newNameText by remember(target.userId) { mutableStateOf(currentName) }
+
+        AlertDialog(
+            onDismissRequest = { userToRename = null },
+            title = { Text("නම වෙනස් කරන්න (Rename / Alias)") },
+            text = {
+                Column {
+                    Text("ඔබට මෙම සාමාජිකයා සඳහා පෙන්වීමට අවශ්‍ය නම ඇතුළත් කරන්න:")
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = newNameText,
+                        onValueChange = { newNameText = it },
+                        label = { Text("නම / Alias") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val key = target.email.ifBlank { target.userId }
+                        viewModel.renameUser(key, newNameText)
+                        userToRename = null
+                    }
+                ) {
+                    Text("සුරකින්න (Save)")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { userToRename = null }) {
+                    Text("අවලංගු කරන්න (Cancel)")
+                }
+            }
+        )
+    }
+
     val distinctUsers = uiState.registeredUsers
         .groupBy {
             val key = DirectChatMessage.normalizeUserKey(it.email).ifBlank {
@@ -585,6 +628,7 @@ fun RegisteredUsersDirectoryContent(
                             UserAvatarView(
                                 avatarIndex = user.avatarIndex,
                                 displayName = user.displayName,
+                                photoUrl = user.profilePhotoUrl,
                                 size = 48.dp
                             )
 
@@ -629,15 +673,17 @@ fun RegisteredUsersDirectoryContent(
                                 }
                             }
 
-                            // Action buttons: In-App Voice Call, Regular Phone Call, Direct Chat
+                            // Action buttons: In-App Voice Call, Regular Phone Call, Direct Chat, More Menu
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
+                                val userKey = user.email.ifBlank { user.userId }
+
                                 // 1. In-App Call Button (Vibrant Emerald Gradient)
                                 Box(
                                     modifier = Modifier
-                                        .size(40.dp)
+                                        .size(38.dp)
                                         .shadow(elevation = 3.dp, shape = CircleShape)
                                         .clip(CircleShape)
                                         .background(
@@ -654,7 +700,7 @@ fun RegisteredUsersDirectoryContent(
                                         imageVector = Icons.Default.PhoneInTalk,
                                         contentDescription = "In-App Voice Call",
                                         tint = Color.White,
-                                        modifier = Modifier.size(20.dp)
+                                        modifier = Modifier.size(18.dp)
                                     )
                                 }
 
@@ -662,24 +708,24 @@ fun RegisteredUsersDirectoryContent(
                                 if (user.phoneNumber.isNotBlank()) {
                                     Box(
                                         modifier = Modifier
-                                            .size(40.dp)
+                                            .size(38.dp)
                                             .shadow(elevation = 3.dp, shape = CircleShape)
-                                            .clip(CircleShape)
-                                            .background(
-                                                Brush.verticalGradient(
-                                                    listOf(Color(0xFF00B0FF), Color(0xFF0277BD))
-                                                )
+                                        .clip(CircleShape)
+                                        .background(
+                                            Brush.verticalGradient(
+                                                listOf(Color(0xFF00B0FF), Color(0xFF0277BD))
                                             )
-                                            .border(1.dp, Color.White.copy(alpha = 0.25f), CircleShape)
-                                            .clickable { onCallUser(user) }
-                                            .testTag("phone_call_user_${user.userId}"),
+                                        )
+                                        .border(1.dp, Color.White.copy(alpha = 0.25f), CircleShape)
+                                        .clickable { onCallUser(user) }
+                                        .testTag("phone_call_user_${user.userId}"),
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Icon(
                                             imageVector = Icons.Default.Call,
                                             contentDescription = "Regular Phone Call",
                                             tint = Color.White,
-                                            modifier = Modifier.size(20.dp)
+                                            modifier = Modifier.size(18.dp)
                                         )
                                     }
                                 }
@@ -687,7 +733,7 @@ fun RegisteredUsersDirectoryContent(
                                 // 3. Direct Chat (Vibrant Royal Indigo Gradient)
                                 Box(
                                     modifier = Modifier
-                                        .size(40.dp)
+                                        .size(38.dp)
                                         .shadow(elevation = 3.dp, shape = CircleShape)
                                         .clip(CircleShape)
                                         .background(
@@ -704,8 +750,42 @@ fun RegisteredUsersDirectoryContent(
                                         imageVector = Icons.Default.Chat,
                                         contentDescription = "Direct Chat",
                                         tint = Color.White,
-                                        modifier = Modifier.size(20.dp)
+                                        modifier = Modifier.size(18.dp)
                                     )
+                                }
+
+                                // 4. More Options Dropdown (Rename / Hide)
+                                Box {
+                                    IconButton(
+                                        onClick = { activeMenuUserKey = userKey },
+                                        modifier = Modifier.size(32.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.MoreVert,
+                                            contentDescription = "More Options",
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+
+                                    DropdownMenu(
+                                        expanded = activeMenuUserKey == userKey,
+                                        onDismissRequest = { activeMenuUserKey = null }
+                                    ) {
+                                        DropdownMenuItem(
+                                            text = { Text("✏️ නම වෙනස් කරන්න (Rename)") },
+                                            onClick = {
+                                                activeMenuUserKey = null
+                                                userToRename = user
+                                            }
+                                        )
+                                        DropdownMenuItem(
+                                            text = { Text("👁️ ලැයිස්තුවෙන් සඟවන්න (Hide)") },
+                                            onClick = {
+                                                activeMenuUserKey = null
+                                                viewModel.hideUser(userKey)
+                                            }
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -2497,3 +2577,4 @@ fun ChatMessageItem(
         }
     }
 }
+

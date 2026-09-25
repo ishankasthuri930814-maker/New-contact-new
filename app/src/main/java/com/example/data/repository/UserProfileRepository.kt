@@ -155,6 +155,7 @@ class UserProfileRepository(
             district = prefs.getString("district", "Colombo") ?: "Colombo",
             emergencyNote = prefs.getString("emergencyNote", "") ?: "",
             avatarIndex = prefs.getInt("avatarIndex", 0),
+            profilePhotoUrl = prefs.getString("profilePhotoUrl", "") ?: "",
             badge = prefs.getString("badge", "සත්‍යාපිත සාමාජික (Verified Citizen)") ?: "සත්‍යාපිත සාමාජික (Verified Citizen)",
             joinedTimestamp = prefs.getLong("joinedTimestamp", System.currentTimeMillis()),
             isVerified = prefs.getBoolean("isVerified", true),
@@ -419,7 +420,8 @@ class UserProfileRepository(
         avatarIndex: Int,
         isPhonePublic: Boolean,
         allowDirectMessages: Boolean,
-        allowDirectCalls: Boolean
+        allowDirectCalls: Boolean,
+        profilePhotoUrl: String? = null
     ): Boolean = withContext(Dispatchers.IO) {
         val current = _currentProfile.value
         val updated = current.copy(
@@ -430,7 +432,8 @@ class UserProfileRepository(
             avatarIndex = avatarIndex,
             isPhonePublic = isPhonePublic,
             allowDirectMessages = allowDirectMessages,
-            allowDirectCalls = allowDirectCalls
+            allowDirectCalls = allowDirectCalls,
+            profilePhotoUrl = profilePhotoUrl ?: current.profilePhotoUrl
         )
         saveProfileToCache(updated)
 

@@ -1,5 +1,9 @@
 package com.example.ui
 
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -22,7 +26,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Logout
+import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.LocationOn
@@ -31,6 +37,7 @@ import androidx.compose.material.icons.filled.MedicalServices
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.PhoneInTalk
+import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Verified
@@ -45,6 +52,7 @@ import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -56,6 +64,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -68,6 +77,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -76,6 +86,7 @@ import com.example.ui.components.AvatarHelper
 import com.example.ui.components.UserAvatarView
 import com.example.util.AppLanguage
 import com.example.util.AppStrings
+import com.example.util.ImageHelper
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -94,6 +105,23 @@ fun ProfileScreen(
     val scrollState = rememberScrollState()
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+
+    val photoPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        if (uri != null) {
+            scope.launch {
+                val base64 = ImageHelper.uriToBase64(context, uri)
+                if (!base64.isNullOrBlank()) {
+                    viewModel.onPhotoSelected(base64)
+                    Toast.makeText(context, "ඡායාරූපය සාර්ථකව සුරකින ලදී! (Profile Photo Updated)", Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(context, "ඡායාරූපය කියවීමට නොහැකි විය", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
 
     var districtExpanded by remember { mutableStateOf(false) }
 
@@ -153,13 +181,35 @@ fun ProfileScreen(
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        UserAvatarView(
-                            avatarIndex = uiState.selectedAvatarIndex,
-                            displayName = uiState.editDisplayName,
-                            size = 80.dp,
-                            showBorder = true,
-                            borderColor = Color(0xFFFBC02D)
-                        )
+                        Box(contentAlignment = Alignment.BottomEnd) {
+                            UserAvatarView(
+                                avatarIndex = uiState.selectedAvatarIndex,
+                                displayName = uiState.editDisplayName,
+                                photoUrl = uiState.editProfilePhotoUrl,
+                                size = 84.dp,
+                                showBorder = true,
+                                borderColor = Color(0xFFFBC02D)
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .size(30.dp)
+                                    .clip(CircleShape)
+                                    .background(MaterialTheme.colorScheme.primary)
+                                    .clickable {
+                                        photoPickerLauncher.launch(
+                                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                                        )
+                                    },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.PhotoCamera,
+                                    contentDescription = "Upload Photo",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(17.dp)
+                                )
+                            }
+                        }
 
                         Spacer(modifier = Modifier.height(12.dp))
 
@@ -211,7 +261,7 @@ fun ProfileScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Avatar Selector Carousel
+            // Avatar & Custom Photo Selector Card
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
@@ -219,25 +269,82 @@ fun ProfileScreen(
                 elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Text(
-                        text = "Profile Avatar තෝරන්න (Select Avatar)",
-                        style = MaterialTheme.typography.titleSmall.copy(
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Profile ඡායාරූපය සහ Avatar",
+                            style = MaterialTheme.typography.titleSmall.copy(
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        )
+                        if (uiState.editProfilePhotoUrl.isNotBlank()) {
+                            TextButton(
+                                onClick = { viewModel.onRemovePhoto() },
+                                colors = ButtonDefaults.textButtonColors(contentColor = Color(0xFFD32F2F))
+                            ) {
+                                Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Photo ඉවත් කරන්න", fontSize = 12.sp)
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // Gallery Photo Picker Button
+                    OutlinedButton(
+                        onClick = {
+                            photoPickerLauncher.launch(
+                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                            )
+                        },
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.primary)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.AddPhotoAlternate,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = if (uiState.editProfilePhotoUrl.isNotBlank()) "වෙනත් ඡායාරූපයක් තෝරන්න (Change Photo)" else "📸 Gallery එකෙන් Photo එකක් තෝරන්න (Choose Photo)",
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
+                            fontSize = 13.sp
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Text(
+                        text = "හෝ App එකේ නිල Avatar එකක් තෝරන්න:",
+                        style = MaterialTheme.typography.labelMedium.copy(
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     )
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(10.dp))
 
                     LazyRow(
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         itemsIndexed(AvatarHelper.avatarOptions) { index, opt ->
-                            val isSelected = uiState.selectedAvatarIndex == index
+                            val isSelected = uiState.selectedAvatarIndex == index && uiState.editProfilePhotoUrl.isBlank()
                             Box(
                                 modifier = Modifier
                                     .size(54.dp)
                                     .clip(CircleShape)
-                                    .clickable { viewModel.onAvatarSelect(index) }
+                                    .clickable {
+                                        viewModel.onAvatarSelect(index)
+                                        viewModel.onRemovePhoto()
+                                    }
                                     .then(
                                         if (isSelected) Modifier.border(3.dp, MaterialTheme.colorScheme.primary, CircleShape) else Modifier
                                     ),

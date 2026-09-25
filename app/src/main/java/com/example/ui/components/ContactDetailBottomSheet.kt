@@ -22,6 +22,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Directions
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.LocalPolice
 import androidx.compose.material.icons.filled.LocationOn
@@ -75,6 +76,7 @@ fun ContactDetailBottomSheet(
     onFavoriteToggle: (PoliceContact) -> Unit,
     onNavigationClick: (PoliceContact) -> Unit = {},
     onQrCodeClick: ((PoliceContact) -> Unit)? = null,
+    onEditClick: ((PoliceContact) -> Unit)? = null,
     modifier: Modifier = Modifier,
     selectedLanguage: com.example.util.AppLanguage = com.example.util.AppLanguage.SINHALA
 ) {
@@ -166,6 +168,16 @@ fun ContactDetailBottomSheet(
                 }
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (onEditClick != null) {
+                        IconButton(onClick = { onEditClick(contact) }) {
+                            Icon(
+                                imageVector = Icons.Default.Edit,
+                                contentDescription = "Edit Contact",
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+
                     IconButton(onClick = { onNavigationClick(contact) }) {
                         Icon(
                             imageVector = Icons.Default.Directions,
