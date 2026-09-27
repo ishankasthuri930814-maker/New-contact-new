@@ -81,6 +81,9 @@ fun ContactDetailBottomSheet(
     selectedLanguage: com.example.util.AppLanguage = com.example.util.AppLanguage.SINHALA
 ) {
     val context = LocalContext.current
+    val displayContact = androidx.compose.runtime.remember(contact, selectedLanguage) {
+        com.example.util.MultiLanguageSearchHelper.translateContactForDisplay(contact, selectedLanguage)
+    }
     val isEmergency = contact.rank == "HOTLINE" || contact.generalPhone == "119" || contact.generalPhone == "118"
     val scrollState = rememberScrollState()
 
@@ -152,13 +155,13 @@ fun ContactDetailBottomSheet(
 
                     Spacer(modifier = Modifier.width(10.dp))
 
-                    if (contact.rank.isNotBlank()) {
+                    if (displayContact.rank.isNotBlank()) {
                         Surface(
                             shape = RoundedCornerShape(8.dp),
                             color = if (isEmergency) EmergencyRed.copy(alpha = 0.15f) else PoliceNavy.copy(alpha = 0.1f)
                         ) {
                             Text(
-                                text = contact.rank,
+                                text = displayContact.rank,
                                 style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
                                 color = if (isEmergency) EmergencyRed else PoliceNavy,
                                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
@@ -218,7 +221,7 @@ fun ContactDetailBottomSheet(
 
             // Full Station Title (Wrapped naturally so no text is cut off on real phones)
             Text(
-                text = contact.stationOrDesignation,
+                text = displayContact.stationOrDesignation,
                 style = MaterialTheme.typography.titleLarge.copy(
                     fontWeight = FontWeight.Bold,
                     fontSize = 16.sp,
@@ -227,10 +230,10 @@ fun ContactDetailBottomSheet(
                 color = MaterialTheme.colorScheme.onSurface
             )
 
-            if (contact.officerName.isNotBlank()) {
+            if (displayContact.officerName.isNotBlank()) {
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "👮 ${contact.officerName}",
+                    text = "👮 ${displayContact.officerName}",
                     style = MaterialTheme.typography.titleMedium.copy(
                         fontWeight = FontWeight.SemiBold,
                         color = Color(0xFF334155),
@@ -507,10 +510,10 @@ fun ContactDetailBottomSheet(
                         }
                     }
 
-                    if (contact.locationAddress.isNotBlank()) {
+                    if (displayContact.locationAddress.isNotBlank()) {
                         Spacer(modifier = Modifier.height(10.dp))
                         Text(
-                            text = contact.locationAddress,
+                            text = displayContact.locationAddress,
                             style = MaterialTheme.typography.bodyMedium.copy(
                                 fontSize = 13.sp,
                                 lineHeight = 18.sp

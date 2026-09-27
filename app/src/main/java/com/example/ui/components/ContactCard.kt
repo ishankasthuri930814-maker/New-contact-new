@@ -74,6 +74,9 @@ fun ContactCard(
     searchQuery: String = ""
 ) {
     val context = LocalContext.current
+    val displayContact = androidx.compose.runtime.remember(contact, selectedLanguage, searchQuery) {
+        com.example.util.MultiLanguageSearchHelper.translateContactForDisplay(contact, selectedLanguage, searchQuery)
+    }
     val isEmergency = contact.rank == "HOTLINE" || contact.generalPhone == "119" || contact.generalPhone == "118"
 
     val primaryPhone = contact.generalPhone.ifBlank {
@@ -131,14 +134,14 @@ fun ContactCard(
 
                     Column {
                         // Rank or District Badge if available
-                        if (contact.rank.isNotBlank()) {
+                        if (displayContact.rank.isNotBlank()) {
                             Surface(
                                 shape = RoundedCornerShape(4.dp),
                                 color = if (isEmergency) EmergencyRed else MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.padding(bottom = 3.dp)
                             ) {
                                 Text(
-                                    text = contact.rank,
+                                    text = displayContact.rank,
                                     style = MaterialTheme.typography.labelSmall.copy(
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.Bold,
@@ -151,7 +154,7 @@ fun ContactCard(
 
                         // Station / Designation Name
                         Text(
-                            text = contact.stationOrDesignation,
+                            text = displayContact.stationOrDesignation,
                             style = MaterialTheme.typography.titleMedium.copy(
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 16.sp
@@ -160,9 +163,9 @@ fun ContactCard(
                         )
 
                         // Officer Name
-                        if (contact.officerName.isNotBlank()) {
+                        if (displayContact.officerName.isNotBlank()) {
                             Text(
-                                text = "👮 ${contact.officerName}",
+                                text = "👮 ${displayContact.officerName}",
                                 style = MaterialTheme.typography.bodyMedium.copy(
                                     fontSize = 13.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -267,7 +270,7 @@ fun ContactCard(
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     // Rank Badge if present
-                    if (contact.rank.isNotBlank()) {
+                    if (displayContact.rank.isNotBlank()) {
                         Surface(
                             shape = RoundedCornerShape(6.dp),
                             color = if (isEmergency) EmergencyRed else MaterialTheme.colorScheme.primary,
@@ -275,7 +278,7 @@ fun ContactCard(
                             modifier = Modifier.padding(bottom = 6.dp)
                         ) {
                             Text(
-                                text = contact.rank,
+                                text = displayContact.rank,
                                 style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                             )
@@ -284,7 +287,7 @@ fun ContactCard(
 
                     // Station / Designation Title (Fully wrapped, no truncation)
                     Text(
-                        text = contact.stationOrDesignation,
+                        text = displayContact.stationOrDesignation,
                         style = MaterialTheme.typography.titleMedium.copy(
                             fontWeight = FontWeight.Bold,
                             fontSize = 16.sp,
@@ -294,10 +297,10 @@ fun ContactCard(
                     )
 
                     // Officer Name if present
-                    if (contact.officerName.isNotBlank()) {
+                    if (displayContact.officerName.isNotBlank()) {
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "👮 ${contact.officerName}",
+                            text = "👮 ${displayContact.officerName}",
                             style = MaterialTheme.typography.bodyMedium.copy(
                                 fontWeight = FontWeight.Medium,
                                 fontSize = 13.sp,

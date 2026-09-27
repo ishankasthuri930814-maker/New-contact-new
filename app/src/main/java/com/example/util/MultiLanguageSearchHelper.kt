@@ -612,6 +612,247 @@ object MultiLanguageSearchHelper {
         return resultTokens
     }
 
+    // Dynamic Translation Map for English Google Sheet entries into Sinhala
+    private val SINHALA_TRANSLATION_RULES: List<Pair<Regex, String>> = listOf(
+        // Multi-word Phrases & Special Ranks
+        Regex("(?i)\\bsenior deputy inspector general\\b|\\bsenior dig\\b") to "ජ්‍යෙෂ්ඨ නියෝජ්‍ය පොලිස්පති (Senior DIG)",
+        Regex("(?i)\\binspector general of police\\b|\\bigp\\b") to "පොලිස්පති (IGP)",
+        Regex("(?i)\\bdeputy inspector general\\b|\\bdig\\b") to "නියෝජ්‍ය පොලිස්පති (DIG)",
+        Regex("(?i)\\bsenior superintendent of police\\b|\\bssp\\b") to "ජ්‍යෙෂ්ඨ පොලිස් අධිකාරී (SSP)",
+        Regex("(?i)\\bsuperintendent of police\\b|\\bsp\\b") to "පොලිස් අධිකාරී (SP)",
+        Regex("(?i)\\bassistant superintendent of police\\b|\\basp\\b") to "සහකාර පොලිස් අධිකාරී (ASP)",
+        Regex("(?i)\\bpolice headquarters\\b") to "පොලිස් මූලස්ථානය",
+        Regex("(?i)\\bpolice station\\b") to "පොලිස් ස්ථානය",
+        Regex("(?i)\\bpolice division\\b") to "පොලිස් කොට්ඨාසය",
+        Regex("(?i)\\bpolice range\\b") to "පොලිස් කලාපය",
+        Regex("(?i)\\bspecial task force\\b") to "විශේෂ කාර්ය බලකාය (STF)",
+        Regex("(?i)\\bchildren [&s]+ women bureau\\b|\\bchild [&s]+ women bureau\\b") to "ළමා හා කාන්තා කාර්යාංශය",
+        Regex("(?i)\\bfire station\\b|\\bfire brigade\\b") to "ගිනි නිවන හමුදා මධ්‍යස්ථානය",
+        Regex("(?i)\\boic traffic\\b") to "ස්ථානාධිපති (රථවාහන)",
+        Regex("(?i)\\boic crime\\b") to "ස්ථානාධිපති (අපරාධ)",
+        Regex("(?i)\\boic vice\\b") to "ස්ථානාධිපති (විනීතකම්)",
+        Regex("(?i)\\boic community policing\\b") to "ස්ථානාධිපති (ප්‍රජා පොලිස්)",
+        Regex("(?i)\\boic\\b|\\bofficer in charge\\b") to "ස්ථානාධිපති (OIC)",
+        Regex("(?i)\\btransport [&s]+ logistics\\b") to "ප්‍රවාහන හා සම්පත්",
+        Regex("(?i)\\btraffic [&s]+ road safety\\b") to "රථවාහන සහ මාර්ග ආරක්ෂණ",
+        Regex("(?i)\\bfield force headquarters\\b") to "ක්ෂේත්‍ර බලකා මූලස්ථානය",
+        Regex("(?i)\\bfield force\\b") to "ක්ෂේත්‍ර බලකා",
+        Regex("(?i)\\bstate intelligence service\\b|\\bsis\\b") to "රාජ්‍ය බුද්ධි සේවය (SIS)",
+        Regex("(?i)\\bcriminal investigation department\\b|\\bcid\\b") to "අපරාධ පරීක්ෂණ දෙපාර්තමේන්තුව (CID)",
+        Regex("(?i)\\bpolice media division\\b") to "පොලිස් මාධ්‍ය කොට්ඨාසය",
+        Regex("(?i)\\bmounted division\\b") to "අශ්වාරෝහක කොට්ඨාසය",
+        Regex("(?i)\\bkennel division\\b") to "පොලිස් සුනඛ කොට්ඨාසය",
+
+        // Provinces
+        Regex("(?i)\\bwestern province\\b") to "බස්නාහිර පළාත",
+        Regex("(?i)\\bcentral province\\b") to "මධ්‍යම පළාත",
+        Regex("(?i)\\bsouthern province\\b") to "දකුණු පළාත",
+        Regex("(?i)\\bnorthern province\\b") to "උතුරු පළාත",
+        Regex("(?i)\\beastern province\\b") to "නැගෙනහිර පළාත",
+        Regex("(?i)\\bnorth western province\\b") to "වයඹ පළාත",
+        Regex("(?i)\\bnorth central province\\b") to "උතුරු මැද පළාත",
+        Regex("(?i)\\buva province\\b") to "ඌව පළාත",
+        Regex("(?i)\\bsabaragamuwa province\\b") to "සබරගමුව පළාත",
+
+        // Key Operational Terms
+        Regex("(?i)\\btransport\\b") to "ප්‍රවාහන",
+        Regex("(?i)\\bheadquarters\\b|\\bhq\\b") to "මූලස්ථානය",
+        Regex("(?i)\\bdivision\\b") to "කොට්ඨාසය",
+        Regex("(?i)\\brange\\b") to "කලාපය",
+        Regex("(?i)\\btraffic\\b") to "රථවාහන",
+        Regex("(?i)\\bcrime\\b") to "අපරාධ",
+        Regex("(?i)\\bchildren\\b|\\bchild\\b") to "ළමා",
+        Regex("(?i)\\bwomen\\b") to "කාන්තා",
+        Regex("(?i)\\bdirector\\b") to "අධ්‍යක්ෂක",
+        Regex("(?i)\\bdeputy\\b") to "නියෝජ්‍ය",
+        Regex("(?i)\\bsenior\\b") to "ජ්‍යෙෂ්ඨ",
+        Regex("(?i)\\bpolice\\b") to "පොලිස්",
+        Regex("(?i)\\bstation\\b") to "ස්ථානය",
+        Regex("(?i)\\bhospital\\b") to "රෝහල",
+        Regex("(?i)\\bemergency\\b") to "හදිසි",
+        Regex("(?i)\\bmarine\\b") to "නාවික",
+        Regex("(?i)\\benvironmental\\b") to "පරිසර",
+        Regex("(?i)\\bnarcotics\\b") to "මත්ද්‍රව්‍ය නාශක",
+        Regex("(?i)\\bbureau\\b") to "කාර්යාංශය",
+        Regex("(?i)\\bunit\\b") to "ඒකකය",
+        Regex("(?i)\\bbranch\\b") to "අංශය",
+        Regex("(?i)\\bdepartment\\b") to "දෙපාර්තමේන්තුව",
+        Regex("(?i)\\blogistics\\b") to "සම්පත් හා සැපයුම්",
+        Regex("(?i)\\badministration\\b") to "පාලන",
+        Regex("(?i)\\bwelfare\\b") to "සුබසාධන",
+        Regex("(?i)\\bcommunication\\b") to "සන්නිවේදන",
+        Regex("(?i)\\btourist\\b") to "සංචාරක",
+        Regex("(?i)\\bsecurity\\b") to "ආරක්ෂක",
+        Regex("(?i)\\binvestigation\\b") to "පරීක්ෂණ",
+        Regex("(?i)\\bintelligence\\b") to "බුද්ධි",
+
+        // Major Towns & Cities
+        Regex("(?i)\\bfort\\b") to "කොටුව",
+        Regex("(?i)\\bpettah\\b") to "පිටකොටුව",
+        Regex("(?i)\\bmaradana\\b") to "මරදාන",
+        Regex("(?i)\\bborella\\b") to "බොරැල්ල",
+        Regex("(?i)\\bkollupitiya\\b|\\bcolpetty\\b") to "කොල්ලුපිටිය",
+        Regex("(?i)\\bbambalapitiya\\b") to "බම්බලපිටිය",
+        Regex("(?i)\\bwellawatte\\b|\\bwellawatta\\b") to "වැල්ලවත්ත",
+        Regex("(?i)\\bdehiwala\\b") to "දෙහිවල",
+        Regex("(?i)\\bmount lavinia\\b|\\bgalkissa\\b") to "ගල්කිස්ස",
+        Regex("(?i)\\bmoratuwa\\b") to "මොරටුව",
+        Regex("(?i)\\bpanadura\\b") to "පානදුර",
+        Regex("(?i)\\bnugegoda\\b") to "නුගේගොඩ",
+        Regex("(?i)\\bmaharagama\\b") to "මහරගම",
+        Regex("(?i)\\bhomagama\\b") to "හෝමාගම",
+        Regex("(?i)\\bkottawa\\b") to "කොට්ටාව",
+        Regex("(?i)\\bavissawella\\b") to "අවිස්සාවේල්ල",
+        Regex("(?i)\\bkaduwela\\b") to "කඩුවෙල",
+        Regex("(?i)\\bkadawatha\\b") to "කඩවත",
+        Regex("(?i)\\bkelaniya\\b") to "කැලණිය",
+        Regex("(?i)\\bja-ela\\b|\\bja ela\\b") to "ජාඇල",
+        Regex("(?i)\\bkatunayake\\b") to "කටුනායක",
+        Regex("(?i)\\bnegombo\\b") to "මීගමුව",
+        Regex("(?i)\\bragama\\b") to "රාගම",
+        Regex("(?i)\\bwattala\\b") to "වත්තල",
+        Regex("(?i)\\bkiribathgoda\\b") to "කිරිබත්ගොඩ",
+        Regex("(?i)\\bgampaha\\b") to "ගම්පහ",
+        Regex("(?i)\\bkalutara\\b|\\bkaluthara\\b") to "කළුතර",
+        Regex("(?i)\\bkandy\\b|\\bmahanuwara\\b") to "මහනුවර",
+        Regex("(?i)\\bmatale\\b") to "මාතලේ",
+        Regex("(?i)\\bnuwara eliya\\b|\\bnuwaraeliya\\b") to "නුවරඑළිය",
+        Regex("(?i)\\bgalle\\b") to "ගාල්ල",
+        Regex("(?i)\\bmatara\\b|\\bmathara\\b") to "මාතර",
+        Regex("(?i)\\bhambantota\\b") to "හම්බන්තොට",
+        Regex("(?i)\\bjaffna\\b") to "යාපනය",
+        Regex("(?i)\\bkilinochchi\\b") to "කිලිනොච්චිය",
+        Regex("(?i)\\bmannar\\b") to "මන්නාරම",
+        Regex("(?i)\\bvavuniya\\b") to "වවුනියාව",
+        Regex("(?i)\\bmullaitivu\\b|\\bmullativu\\b") to "මුලතිව්",
+        Regex("(?i)\\bbatticaloa\\b") to "මඩකලපුව",
+        Regex("(?i)\\bampara\\b") to "අම්පාර",
+        Regex("(?i)\\btrincomalee\\b|\\btrinco\\b") to "ත්‍රිකුණාමලය",
+        Regex("(?i)\\bkurunegala\\b") to "කුරුණෑගල",
+        Regex("(?i)\\bputtalam\\b") to "පුත්තලම",
+        Regex("(?i)\\banuradhapura\\b") to "අනුරාධපුරය",
+        Regex("(?i)\\bpolonnaruwa\\b") to "පොළොන්නරුව",
+        Regex("(?i)\\bbadulla\\b") to "බදුල්ල",
+        Regex("(?i)\\bmonaragala\\b") to "මොනරාගල",
+        Regex("(?i)\\bratnapura\\b") to "රත්නපුර",
+        Regex("(?i)\\bkegalle\\b") to "කෑගල්ල",
+        Regex("(?i)\\bcolombo\\b") to "කොළඹ"
+    )
+
+    // Dynamic Translation Map for English Google Sheet entries into Tamil
+    private val TAMIL_TRANSLATION_RULES: List<Pair<Regex, String>> = listOf(
+        Regex("(?i)\\bsenior deputy inspector general\\b|\\bsenior dig\\b") to "ஜேஷ்ட பிரதி பொலிஸ் மா அதிபர் (Senior DIG)",
+        Regex("(?i)\\binspector general of police\\b|\\bigp\\b") to "பொலிஸ் மா அதிபர் (IGP)",
+        Regex("(?i)\\bdeputy inspector general\\b|\\bdig\\b") to "பிரதி பொலிஸ் மா அதிபர் (DIG)",
+        Regex("(?i)\\bsenior superintendent of police\\b|\\bssp\\b") to "ஜேஷ்ட பொலிஸ் அத்தியட்சகர் (SSP)",
+        Regex("(?i)\\bsuperintendent of police\\b|\\bsp\\b") to "பொலிஸ் அத்தியட்சகர் (SP)",
+        Regex("(?i)\\bpolice headquarters\\b") to "பொலிஸ் தலைமையகம்",
+        Regex("(?i)\\bpolice station\\b") to "பொலிஸ் நிலையம்",
+        Regex("(?i)\\bpolice division\\b") to "பொலிஸ் கோட்டம்",
+        Regex("(?i)\\bpolice range\\b") to "பொலிஸ் வலயம்",
+        Regex("(?i)\\bspecial task force\\b") to "விசேட அதிரடிப் படை (STF)",
+        Regex("(?i)\\bfire station\\b|\\bfire brigade\\b") to "தீயணைப்புப் படை நிலையம்",
+        Regex("(?i)\\boic traffic\\b") to "நிலைய பொறுப்பதிகாரி (போக்குவரத்து)",
+        Regex("(?i)\\boic crime\\b") to "நிலைய பொறுப்பதிகாரி (குற்றப்பிரிவு)",
+        Regex("(?i)\\boic\\b|\\bofficer in charge\\b") to "நிலைய பொறுப்பதிகாரி (OIC)",
+        Regex("(?i)\\bwestern province\\b") to "மேல் மாகாணம்",
+        Regex("(?i)\\bcentral province\\b") to "மத்திய மாகாணம்",
+        Regex("(?i)\\bsouthern province\\b") to "தென் மாகாணம்",
+        Regex("(?i)\\bnorthern province\\b") to "வட மாகாணம்",
+        Regex("(?i)\\beastern province\\b") to "கிழக்கு மாகாணம்",
+        Regex("(?i)\\btransport\\b") to "போக்குவரத்து",
+        Regex("(?i)\\bheadquarters\\b|\\bhq\\b") to "தலைமையகம்",
+        Regex("(?i)\\bdivision\\b") to "கோட்டம்",
+        Regex("(?i)\\brange\\b") to "வலயம்",
+        Regex("(?i)\\btraffic\\b") to "போக்குவரத்து",
+        Regex("(?i)\\bcrime\\b") to "குற்றப்பிரிவு",
+        Regex("(?i)\\bchildren\\b|\\bchild\\b") to "சிறுவர்",
+        Regex("(?i)\\bwomen\\b") to "மகளிர்",
+        Regex("(?i)\\bdirector\\b") to "இயக்குனர்",
+        Regex("(?i)\\bdeputy\\b") to "பிரதி",
+        Regex("(?i)\\bsenior\\b") to "சிரேஷ்ட",
+        Regex("(?i)\\bpolice\\b") to "பொலிஸ்",
+        Regex("(?i)\\bstation\\b") to "நிலையம்",
+        Regex("(?i)\\bhospital\\b") to "வைத்தியசாலை",
+        Regex("(?i)\\bemergency\\b") to "அவசர",
+        Regex("(?i)\\bbureau\\b") to "பணியகம்",
+        Regex("(?i)\\bunit\\b") to "பிரிவு",
+        Regex("(?i)\\bbranch\\b") to "கிளை",
+        Regex("(?i)\\bdepartment\\b") to "திணைக்களம்",
+        Regex("(?i)\\blogistics\\b") to "தளவாடங்கள்",
+        Regex("(?i)\\badministration\\b") to "நிர்வாகம்",
+        Regex("(?i)\\bwelfare\\b") to "நலன்புரி",
+        Regex("(?i)\\bcommunication\\b") to "தொடர்பாடல்",
+        Regex("(?i)\\btourist\\b") to "சுற்றுலா",
+        Regex("(?i)\\bsecurity\\b") to "பாதுகாப்பு",
+        Regex("(?i)\\binvestigation\\b") to "விசாரணை",
+        Regex("(?i)\\bintelligence\\b") to "நுண்ணறிவு",
+        Regex("(?i)\\bcolombo\\b") to "கொழும்பு",
+        Regex("(?i)\\bgampaha\\b") to "கம்பஹா",
+        Regex("(?i)\\bkalutara\\b") to "களுத்துறை",
+        Regex("(?i)\\bkandy\\b") to "கண்டி",
+        Regex("(?i)\\bmatale\\b") to "மாத்தளை",
+        Regex("(?i)\\bnuwara eliya\\b") to "நுவரெலியா",
+        Regex("(?i)\\bgalle\\b") to "காலி",
+        Regex("(?i)\\bmatara\\b") to "மாத்தறை",
+        Regex("(?i)\\bhambantota\\b") to "ஹம்பாந்தோட்டை",
+        Regex("(?i)\\bjaffna\\b") to "யாழ்ப்பாணம்",
+        Regex("(?i)\\bkilinochchi\\b") to "கிளிநொச்சி",
+        Regex("(?i)\\bmannar\\b") to "மன்னார்",
+        Regex("(?i)\\bvavuniya\\b") to "வவுனியா",
+        Regex("(?i)\\bmullaitivu\\b") to "முல்லைத்தீவு",
+        Regex("(?i)\\bbatticaloa\\b") to "மட்டக்களப்பு",
+        Regex("(?i)\\bampara\\b") to "அம்பாறை",
+        Regex("(?i)\\btrincomalee\\b") to "திருகோணமலை",
+        Regex("(?i)\\bkurunegala\\b") to "குருணாகல்",
+        Regex("(?i)\\bputtalam\\b") to "புத்தளம்",
+        Regex("(?i)\\banuradhapura\\b") to "அனுராதபுரம்",
+        Regex("(?i)\\bpolonnaruwa\\b") to "பொலன்னறுவை",
+        Regex("(?i)\\bbadulla\\b") to "பதுளை",
+        Regex("(?i)\\bmonaragala\\b") to "மொனராகலை",
+        Regex("(?i)\\bratnapura\\b") to "இரத்தினபுரி",
+        Regex("(?i)\\bkegalle\\b") to "கேகாலை"
+    )
+
+    fun translateText(text: String, targetLanguage: com.example.util.AppLanguage): String {
+        if (text.isBlank()) return text
+        if (isSinhala(text) || isTamil(text)) return text
+
+        var translated = text
+        val rules = when (targetLanguage) {
+            com.example.util.AppLanguage.SINHALA -> SINHALA_TRANSLATION_RULES
+            com.example.util.AppLanguage.TAMIL -> TAMIL_TRANSLATION_RULES
+            else -> emptyList()
+        }
+
+        for ((regex, replacement) in rules) {
+            translated = regex.replace(translated, replacement)
+        }
+
+        return translated
+    }
+
+    fun translateContactForDisplay(
+        contact: PoliceContact,
+        targetLanguage: com.example.util.AppLanguage,
+        query: String = ""
+    ): PoliceContact {
+        val lang = when {
+            isSinhala(query) -> com.example.util.AppLanguage.SINHALA
+            isTamil(query) -> com.example.util.AppLanguage.TAMIL
+            else -> targetLanguage
+        }
+
+        if (lang == com.example.util.AppLanguage.ENGLISH) return contact
+
+        return contact.copy(
+            stationOrDesignation = translateText(contact.stationOrDesignation, lang),
+            rank = translateText(contact.rank, lang),
+            officerName = translateText(contact.officerName, lang),
+            locationAddress = translateText(contact.locationAddress, lang)
+        )
+    }
+
     /**
      * Checks if a PoliceContact matches the given search query across all fields,
      * supporting Sinhala, Tamil, and English inputs safely and fast.
