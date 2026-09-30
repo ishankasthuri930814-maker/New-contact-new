@@ -3,6 +3,9 @@ package com.example.data.repository
 import android.content.Context
 import android.content.SharedPreferences
 import android.util.Log
+import com.example.data.local.AppDatabase
+import com.example.data.local.toEntity
+import com.example.data.local.toPoliceContact
 import com.example.data.model.ContactCategory
 import com.example.data.model.PoliceContact
 import com.example.data.model.sanitized
@@ -27,6 +30,8 @@ import java.util.concurrent.TimeUnit
 class PoliceRepository(private val context: Context) {
 
     val networkMonitor = com.example.util.NetworkMonitor(context)
+    private val database = AppDatabase.getInstance(context)
+    private val contactDao = database.contactDao()
 
     private val prefs: SharedPreferences =
         context.getSharedPreferences("police_directory_prefs", Context.MODE_PRIVATE)
@@ -541,9 +546,12 @@ class PoliceRepository(private val context: Context) {
         }
     }
 
-    private fun saveToLocalCache(contacts: List<PoliceContact>) {
+    private suspend fun saveToLocalCache(contacts: List<PoliceContact>) {
         if (contacts.isEmpty()) return
         try {
+            val entities = contacts.map { it.toEntity() }
+            contactDao.insertContacts(entities)
+
             val listType = Types.newParameterizedType(List::class.java, PoliceContact::class.java)
             val adapter = moshi.adapter<List<PoliceContact>>(listType)
             val json = adapter.toJson(contacts)
@@ -560,17 +568,28 @@ class PoliceRepository(private val context: Context) {
                 .putLong("last_sync_time", System.currentTimeMillis())
                 .putInt("cached_contacts_count", contacts.size)
                 .apply()
-            Log.d("PoliceRepo", "Successfully saved ${contacts.size} contacts to persistent offline storage")
+            Log.d("PoliceRepo", "Successfully saved ${contacts.size} contacts to Room DB & offline storage")
         } catch (e: Exception) {
             Log.e("PoliceRepo", "Error saving offline cache", e)
         }
     }
 
-    fun loadFromLocalCache(): List<PoliceContact> {
+    suspend fun loadFromLocalCache(): List<PoliceContact> {
+        // 1. Try Room Database first
+        try {
+            val dbEntities = contactDao.getAllContacts()
+            if (dbEntities.isNotEmpty()) {
+                Log.d("PoliceRepo", "Loaded ${dbEntities.size} contacts from Room Database")
+                return dbEntities.map { it.toPoliceContact() }
+            }
+        } catch (e: Exception) {
+            Log.e("PoliceRepo", "Error loading from Room Database", e)
+        }
+
         val listType = Types.newParameterizedType(List::class.java, PoliceContact::class.java)
         val adapter = moshi.adapter<List<PoliceContact>>(listType)
 
-        // 1. Try persistent internal storage (filesDir) first
+        // 2. Try persistent internal storage (filesDir)
         try {
             val persistentFile = File(context.filesDir, "police_contacts_offline.json")
             if (persistentFile.exists() && persistentFile.length() > 0) {
@@ -578,6 +597,9 @@ class PoliceRepository(private val context: Context) {
                 val parsed = adapter.fromJson(json)
                 if (!parsed.isNullOrEmpty()) {
                     Log.d("PoliceRepo", "Loaded ${parsed.size} contacts from persistent offline filesDir")
+                    try {
+                        contactDao.insertContacts(parsed.map { it.toEntity() })
+                    } catch (ignored: Exception) {}
                     return parsed
                 }
             }
@@ -585,7 +607,7 @@ class PoliceRepository(private val context: Context) {
             Log.e("PoliceRepo", "Error loading from persistent offline storage", e)
         }
 
-        // 2. Fallback to cacheDir
+        // 3. Fallback to cacheDir
         try {
             val cacheFile = File(context.cacheDir, "police_contacts_cache.json")
             if (cacheFile.exists() && cacheFile.length() > 0) {
@@ -593,6 +615,9 @@ class PoliceRepository(private val context: Context) {
                 val parsed = adapter.fromJson(json)
                 if (!parsed.isNullOrEmpty()) {
                     Log.d("PoliceRepo", "Loaded ${parsed.size} contacts from cacheDir")
+                    try {
+                        contactDao.insertContacts(parsed.map { it.toEntity() })
+                    } catch (ignored: Exception) {}
                     return parsed
                 }
             }
@@ -600,19 +625,18 @@ class PoliceRepository(private val context: Context) {
             Log.e("PoliceRepo", "Error loading from cacheDir", e)
         }
 
-        return emptyList()
+        // 4. Default Emergency contacts if no cache exists
+        val defaults = getDefaultEmergencyContacts()
+        try {
+            contactDao.insertContacts(defaults.map { it.toEntity() })
+        } catch (ignored: Exception) {}
+        return defaults
     }
 
-    fun getCachedContactsFast(): List<PoliceContact> {
+    suspend fun getCachedContactsFast(): List<PoliceContact> {
         val favorites = getFavoritesSet()
         val cached = loadFromLocalCache()
-        return if (cached.isNotEmpty()) {
-            cached.map { PoliceGpsDirectory.enrichContact(it).copy(isFavorite = favorites.contains(it.id)) }
-        } else {
-            getDefaultEmergencyContacts().map {
-                PoliceGpsDirectory.enrichContact(it).copy(isFavorite = favorites.contains(it.id))
-            }
-        }
+        return cached.map { PoliceGpsDirectory.enrichContact(it).copy(isFavorite = favorites.contains(it.id)) }
     }
 
     fun getLastSyncTimeString(): String {

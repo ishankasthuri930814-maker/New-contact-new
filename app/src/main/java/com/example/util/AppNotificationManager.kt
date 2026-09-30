@@ -67,7 +67,7 @@ object AppNotificationManager {
             val callChannel = NotificationChannel(
                 CHANNEL_CALLS_ID,
                 CHANNEL_CALLS_NAME,
-                NotificationManager.IMPORTANCE_MAX
+                NotificationManager.IMPORTANCE_HIGH
             ).apply {
                 description = "Incoming voice calls from citizens and emergency response"
                 enableVibration(true)

@@ -74,21 +74,23 @@ class PoliceViewModel(private val repository: PoliceRepository) : ViewModel() {
     }
 
     private fun loadCachedContactsImmediately() {
-        val cached = repository.getCachedContactsFast()
-        val syncTime = repository.getLastSyncTimeString()
-        val isOffline = !repository.networkMonitor.isOnline
-        _uiState.update { state ->
-            val filtered = filterContactsList(cached, state.searchQuery, state.selectedCategory)
-            state.copy(
-                isLoading = false,
-                isOfflineMode = isOffline,
-                contacts = cached,
-                filteredContacts = filtered,
-                lastSyncTime = syncTime,
-                userMessage = if (isOffline && cached.isNotEmpty()) {
-                    "Offline මාදිලිය: පෙර ලබාගත් Google Sheet දත්ත පෙන්වයි"
-                } else null
-            )
+        viewModelScope.launch(Dispatchers.IO) {
+            val cached = repository.getCachedContactsFast()
+            val syncTime = repository.getLastSyncTimeString()
+            val isOffline = !repository.networkMonitor.isOnline
+            _uiState.update { state ->
+                val filtered = filterContactsList(cached, state.searchQuery, state.selectedCategory)
+                state.copy(
+                    isLoading = false,
+                    isOfflineMode = isOffline,
+                    contacts = cached,
+                    filteredContacts = filtered,
+                    lastSyncTime = syncTime,
+                    userMessage = if (isOffline && cached.isNotEmpty()) {
+                        "Offline මාදිලිය: පෙර ලබාගත් Google Sheet දත්ත පෙන්වයි"
+                    } else null
+                )
+            }
         }
     }
 

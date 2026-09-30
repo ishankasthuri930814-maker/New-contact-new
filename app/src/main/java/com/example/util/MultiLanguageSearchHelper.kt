@@ -860,48 +860,52 @@ object MultiLanguageSearchHelper {
      * supporting Sinhala, Tamil, and English inputs safely and fast.
      */
     fun matchesContact(contact: PoliceContact, rawQuery: String): Boolean {
-        val q = rawQuery.trim().lowercase()
-        if (q.isBlank()) return true
+        return try {
+            val q = rawQuery.trim().lowercase()
+            if (q.isBlank()) return true
 
-        val cleanContact = contact.sanitized()
+            val cleanContact = contact.sanitized()
 
-        val corpus = (cleanContact.stationOrDesignation + " " +
-                cleanContact.officerName + " " +
-                cleanContact.rank + " " +
-                cleanContact.locationAddress + " " +
-                cleanContact.generalPhone + " " +
-                cleanContact.mobilePhone + " " +
-                cleanContact.pvtNumber + " " +
-                cleanContact.email).lowercase()
+            val corpus = (cleanContact.stationOrDesignation + " " +
+                    cleanContact.officerName + " " +
+                    cleanContact.rank + " " +
+                    cleanContact.locationAddress + " " +
+                    cleanContact.generalPhone + " " +
+                    cleanContact.mobilePhone + " " +
+                    cleanContact.pvtNumber + " " +
+                    cleanContact.email).lowercase()
 
-        // Fast-path: Direct substring match in corpus
-        if (corpus.contains(q)) return true
+            // Fast-path: Direct substring match in corpus
+            if (corpus.contains(q)) return true
 
-        // Check Sinhala & Tamil translated text direct match
-        val translatedTitleSin = translateText(cleanContact.stationOrDesignation, com.example.util.AppLanguage.SINHALA).lowercase()
-        val translatedTitleTam = translateText(cleanContact.stationOrDesignation, com.example.util.AppLanguage.TAMIL).lowercase()
-        val translatedOfficerSin = translateText(cleanContact.officerName, com.example.util.AppLanguage.SINHALA).lowercase()
+            // Check Sinhala & Tamil translated text direct match
+            val translatedTitleSin = translateText(cleanContact.stationOrDesignation, com.example.util.AppLanguage.SINHALA).lowercase()
+            val translatedTitleTam = translateText(cleanContact.stationOrDesignation, com.example.util.AppLanguage.TAMIL).lowercase()
+            val translatedOfficerSin = translateText(cleanContact.officerName, com.example.util.AppLanguage.SINHALA).lowercase()
 
-        if (translatedTitleSin.contains(q) || translatedTitleTam.contains(q) || translatedOfficerSin.contains(q)) return true
+            if (translatedTitleSin.contains(q) || translatedTitleTam.contains(q) || translatedOfficerSin.contains(q)) return true
 
-        val tokenGroups = extractSearchTokens(q)
-        if (tokenGroups.isEmpty()) return false
+            val tokenGroups = extractSearchTokens(q)
+            if (tokenGroups.isEmpty()) return false
 
-        val fullText = "$corpus $translatedTitleSin $translatedTitleTam $translatedOfficerSin"
+            val fullText = "$corpus $translatedTitleSin $translatedTitleTam $translatedOfficerSin"
 
-        return tokenGroups.all { candidateList ->
-            candidateList.any { candidate ->
-                if (candidate.isBlank()) {
-                    false
-                } else if (fullText.contains(candidate)) {
-                    true
-                } else if (candidate.length >= 4) {
-                    val words = fullText.split(' ', '-', '/', ',').filter { it.length >= 3 }
-                    words.any { w -> w.startsWith(candidate) || candidate.startsWith(w) }
-                } else {
-                    false
+            tokenGroups.all { candidateList ->
+                candidateList.any { candidate ->
+                    if (candidate.isBlank()) {
+                        false
+                    } else if (fullText.contains(candidate)) {
+                        true
+                    } else if (candidate.length >= 4) {
+                        val words = fullText.split(' ', '-', '/', ',').filter { it.length >= 3 }
+                        words.any { w -> w.startsWith(candidate) || candidate.startsWith(w) }
+                    } else {
+                        false
+                    }
                 }
             }
+        } catch (e: Throwable) {
+            false
         }
     }
 
@@ -911,19 +915,20 @@ object MultiLanguageSearchHelper {
      * token matches, and partial field matches.
      */
     fun calculateRelevanceScore(contact: PoliceContact, rawQuery: String): Int {
-        val q = rawQuery.trim().lowercase()
-        if (q.isBlank()) return 0
+        return try {
+            val q = rawQuery.trim().lowercase()
+            if (q.isBlank()) return 0
 
-        val cleanContact = contact.sanitized()
+            val cleanContact = contact.sanitized()
 
-        val title = cleanContact.stationOrDesignation.trim().lowercase()
-        val translatedTitleSin = translateText(cleanContact.stationOrDesignation, com.example.util.AppLanguage.SINHALA).lowercase()
-        val translatedTitleTam = translateText(cleanContact.stationOrDesignation, com.example.util.AppLanguage.TAMIL).lowercase()
-        val officer = cleanContact.officerName.trim().lowercase()
-        val translatedOfficerSin = translateText(cleanContact.officerName, com.example.util.AppLanguage.SINHALA).lowercase()
-        val rank = cleanContact.rank.trim().lowercase()
-        val address = cleanContact.locationAddress.trim().lowercase()
-        val phones = "${cleanContact.generalPhone} ${cleanContact.mobilePhone} ${cleanContact.pvtNumber} ${cleanContact.officePhone2}"
+            val title = cleanContact.stationOrDesignation.trim().lowercase()
+            val translatedTitleSin = translateText(cleanContact.stationOrDesignation, com.example.util.AppLanguage.SINHALA).lowercase()
+            val translatedTitleTam = translateText(cleanContact.stationOrDesignation, com.example.util.AppLanguage.TAMIL).lowercase()
+            val officer = cleanContact.officerName.trim().lowercase()
+            val translatedOfficerSin = translateText(cleanContact.officerName, com.example.util.AppLanguage.SINHALA).lowercase()
+            val rank = cleanContact.rank.trim().lowercase()
+            val address = cleanContact.locationAddress.trim().lowercase()
+            val phones = "${cleanContact.generalPhone} ${cleanContact.mobilePhone} ${cleanContact.pvtNumber} ${cleanContact.officePhone2}"
 
         var score = 0
 
@@ -985,7 +990,10 @@ object MultiLanguageSearchHelper {
         // Tie-breaker: Favorites get a small boost
         if (contact.isFavorite) score += 100
 
-        return score
+        score
+    } catch (e: Throwable) {
+        0
+    }
     }
 
     /**
