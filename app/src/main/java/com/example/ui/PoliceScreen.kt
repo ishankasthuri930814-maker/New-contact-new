@@ -152,14 +152,16 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.material.icons.filled.MenuBook
+import androidx.compose.material.icons.filled.ContactPhone
 import com.example.ui.components.EmergencyHeader
 import com.example.ui.theme.PoliceGold
 import com.example.ui.theme.PoliceNavy
 
 enum class MainScreenTab {
     DIRECTORY,
-    CHAT,
-    PROFILE
+    PROFILE,
+    RAINBOW_PAGES
 }
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
@@ -188,10 +190,6 @@ fun PoliceScreen(
     var showManualUpdateDialog by remember { mutableStateOf(false) }
     var showLanguageMenu by remember { mutableStateOf(false) }
     var currentTab by remember { mutableStateOf(MainScreenTab.DIRECTORY) }
-    val chatViewModel: ChatViewModel = viewModel(
-        factory = ChatViewModel.Factory(context)
-    )
-    val chatUiState by chatViewModel.uiState.collectAsStateWithLifecycle()
     val profileViewModel: ProfileViewModel = viewModel(
         factory = ProfileViewModel.Factory(context)
     )
@@ -215,34 +213,6 @@ fun PoliceScreen(
         AppUpdateManager.checkForUpdates(context, isManualCheck = false)
         AppNoticeManager.checkForNotices(context, forceShow = false)
         AppConfigManager.loadConfig(context)
-    }
-
-    var pendingAcceptCallId by remember { mutableStateOf<String?>(null) }
-    val audioPermissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { isGranted ->
-        if (isGranted) {
-            pendingAcceptCallId?.let { callId ->
-                chatViewModel.acceptIncomingCall(callId)
-                pendingAcceptCallId = null
-            }
-        } else {
-            Toast.makeText(context, "ඇමතුම් සඳහා මයික්‍රෆෝන අවසරය (Microphone permission) ලබාදෙන්න", Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    val checkAudioPermissionAndAcceptCall: (String) -> Unit = { callId ->
-        val hasPermission = ContextCompat.checkSelfPermission(
-            context,
-            Manifest.permission.RECORD_AUDIO
-        ) == PackageManager.PERMISSION_GRANTED
-
-        if (hasPermission) {
-            chatViewModel.acceptIncomingCall(callId)
-        } else {
-            pendingAcceptCallId = callId
-            audioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-        }
     }
 
     val speechRecognizerLauncher = rememberLauncherForActivityResult(
@@ -394,46 +364,7 @@ fun PoliceScreen(
                             }
                         }
 
-                        // 2. සංවාද (Chat) - Royal Blue / Navy Theme
-                        val isChatSelected = currentTab == MainScreenTab.CHAT
-                        Surface(
-                            onClick = { currentTab = MainScreenTab.CHAT },
-                            shape = RoundedCornerShape(20.dp),
-                            color = if (isChatSelected) Color(0xFF0D47A1) else Color(0xFFE3F2FD),
-                            border = BorderStroke(
-                                width = if (isChatSelected) 2.dp else 1.dp,
-                                color = if (isChatSelected) Color(0xFF2196F3) else Color(0xFF90CAF9)
-                            ),
-                            shadowElevation = if (isChatSelected) 4.dp else 0.dp,
-                            modifier = Modifier
-                                .weight(1f)
-                                .padding(horizontal = 3.dp)
-                                .testTag("nav_item_chat")
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(vertical = 10.dp, horizontal = 4.dp),
-                                horizontalArrangement = Arrangement.Center,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Forum,
-                                    contentDescription = "Chat",
-                                    tint = if (isChatSelected) Color.White else Color(0xFF1565C0),
-                                    modifier = Modifier.size(18.dp)
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(
-                                    text = com.example.util.AppStrings.navChat(uiState.selectedLanguage),
-                                    style = MaterialTheme.typography.labelSmall.copy(
-                                        fontWeight = if (isChatSelected) FontWeight.ExtraBold else FontWeight.Bold,
-                                        fontSize = 11.sp,
-                                        color = if (isChatSelected) Color.White else Color(0xFF0D47A1)
-                                    )
-                                )
-                            }
-                        }
-
-                        // 3. මගේ Profile (Profile) - Deep Purple Theme
+                        // 2. මගේ Profile (Profile) - Deep Purple Theme (MIDDLE - "MADATA")
                         val isProfileSelected = currentTab == MainScreenTab.PROFILE
                         Surface(
                             onClick = { currentTab = MainScreenTab.PROFILE },
@@ -467,6 +398,48 @@ fun PoliceScreen(
                                         fontWeight = if (isProfileSelected) FontWeight.ExtraBold else FontWeight.Bold,
                                         fontSize = 11.sp,
                                         color = if (isProfileSelected) Color.White else Color(0xFF4A148C)
+                                    )
+                                )
+                            }
+                        }
+
+                        // 3. රේන්බෝ පේජස් (Rainbow Pages) - Warm Amber / Yellow Theme
+                        val isRainbowSelected = currentTab == MainScreenTab.RAINBOW_PAGES
+                        Surface(
+                            onClick = {
+                                currentTab = MainScreenTab.RAINBOW_PAGES
+                                viewModel.openRainbowPagesSearch(context, uiState.searchQuery)
+                            },
+                            shape = RoundedCornerShape(20.dp),
+                            color = if (isRainbowSelected) Color(0xFFE65100) else Color(0xFFFFF8E1),
+                            border = BorderStroke(
+                                width = if (isRainbowSelected) 2.dp else 1.dp,
+                                color = if (isRainbowSelected) Color(0xFFFF8F00) else Color(0xFFFFE082)
+                            ),
+                            shadowElevation = if (isRainbowSelected) 4.dp else 0.dp,
+                            modifier = Modifier
+                                .weight(1.1f)
+                                .padding(horizontal = 3.dp)
+                                .testTag("nav_item_rainbow_pages")
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(vertical = 10.dp, horizontal = 4.dp),
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.MenuBook,
+                                    contentDescription = "Rainbow Pages",
+                                    tint = if (isRainbowSelected) Color.White else Color(0xFFE65100),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "රේන්බෝ පේජස්",
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        fontWeight = if (isRainbowSelected) FontWeight.ExtraBold else FontWeight.Bold,
+                                        fontSize = 11.sp,
+                                        color = if (isRainbowSelected) Color.White else Color(0xFFE65100)
                                     )
                                 )
                             }
@@ -1111,35 +1084,68 @@ fun PoliceScreen(
                                             color = MaterialTheme.colorScheme.onSurface
                                         )
                                         Spacer(modifier = Modifier.height(4.dp))
-                                        Text(
-                                            text = "ඇප් එකේ නොමැති ඕනෑම අංකයක් හෝ නමක් ගූගල් සෙවුම හරහා සෘජුවම ලබා ගන්න",
+                                         Text(
+                                            text = "ඇප් එකේ නොමැති ඕනෑම දුරකථන අංකයක් Rainbow Pages හෝ Google හරහා සෘජුවම සොයාගන්න",
                                             style = MaterialTheme.typography.bodySmall,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                         Spacer(modifier = Modifier.height(16.dp))
-                                        Button(
-                                            onClick = {
-                                                aiSearchQuery = uiState.searchQuery
-                                                showAiSearchDialog = true
-                                            },
-                                            shape = RoundedCornerShape(12.dp),
-                                            colors = ButtonDefaults.buttonColors(containerColor = PoliceNavy),
-                                            modifier = Modifier.testTag("empty_state_ai_search_button")
+                                        
+                                        Column(
+                                            verticalArrangement = Arrangement.spacedBy(10.dp),
+                                            horizontalAlignment = Alignment.CenterHorizontally
                                         ) {
-                                            Icon(
-                                                imageVector = Icons.Default.Search,
-                                                contentDescription = null,
-                                                tint = PoliceGold,
-                                                modifier = Modifier.size(18.dp)
-                                            )
-                                            Spacer(modifier = Modifier.width(8.dp))
-                                            Text(
-                                                text = if (uiState.searchQuery.isNotEmpty()) "🔍 '${uiState.searchQuery}' ගූගල් හි සොයන්න" else "✨ AI Google Search",
-                                                style = MaterialTheme.typography.labelLarge.copy(
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = Color.White
+                                            // Primary SLT Rainbow Pages Search Button
+                                            Button(
+                                                onClick = {
+                                                    viewModel.openRainbowPagesSearch(context, uiState.searchQuery)
+                                                },
+                                                shape = RoundedCornerShape(12.dp),
+                                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE65100)),
+                                                modifier = Modifier.testTag("empty_state_rainbow_pages_button")
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.MenuBook,
+                                                    contentDescription = null,
+                                                    tint = Color.White,
+                                                    modifier = Modifier.size(18.dp)
                                                 )
-                                            )
+                                                Spacer(modifier = Modifier.width(8.dp))
+                                                Text(
+                                                    text = if (uiState.searchQuery.isNotEmpty()) "📖 '${uiState.searchQuery}' Rainbow Pages හි සොයන්න" else "📖 SLT Rainbow Pages (Directory)",
+                                                    style = MaterialTheme.typography.labelLarge.copy(
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = Color.White
+                                                    )
+                                                )
+                                            }
+
+                                            // Secondary AI Google Search Button
+                                            OutlinedButton(
+                                                onClick = {
+                                                    aiSearchQuery = uiState.searchQuery
+                                                    showAiSearchDialog = true
+                                                },
+                                                shape = RoundedCornerShape(12.dp),
+                                                colors = ButtonDefaults.outlinedButtonColors(contentColor = PoliceNavy),
+                                                border = BorderStroke(1.dp, PoliceNavy),
+                                                modifier = Modifier.testTag("empty_state_ai_search_button")
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Search,
+                                                    contentDescription = null,
+                                                    tint = PoliceNavy,
+                                                    modifier = Modifier.size(18.dp)
+                                                )
+                                                Spacer(modifier = Modifier.width(8.dp))
+                                                Text(
+                                                    text = if (uiState.searchQuery.isNotEmpty()) "🔍 '${uiState.searchQuery}' Google හි සොයන්න" else "✨ AI Google Search",
+                                                    style = MaterialTheme.typography.labelLarge.copy(
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = PoliceNavy
+                                                    )
+                                                )
+                                            }
                                         }
                                     }
                                 }
@@ -1170,13 +1176,6 @@ fun PoliceScreen(
                 }
             }
         }
-        MainScreenTab.CHAT -> {
-            ChatScreen(
-                viewModel = chatViewModel,
-                selectedLanguage = uiState.selectedLanguage,
-                modifier = Modifier.fillMaxSize()
-            )
-        }
         MainScreenTab.PROFILE -> {
             ProfileScreen(
                 viewModel = profileViewModel,
@@ -1185,6 +1184,12 @@ fun PoliceScreen(
                 selectedLanguage = uiState.selectedLanguage,
                 modifier = Modifier.fillMaxSize()
             )
+        }
+        MainScreenTab.RAINBOW_PAGES -> {
+            LaunchedEffect(Unit) {
+                viewModel.openRainbowPagesSearch(context, uiState.searchQuery)
+                currentTab = MainScreenTab.DIRECTORY
+            }
         }
     }
 
@@ -1788,26 +1793,6 @@ fun PoliceScreen(
                         showAiSearchDialog = false
                         viewModel.performGoogleSearch(context, query)
                     }
-                )
-            }
-
-            // In-App Voice Call Dialog (Incoming or Active Call overlay across all tabs)
-            if (chatUiState.activeCall != null || chatUiState.incomingCall != null) {
-                InAppCallDialog(
-                    incomingCall = chatUiState.incomingCall,
-                    activeCall = chatUiState.activeCall,
-                    currentUserProfile = chatUiState.currentUserProfile,
-                    isMuted = chatUiState.isMuted,
-                    isSpeakerOn = chatUiState.isSpeakerOn,
-                    isAudioConnected = chatUiState.isAudioConnected,
-                    micAmplitude = chatUiState.micAmplitude,
-                    speakerAmplitude = chatUiState.speakerAmplitude,
-                    onAcceptCall = { callId -> checkAudioPermissionAndAcceptCall(callId) },
-                    onDeclineCall = { callId -> chatViewModel.declineIncomingCall(callId) },
-                    onEndCall = { callId -> chatViewModel.endActiveCall(callId) },
-                    onToggleMute = { chatViewModel.toggleMute() },
-                    onToggleSpeaker = { chatViewModel.toggleSpeaker() },
-                    onDismiss = { chatViewModel.dismissCallDialog() }
                 )
             }
         }

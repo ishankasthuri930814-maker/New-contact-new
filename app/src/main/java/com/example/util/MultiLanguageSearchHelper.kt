@@ -1,6 +1,7 @@
 package com.example.util
 
 import com.example.data.model.PoliceContact
+import com.example.data.model.sanitized
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -837,19 +838,20 @@ object MultiLanguageSearchHelper {
         targetLanguage: com.example.util.AppLanguage,
         query: String = ""
     ): PoliceContact {
+        val cleanContact = contact.sanitized()
         val lang = when {
             isSinhala(query) -> com.example.util.AppLanguage.SINHALA
             isTamil(query) -> com.example.util.AppLanguage.TAMIL
             else -> targetLanguage
         }
 
-        if (lang == com.example.util.AppLanguage.ENGLISH) return contact
+        if (lang == com.example.util.AppLanguage.ENGLISH) return cleanContact
 
-        return contact.copy(
-            stationOrDesignation = translateText(contact.stationOrDesignation, lang),
-            rank = translateText(contact.rank, lang),
-            officerName = translateText(contact.officerName, lang),
-            locationAddress = translateText(contact.locationAddress, lang)
+        return cleanContact.copy(
+            stationOrDesignation = translateText(cleanContact.stationOrDesignation, lang),
+            rank = translateText(cleanContact.rank, lang),
+            officerName = translateText(cleanContact.officerName, lang),
+            locationAddress = translateText(cleanContact.locationAddress, lang)
         )
     }
 
@@ -861,29 +863,129 @@ object MultiLanguageSearchHelper {
         val q = rawQuery.trim().lowercase()
         if (q.isBlank()) return true
 
-        val corpus = contact.stationOrDesignation.lowercase() + " " +
-                contact.officerName.lowercase() + " " +
-                contact.rank.lowercase() + " " +
-                contact.locationAddress.lowercase() + " " +
-                contact.generalPhone + " " +
-                contact.mobilePhone + " " +
-                contact.pvtNumber + " " +
-                contact.email.lowercase()
+        val cleanContact = contact.sanitized()
+
+        val corpus = (cleanContact.stationOrDesignation + " " +
+                cleanContact.officerName + " " +
+                cleanContact.rank + " " +
+                cleanContact.locationAddress + " " +
+                cleanContact.generalPhone + " " +
+                cleanContact.mobilePhone + " " +
+                cleanContact.pvtNumber + " " +
+                cleanContact.email).lowercase()
 
         // Fast-path: Direct substring match in corpus
         if (corpus.contains(q)) return true
 
+        // Check Sinhala & Tamil translated text direct match
+        val translatedTitleSin = translateText(cleanContact.stationOrDesignation, com.example.util.AppLanguage.SINHALA).lowercase()
+        val translatedTitleTam = translateText(cleanContact.stationOrDesignation, com.example.util.AppLanguage.TAMIL).lowercase()
+        val translatedOfficerSin = translateText(cleanContact.officerName, com.example.util.AppLanguage.SINHALA).lowercase()
+
+        if (translatedTitleSin.contains(q) || translatedTitleTam.contains(q) || translatedOfficerSin.contains(q)) return true
+
         val tokenGroups = extractSearchTokens(q)
-        if (tokenGroups.isEmpty()) return true
+        if (tokenGroups.isEmpty()) return false
+
+        val fullText = "$corpus $translatedTitleSin $translatedTitleTam $translatedOfficerSin"
 
         return tokenGroups.all { candidateList ->
             candidateList.any { candidate ->
-                candidate.isNotBlank() && (
-                    corpus.contains(candidate) ||
-                    (candidate.length >= 3 && corpus.contains(candidate.take(3)))
-                )
+                if (candidate.isBlank()) {
+                    false
+                } else if (fullText.contains(candidate)) {
+                    true
+                } else if (candidate.length >= 4) {
+                    val words = fullText.split(' ', '-', '/', ',').filter { it.length >= 3 }
+                    words.any { w -> w.startsWith(candidate) || candidate.startsWith(w) }
+                } else {
+                    false
+                }
             }
         }
+    }
+
+    /**
+     * Calculates a high-precision relevance score for a PoliceContact against a search query.
+     * Exact name matches receive top priority (100,000+ points), followed by prefix matches,
+     * token matches, and partial field matches.
+     */
+    fun calculateRelevanceScore(contact: PoliceContact, rawQuery: String): Int {
+        val q = rawQuery.trim().lowercase()
+        if (q.isBlank()) return 0
+
+        val cleanContact = contact.sanitized()
+
+        val title = cleanContact.stationOrDesignation.trim().lowercase()
+        val translatedTitleSin = translateText(cleanContact.stationOrDesignation, com.example.util.AppLanguage.SINHALA).lowercase()
+        val translatedTitleTam = translateText(cleanContact.stationOrDesignation, com.example.util.AppLanguage.TAMIL).lowercase()
+        val officer = cleanContact.officerName.trim().lowercase()
+        val translatedOfficerSin = translateText(cleanContact.officerName, com.example.util.AppLanguage.SINHALA).lowercase()
+        val rank = cleanContact.rank.trim().lowercase()
+        val address = cleanContact.locationAddress.trim().lowercase()
+        val phones = "${cleanContact.generalPhone} ${cleanContact.mobilePhone} ${cleanContact.pvtNumber} ${cleanContact.officePhone2}"
+
+        var score = 0
+
+        // 1. Exact full string equality on primary titles/names -> Top Priority
+        if (title == q || translatedTitleSin == q || translatedTitleTam == q || officer == q || translatedOfficerSin == q) {
+            score += 100_000
+        }
+        // 2. Starts with query (Prefix match on primary title or officer name)
+        else if (title.startsWith(q) || translatedTitleSin.startsWith(q) || translatedTitleTam.startsWith(q) || officer.startsWith(q) || translatedOfficerSin.startsWith(q)) {
+            score += 80_000 + maxOf(0, 500 - title.length)
+        }
+        // 3. Exact word match in title or officer name
+        else {
+            val titleWords = title.split(' ', '-', '/').filter { it.isNotBlank() }
+            val sinWords = translatedTitleSin.split(' ', '-', '/').filter { it.isNotBlank() }
+            val officerWords = officer.split(' ', '-', '/').filter { it.isNotBlank() }
+
+            if (titleWords.any { it == q } || sinWords.any { it == q } || officerWords.any { it == q }) {
+                score += 60_000
+            } else if (titleWords.any { it.startsWith(q) } || sinWords.any { it.startsWith(q) } || officerWords.any { it.startsWith(q) }) {
+                score += 40_000
+            } else if (title.contains(q) || translatedTitleSin.contains(q) || translatedTitleTam.contains(q) || officer.contains(q)) {
+                score += 20_000
+            }
+        }
+
+        // Secondary score boosts for rank, address, and phone
+        if (rank == q) {
+            score += 15_000
+        } else if (rank.startsWith(q) || rank.contains(q)) {
+            score += 8_000
+        }
+
+        if (address.contains(q)) {
+            score += 5_000
+        }
+
+        if (phones.contains(q)) {
+            score += 4_000
+        }
+
+        // Transliteration / token candidate check
+        val tokenGroups = extractSearchTokens(q)
+        if (tokenGroups.isNotEmpty()) {
+            for (candidates in tokenGroups) {
+                for (cand in candidates) {
+                    if (cand.isBlank()) continue
+                    if (title == cand || translatedTitleSin == cand || officer == cand) {
+                        score += 30_000
+                    } else if (title.startsWith(cand) || translatedTitleSin.startsWith(cand)) {
+                        score += 15_000
+                    } else if (title.contains(cand) || officer.contains(cand)) {
+                        score += 5_000
+                    }
+                }
+            }
+        }
+
+        // Tie-breaker: Favorites get a small boost
+        if (contact.isFavorite) score += 100
+
+        return score
     }
 
     /**

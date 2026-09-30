@@ -5,6 +5,7 @@ import android.content.SharedPreferences
 import android.util.Log
 import com.example.data.model.ContactCategory
 import com.example.data.model.PoliceContact
+import com.example.data.model.sanitized
 import com.example.data.remote.GoogleSheetsResponse
 import com.example.data.remote.PoliceApiService
 import com.example.util.AppUpdateManager
@@ -358,7 +359,7 @@ class PoliceRepository(private val context: Context) {
                         locationAddress = locationAddress,
                         category = category
                     )
-                    contacts.add(PoliceGpsDirectory.enrichContact(parsed))
+                    contacts.add(PoliceGpsDirectory.enrichContact(parsed.sanitized()))
                 }
             }
         } catch (e: Exception) {
@@ -464,7 +465,7 @@ class PoliceRepository(private val context: Context) {
                 locationAddress = locAddr,
                 category = category
             )
-            contacts.add(PoliceGpsDirectory.enrichContact(parsedContact))
+            contacts.add(PoliceGpsDirectory.enrichContact(parsedContact.sanitized()))
         }
         return contacts
     }

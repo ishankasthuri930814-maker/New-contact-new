@@ -22,6 +22,56 @@ data class PoliceContact(
     val isFavorite: Boolean = false
 )
 
+fun PoliceContact.sanitized(): PoliceContact {
+    var station = this.stationOrDesignation.trim()
+    var r = this.rank.trim()
+    var officer = this.officerName.trim()
+    var genPhone = this.generalPhone.trim()
+    var mobPhone = this.mobilePhone.trim()
+
+    val isNumericStation = station.matches(Regex("^[0-9\\s\\-\\.\\#]+$"))
+    val isPhoneRegex = Regex("^[0-9\\+\\-\\s\\(\\)\\.\\/]{7,}$")
+
+    // 1. If station title is purely numeric (serial number/ID from sheet), swap with rank or officerName if valid text
+    if (isNumericStation) {
+        if (r.isNotBlank() && !r.matches(isPhoneRegex)) {
+            station = r
+            r = ""
+        } else if (officer.isNotBlank() && !officer.matches(isPhoneRegex)) {
+            station = officer
+            officer = ""
+        }
+    }
+
+    // 2. If officerName is actually a phone number, move to phone field
+    if (officer.matches(isPhoneRegex)) {
+        if (genPhone.isBlank()) {
+            genPhone = officer
+        } else if (mobPhone.isBlank() && officer != genPhone) {
+            mobPhone = officer
+        }
+        officer = ""
+    }
+
+    // 3. If rank is actually a phone number, move to phone field
+    if (r.matches(isPhoneRegex)) {
+        if (genPhone.isBlank()) {
+            genPhone = r
+        } else if (mobPhone.isBlank() && r != genPhone) {
+            mobPhone = r
+        }
+        r = ""
+    }
+
+    return this.copy(
+        stationOrDesignation = station,
+        rank = r,
+        officerName = officer,
+        generalPhone = genPhone,
+        mobilePhone = mobPhone
+    )
+}
+
 enum class ContactCategory(
     val displayName: String,
     val sinhalaName: String,

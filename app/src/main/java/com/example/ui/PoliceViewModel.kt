@@ -354,7 +354,7 @@ class PoliceViewModel(private val repository: PoliceRepository) : ViewModel() {
     ): List<PoliceContact> {
         val q = query.trim().lowercase()
 
-        return contacts.filter { contact ->
+        val scoredList = contacts.mapNotNull { contact ->
             // Category filter
             val matchesCategory = if (q.isNotEmpty() && category == ContactCategory.POLICE) {
                 // If user is actively searching with text, allow matching across all emergency & public safety contacts
@@ -384,18 +384,51 @@ class PoliceViewModel(private val repository: PoliceRepository) : ViewModel() {
                 ContactCategory.SENIOR_OFFICERS -> contact.category == ContactCategory.SENIOR_OFFICERS || contact.rank.contains("DIG", ignoreCase = true) || contact.rank.contains("IGP", ignoreCase = true) || contact.rank.contains("SSP", ignoreCase = true)
             }
 
-            // Text search filter with Sinhala, Tamil, and English Multilingual Support
-            val matchesQuery = if (q.isEmpty()) {
-                true
-            } else {
-                com.example.util.MultiLanguageSearchHelper.matchesContact(contact, q)
-            }
+            if (!matchesCategory) return@mapNotNull null
 
-            matchesCategory && matchesQuery
+            if (q.isEmpty()) {
+                Pair(contact, 0)
+            } else {
+                val matchesQuery = com.example.util.MultiLanguageSearchHelper.matchesContact(contact, q)
+                if (!matchesQuery) return@mapNotNull null
+                val score = com.example.util.MultiLanguageSearchHelper.calculateRelevanceScore(contact, q)
+                Pair(contact, score)
+            }
+        }
+
+        return if (q.isEmpty()) {
+            scoredList.map { it.first }
+        } else {
+            scoredList.sortedWith(
+                compareByDescending<Pair<PoliceContact, Int>> { it.second }
+                    .thenBy { it.first.stationOrDesignation.length }
+            ).map { it.first }
         }
     }
 
     // Direct Action Helpers
+    fun openRainbowPagesSearch(context: Context, query: String = "") {
+        val cleanQuery = query.trim()
+        val url = if (cleanQuery.isNotEmpty()) {
+            "https://rainbowpages.lk/search-result?search_word=${Uri.encode(cleanQuery)}"
+        } else {
+            "https://rainbowpages.lk/"
+        }
+        try {
+            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            context.startActivity(intent)
+            if (cleanQuery.isNotEmpty()) {
+                Toast.makeText(context, "📖 Rainbow Pages හි '$cleanQuery' සොයමින්...", Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(context, "📖 SLT Rainbow Pages (https://rainbowpages.lk/) විවෘත වේ...", Toast.LENGTH_SHORT).show()
+            }
+        } catch (e: Exception) {
+            Toast.makeText(context, "Unable to open browser for Rainbow Pages", Toast.LENGTH_SHORT).show()
+        }
+    }
+
     fun makePhoneCall(context: Context, phoneNumber: String) {
         val cleanNumber = phoneNumber.trim().replace(" ", "").replace("-", "")
         if (cleanNumber.isEmpty()) {
