@@ -301,7 +301,9 @@ fun PoliceScreen(
 
     // Automatically scroll back to top whenever user searches or selects a new category
     LaunchedEffect(uiState.searchQuery, uiState.selectedCategory) {
-        listState.scrollToItem(0)
+        if (listState.firstVisibleItemIndex != 0 || listState.firstVisibleItemScrollOffset != 0) {
+            listState.scrollToItem(0)
+        }
     }
 
     Scaffold(

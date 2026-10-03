@@ -74,8 +74,15 @@ fun ContactCard(
     searchQuery: String = ""
 ) {
     val context = LocalContext.current
-    val displayContact = androidx.compose.runtime.remember(contact, selectedLanguage, searchQuery) {
-        com.example.util.MultiLanguageSearchHelper.translateContactForDisplay(contact, selectedLanguage, searchQuery)
+    val queryLanguage = androidx.compose.runtime.remember(searchQuery) {
+        when {
+            com.example.util.MultiLanguageSearchHelper.isSinhala(searchQuery) -> com.example.util.AppLanguage.SINHALA
+            com.example.util.MultiLanguageSearchHelper.isTamil(searchQuery) -> com.example.util.AppLanguage.TAMIL
+            else -> selectedLanguage
+        }
+    }
+    val displayContact = androidx.compose.runtime.remember(contact, queryLanguage) {
+        com.example.util.MultiLanguageSearchHelper.translateContactForDisplay(contact, queryLanguage)
     }
     val isEmergency = contact.rank == "HOTLINE" || contact.generalPhone == "119" || contact.generalPhone == "118"
 

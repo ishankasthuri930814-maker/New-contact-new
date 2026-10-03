@@ -44,6 +44,13 @@ class PoliceViewModel(private val repository: PoliceRepository) : ViewModel() {
     private var hasObservedInitialNetwork = false
     private var searchJob: Job? = null
 
+    @Volatile
+    private var preIndexedContacts: List<com.example.util.MultiLanguageSearchHelper.CachedContactData> = emptyList()
+
+    private fun updatePreIndexedContacts(contacts: List<PoliceContact>) {
+        preIndexedContacts = contacts.map { com.example.util.MultiLanguageSearchHelper.getContactData(it) }
+    }
+
     init {
         // 1. Immediately load local offline contacts (retrieved in previous session) so UI shows contacts with 0 delay
         loadCachedContactsImmediately()
@@ -76,6 +83,7 @@ class PoliceViewModel(private val repository: PoliceRepository) : ViewModel() {
     private fun loadCachedContactsImmediately() {
         viewModelScope.launch(Dispatchers.IO) {
             val cached = repository.getCachedContactsFast()
+            updatePreIndexedContacts(cached)
             val syncTime = repository.getLastSyncTimeString()
             val isOffline = !repository.networkMonitor.isOnline
             _uiState.update { state ->
@@ -126,6 +134,7 @@ class PoliceViewModel(private val repository: PoliceRepository) : ViewModel() {
             val syncTime = repository.getLastSyncTimeString()
 
             result.onSuccess { contactsList ->
+                updatePreIndexedContacts(contactsList)
                 _uiState.update { state ->
                     val filtered = filterContactsList(contactsList, state.searchQuery, state.selectedCategory)
                     val message = when {
@@ -159,16 +168,33 @@ class PoliceViewModel(private val repository: PoliceRepository) : ViewModel() {
     }
 
     fun onSearchQueryChange(query: String) {
+        val trimmed = query.trim()
+        if (trimmed.isEmpty()) {
+            searchJob?.cancel()
+            _uiState.update { state ->
+                val filtered = filterContactsList(state.contacts, "", state.selectedCategory)
+                state.copy(
+                    searchQuery = query,
+                    filteredContacts = filtered,
+                    isSearchHistoryDropdownOpen = false
+                )
+            }
+            return
+        }
+
+        // 1. Immediately update searchQuery in UI state with zero delay
         _uiState.update { state ->
             state.copy(
                 searchQuery = query,
-                isSearchHistoryDropdownOpen = query.isNotBlank() && state.searchHistory.isNotEmpty()
+                isSearchHistoryDropdownOpen = false
             )
         }
+
+        // 2. Launch background search
         searchJob?.cancel()
         searchJob = viewModelScope.launch(Dispatchers.Default) {
             val state = _uiState.value
-            val filtered = filterContactsList(state.contacts, query, state.selectedCategory)
+            val filtered = filterContactsList(state.contacts, trimmed, state.selectedCategory)
             _uiState.update { it.copy(filteredContacts = filtered) }
         }
     }
@@ -356,23 +382,54 @@ class PoliceViewModel(private val repository: PoliceRepository) : ViewModel() {
     ): List<PoliceContact> {
         val q = query.trim().lowercase()
 
-        val scoredList = contacts.mapNotNull { contact ->
-            // Category filter
-            val matchesCategory = if (q.isNotEmpty() && category == ContactCategory.POLICE) {
-                // If user is actively searching with text, allow matching across all emergency & public safety contacts
+        // 1. Fast path: If search query is empty, filter by category without any scoring
+        if (q.isEmpty()) {
+            return contacts.filter { contact ->
+                when (category) {
+                    ContactCategory.POLICE -> {
+                        contact.category == ContactCategory.POLICE ||
+                                contact.category == ContactCategory.DIVISIONS ||
+                                contact.category == ContactCategory.RANGES ||
+                                contact.category == ContactCategory.SENIOR_OFFICERS ||
+                                (contact.category != ContactCategory.HOSPITALS &&
+                                        contact.category != ContactCategory.FIRE_STATIONS &&
+                                        contact.category != ContactCategory.GOVT_SERVICES &&
+                                        contact.category != ContactCategory.TRAVEL &&
+                                        contact.category != ContactCategory.SHORT_CODES)
+                    }
+                    ContactCategory.ALL -> true
+                    ContactCategory.FAVORITES -> contact.isFavorite
+                    ContactCategory.EMERGENCY -> contact.category == ContactCategory.EMERGENCY
+                    ContactCategory.FIRE_STATIONS -> contact.category == ContactCategory.FIRE_STATIONS || contact.stationOrDesignation.contains("Fire", ignoreCase = true)
+                    ContactCategory.SHORT_CODES -> contact.category == ContactCategory.SHORT_CODES
+                    ContactCategory.HOSPITALS -> contact.category == ContactCategory.HOSPITALS
+                    ContactCategory.GOVT_SERVICES -> contact.category == ContactCategory.GOVT_SERVICES
+                    ContactCategory.TRAVEL -> contact.category == ContactCategory.TRAVEL
+                    ContactCategory.DIVISIONS -> contact.category == ContactCategory.DIVISIONS || contact.stationOrDesignation.contains("Division", ignoreCase = true)
+                    ContactCategory.RANGES -> contact.category == ContactCategory.RANGES || contact.stationOrDesignation.contains("Range", ignoreCase = true)
+                    ContactCategory.SENIOR_OFFICERS -> contact.category == ContactCategory.SENIOR_OFFICERS || contact.rank.contains("DIG", ignoreCase = true) || contact.rank.contains("IGP", ignoreCase = true) || contact.rank.contains("SSP", ignoreCase = true)
+                }
+            }
+        }
+
+        // 2. Pre-extract query candidate tokens ONCE for all contacts
+        val tokenGroups = com.example.util.MultiLanguageSearchHelper.extractSearchTokens(q)
+
+        val indexedList = if (preIndexedContacts.size == contacts.size && preIndexedContacts.isNotEmpty()) {
+            preIndexedContacts
+        } else {
+            val indexed = contacts.map { com.example.util.MultiLanguageSearchHelper.getContactData(it) }
+            preIndexedContacts = indexed
+            indexed
+        }
+
+        val scoredList = indexedList.mapNotNull { data ->
+            val contact = data.cleanContact
+            // Category filter: When actively searching with text, allow matching across all emergency & public safety contacts
+            val matchesCategory = if (category == ContactCategory.POLICE) {
                 true
             } else when (category) {
-                ContactCategory.POLICE -> {
-                    contact.category == ContactCategory.POLICE ||
-                            contact.category == ContactCategory.DIVISIONS ||
-                            contact.category == ContactCategory.RANGES ||
-                            contact.category == ContactCategory.SENIOR_OFFICERS ||
-                            (contact.category != ContactCategory.HOSPITALS &&
-                                    contact.category != ContactCategory.FIRE_STATIONS &&
-                                    contact.category != ContactCategory.GOVT_SERVICES &&
-                                    contact.category != ContactCategory.TRAVEL &&
-                                    contact.category != ContactCategory.SHORT_CODES)
-                }
+                ContactCategory.POLICE -> true
                 ContactCategory.ALL -> true
                 ContactCategory.FAVORITES -> contact.isFavorite
                 ContactCategory.EMERGENCY -> contact.category == ContactCategory.EMERGENCY
@@ -388,24 +445,17 @@ class PoliceViewModel(private val repository: PoliceRepository) : ViewModel() {
 
             if (!matchesCategory) return@mapNotNull null
 
-            if (q.isEmpty()) {
-                Pair(contact, 0)
-            } else {
-                val matchesQuery = com.example.util.MultiLanguageSearchHelper.matchesContact(contact, q)
-                if (!matchesQuery) return@mapNotNull null
-                val score = com.example.util.MultiLanguageSearchHelper.calculateRelevanceScore(contact, q)
-                Pair(contact, score)
-            }
+            val matches = com.example.util.MultiLanguageSearchHelper.matchesContactFast(data, q, tokenGroups)
+            if (!matches) return@mapNotNull null
+
+            val score = com.example.util.MultiLanguageSearchHelper.calculateRelevanceScoreFast(data, q, tokenGroups)
+            Pair(contact, score)
         }
 
-        return if (q.isEmpty()) {
-            scoredList.map { it.first }
-        } else {
-            scoredList.sortedWith(
-                compareByDescending<Pair<PoliceContact, Int>> { it.second }
-                    .thenBy { it.first.stationOrDesignation.length }
-            ).map { it.first }
-        }
+        return scoredList.sortedWith(
+            compareByDescending<Pair<PoliceContact, Int>> { it.second }
+                .thenBy { it.first.stationOrDesignation.length }
+        ).map { it.first }
     }
 
     // Direct Action Helpers
