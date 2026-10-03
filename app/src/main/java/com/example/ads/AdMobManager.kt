@@ -32,10 +32,10 @@ object AdMobManager : Application.ActivityLifecycleCallbacks, DefaultLifecycleOb
     private const val TAG = "AdMobManager"
 
     // Ad Unit IDs
-    const val REAL_APP_OPEN_AD_ID = "ca-app-pub-7472113156561687/9188630812"
+    const val REAL_APP_OPEN_AD_ID = "ca-app-pub-7472113156561687/2290728129"
     const val TEST_APP_OPEN_AD_ID = "ca-app-pub-3940256099942544/9257395921"
 
-    const val REAL_INTERSTITIAL_AD_ID = "ca-app-pub-7472113156561687/5740340391"
+    const val REAL_INTERSTITIAL_AD_ID = "ca-app-pub-7472113156561687/1999918237"
     const val TEST_INTERSTITIAL_AD_ID = "ca-app-pub-3940256099942544/1033173712"
 
     private var currentActivity: Activity? = null

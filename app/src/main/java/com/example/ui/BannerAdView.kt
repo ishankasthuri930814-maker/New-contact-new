@@ -41,7 +41,7 @@ private const val GOOGLE_TEST_BANNER_ID = "ca-app-pub-3940256099942544/630097811
 
 @Composable
 fun BannerAdView(
-    adUnitId: String = "ca-app-pub-7472113156561687/7428861005",
+    adUnitId: String = "ca-app-pub-7472113156561687/6322306623",
     modifier: Modifier = Modifier
 ) {
     val isEmulator = remember { MainActivity.isEmulator() }
