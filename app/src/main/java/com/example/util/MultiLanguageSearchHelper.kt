@@ -223,7 +223,41 @@ object MultiLanguageSearchHelper {
         "පරිසර" to listOf("environmental"),
         "නාවික" to listOf("marine"),
         "අධ්‍යක්ෂ" to listOf("director"),
-        "අධ්‍යක්ෂක" to listOf("director")
+        "අධ්‍යක්ෂක" to listOf("director"),
+
+        // Railway, Post Office, Schools, Public Services
+        "දුම්රිය" to listOf("railway", "train", "1971"),
+        "දුම්රිය ස්ථානය" to listOf("railway station", "railway", "train"),
+        "புகையிரதம்" to listOf("railway", "train", "1971"),
+        "புகையிரத நிலையம்" to listOf("railway station", "railway"),
+        "තැපැල්" to listOf("post office", "postal", "1950", "gpo"),
+        "තැපැල් කාර්යාලය" to listOf("post office", "postal", "1950"),
+        "தபால்" to listOf("post office", "postal", "1950"),
+        "தபால் நிலையம்" to listOf("post office", "postal"),
+        "පාසල" to listOf("school", "college", "vidyalaya"),
+        "පාසල්" to listOf("school", "college", "vidyalaya", "1988"),
+        "විද්‍යාලය" to listOf("college", "vidyalaya", "school"),
+        "பாடசாலை" to listOf("school", "college"),
+
+        // Bus Stands & Depots
+        "බස්" to listOf("bus", "bus stand", "sltb", "terminal"),
+        "බස් නැවතුම" to listOf("bus stand", "terminal", "depot"),
+        "බස් ස්ටෑන්ඩ්" to listOf("bus stand", "terminal"),
+        "ඩිපෝව" to listOf("depot", "sltb depot"),
+        "பேருந்து" to listOf("bus", "bus stand"),
+        "பேருந்து நிலையம்" to listOf("bus stand", "terminal"),
+
+        // Divisional Secretariats & Local Councils
+        "ප්‍රාදේශීය ලේකම්" to listOf("divisional secretariat", "secretariat"),
+        "ප්‍රාදේශීය ලේකම් කාර්යාලය" to listOf("divisional secretariat", "secretariat"),
+        "නගර සභාව" to listOf("municipal council", "urban council", "council"),
+        "මහ නගර සභාව" to listOf("municipal council"),
+        "ප්‍රාදේශීය සභාව" to listOf("pradeshiya sabha", "council"),
+        "දිවිසැ" to listOf("divisional secretariat"),
+        "பிரதேச செயலகம்" to listOf("divisional secretariat"),
+        "மாநகர சபை" to listOf("municipal council"),
+        "நகர சபை" to listOf("urban council"),
+        "பிரதேச சபை" to listOf("pradeshiya sabha")
     )
 
     /**

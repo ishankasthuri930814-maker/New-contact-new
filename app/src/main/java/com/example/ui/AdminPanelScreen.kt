@@ -463,6 +463,9 @@ fun AdminPanelScreen(
                                     ContactCategory.FIRE_STATIONS to "ගිනි නිවීම් (Fire)",
                                     ContactCategory.HOSPITALS to "රෝහල් (Hospitals)",
                                     ContactCategory.GOVT_SERVICES to "රජයේ (Govt)",
+                                    ContactCategory.RAILWAY to "දුම්රිය (Railway)",
+                                    ContactCategory.POST_OFFICE to "තැපැල් (Post)",
+                                    ContactCategory.SCHOOLS to "පාසල් (Schools)",
                                     ContactCategory.TRAVEL to "ප්‍රවාහන (Travel)"
                                 )
                                 items(categories) { (cat, label) ->
@@ -1368,6 +1371,9 @@ fun AddEditContactDialog(
                                 ContactCategory.FIRE_STATIONS to "ගිනි නිවීම් (Fire)",
                                 ContactCategory.HOSPITALS to "රෝහල් (Hospitals)",
                                 ContactCategory.GOVT_SERVICES to "රජයේ (Govt)",
+                                ContactCategory.RAILWAY to "දුම්රිය (Railway)",
+                                ContactCategory.POST_OFFICE to "තැපැල් (Post)",
+                                ContactCategory.SCHOOLS to "පාසල් (Schools)",
                                 ContactCategory.TRAVEL to "ප්‍රවාහන (Travel)",
                                 ContactCategory.SHORT_CODES to "කෙටි අංක (Short Codes)"
                             )

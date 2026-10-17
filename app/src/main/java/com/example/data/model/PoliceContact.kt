@@ -89,7 +89,10 @@ enum class ContactCategory(
     SHORT_CODES("Short Codes", "කෙටි සංකේත", "குறுக்கு எண்கள்", "dialpad"),
     HOSPITALS("Hospitals", "රෝහල්", "வைத்தியசாலைகள்", "hospital"),
     GOVT_SERVICES("Govt & Depts", "රජයේ සේවා", "அரசு சேவைகள்", "account_balance"),
-    TRAVEL("Travel & Transport", "ගමන් බිමන්", "பயணம் மற்றும் போக்குவரத்து", "directions_bus");
+    TRAVEL("Travel & Transport", "ගමන් බිමන්", "பயணம் மற்றும் போக்குவரத்து", "directions_bus"),
+    RAILWAY("Railway Stations", "දුම්රිය ස්ථාන", "புகையிரத நிலையங்கள்", "train"),
+    POST_OFFICE("Post Offices", "තැපැල් කාර්යාල", "தபால் நிலையங்கள்", "mail"),
+    SCHOOLS("Schools & Colleges", "පාසල්", "பாடசாலைகள்", "school");
 
     fun getLocalizedName(lang: com.example.util.AppLanguage): String {
         return when (lang) {

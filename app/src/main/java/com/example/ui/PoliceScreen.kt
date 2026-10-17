@@ -154,6 +154,7 @@ import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.ContactPhone
+import androidx.compose.material.icons.filled.Build
 import com.example.ui.components.EmergencyHeader
 import com.example.ui.theme.PoliceGold
 import com.example.ui.theme.PoliceNavy
@@ -161,7 +162,8 @@ import com.example.ui.theme.PoliceNavy
 enum class MainScreenTab {
     DIRECTORY,
     PROFILE,
-    RAINBOW_PAGES
+    RAINBOW_PAGES,
+    MORE_TOOLS
 }
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
@@ -266,9 +268,15 @@ fun PoliceScreen(
         }
     }
 
+    // Back button behavior for tabs: Return to DIRECTORY tab first
+    BackHandler(enabled = currentTab != MainScreenTab.DIRECTORY) {
+        currentTab = MainScreenTab.DIRECTORY
+    }
+
     // Interstitial Ad when user presses back to close the app from the main screen
     BackHandler(
-        enabled = uiState.searchQuery.isEmpty() &&
+        enabled = currentTab == MainScreenTab.DIRECTORY &&
+                uiState.searchQuery.isEmpty() &&
                 uiState.selectedContactForDetail == null &&
                 !showAiSearchDialog &&
                 !showUserDialog &&
@@ -420,12 +428,12 @@ fun PoliceScreen(
                             ),
                             shadowElevation = if (isRainbowSelected) 4.dp else 0.dp,
                             modifier = Modifier
-                                .weight(1.1f)
-                                .padding(horizontal = 3.dp)
+                                .weight(1.05f)
+                                .padding(horizontal = 2.dp)
                                 .testTag("nav_item_rainbow_pages")
                         ) {
                             Row(
-                                modifier = Modifier.padding(vertical = 10.dp, horizontal = 4.dp),
+                                modifier = Modifier.padding(vertical = 10.dp, horizontal = 2.dp),
                                 horizontalArrangement = Arrangement.Center,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
@@ -433,16 +441,57 @@ fun PoliceScreen(
                                     imageVector = Icons.Default.MenuBook,
                                     contentDescription = "Rainbow Pages",
                                     tint = if (isRainbowSelected) Color.White else Color(0xFFE65100),
-                                    modifier = Modifier.size(18.dp)
+                                    modifier = Modifier.size(16.dp)
                                 )
-                                Spacer(modifier = Modifier.width(4.dp))
+                                Spacer(modifier = Modifier.width(3.dp))
                                 Text(
-                                    text = "රේන්බෝ පේජස්",
+                                    text = "රේන්බෝ",
                                     style = MaterialTheme.typography.labelSmall.copy(
                                         fontWeight = if (isRainbowSelected) FontWeight.ExtraBold else FontWeight.Bold,
-                                        fontSize = 11.sp,
+                                        fontSize = 10.5.sp,
                                         color = if (isRainbowSelected) Color.White else Color(0xFFE65100)
-                                    )
+                                    ),
+                                    maxLines = 1
+                                )
+                            }
+                        }
+
+                        // 4. තවත් මෙවලම් (More Tools) - Deep Indigo / Blue Theme
+                        val isToolsSelected = currentTab == MainScreenTab.MORE_TOOLS
+                        Surface(
+                            onClick = { currentTab = MainScreenTab.MORE_TOOLS },
+                            shape = RoundedCornerShape(20.dp),
+                            color = if (isToolsSelected) Color(0xFF1E3A8A) else Color(0xFFEFF6FF),
+                            border = BorderStroke(
+                                width = if (isToolsSelected) 2.dp else 1.dp,
+                                color = if (isToolsSelected) Color(0xFF3B82F6) else Color(0xFFBFDBFE)
+                            ),
+                            shadowElevation = if (isToolsSelected) 4.dp else 0.dp,
+                            modifier = Modifier
+                                .weight(1.05f)
+                                .padding(horizontal = 2.dp)
+                                .testTag("nav_item_more_tools")
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(vertical = 10.dp, horizontal = 2.dp),
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Build,
+                                    contentDescription = "More Tools",
+                                    tint = if (isToolsSelected) Color.White else Color(0xFF1D4ED8),
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(3.dp))
+                                Text(
+                                    text = "More Tools",
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        fontWeight = if (isToolsSelected) FontWeight.ExtraBold else FontWeight.Bold,
+                                        fontSize = 10.5.sp,
+                                        color = if (isToolsSelected) Color.White else Color(0xFF1E3A8A)
+                                    ),
+                                    maxLines = 1
                                 )
                             }
                         }
@@ -1192,6 +1241,13 @@ fun PoliceScreen(
                 viewModel.openRainbowPagesSearch(context, uiState.searchQuery)
                 currentTab = MainScreenTab.DIRECTORY
             }
+        }
+        MainScreenTab.MORE_TOOLS -> {
+            MoreToolsScreen(
+                selectedLanguage = uiState.selectedLanguage,
+                onNavigateBack = { currentTab = MainScreenTab.DIRECTORY },
+                modifier = Modifier.fillMaxSize()
+            )
         }
     }
 

@@ -65,9 +65,9 @@ class PoliceRepository(private val context: Context) {
         withContext(Dispatchers.IO) {
             val favorites = getFavoritesSet()
 
-            // 1. If device is currently offline and forceRefresh is not requested, immediately return offline cache
-            if (!networkMonitor.isOnline && !forceRefresh) {
-                val fastCached = getCachedContactsFast()
+            // 1. Fast startup path: Return cached contacts immediately if available and not explicitly forced
+            val fastCached = getCachedContactsFast()
+            if (!forceRefresh && fastCached.isNotEmpty()) {
                 return@withContext Result.success(fastCached)
             }
 
@@ -82,9 +82,24 @@ class PoliceRepository(private val context: Context) {
             }
 
             // 3. Fallback to local disk/persistent cache if remote fetch failed
-            val cached = getCachedContactsFast()
-            Result.success(cached)
+            Result.success(if (fastCached.isNotEmpty()) fastCached else getCachedContactsFast())
         }
+
+    suspend fun syncIfRemoteChanged(): List<PoliceContact>? = withContext(Dispatchers.IO) {
+        if (!networkMonitor.isOnline) return@withContext null
+        try {
+            val favorites = getFavoritesSet()
+            val existing = loadFromLocalCache()
+            val remote = fetchAndCacheRemote(favorites)
+            if (remote.isNotEmpty() && (remote.size != existing.size || remote.hashCode() != existing.hashCode())) {
+                Log.d("PoliceRepo", "Remote data updated: ${remote.size} contacts (was ${existing.size})")
+                return@withContext remote
+            }
+        } catch (e: Exception) {
+            Log.e("PoliceRepo", "Background sync check failed", e)
+        }
+        null
+    }
 
     private suspend fun fetchAndCacheRemote(favorites: Set<String>): List<PoliceContact> {
         val allParsed = mutableListOf<PoliceContact>()
@@ -130,10 +145,10 @@ class PoliceRepository(private val context: Context) {
             }
         }
 
-        // Merge contacts from all sheets and emergency defaults
+        // Merge contacts from all sheets and comprehensive island-wide default directory
         val mergedMap = mutableMapOf<String, PoliceContact>()
 
-        for (raw in (getDefaultEmergencyContacts() + allParsed)) {
+        for (raw in (AppDefaultDirectory.getAllDefaultContacts() + allParsed)) {
             val c = PoliceGpsDirectory.enrichContact(raw)
             val key = c.stationOrDesignation.trim().lowercase().replace(Regex("[^a-z0-9]"), "")
             if (key.isBlank()) continue
@@ -575,12 +590,22 @@ class PoliceRepository(private val context: Context) {
     }
 
     suspend fun loadFromLocalCache(): List<PoliceContact> {
+        val defaultContacts = AppDefaultDirectory.getAllDefaultContacts()
+
         // 1. Try Room Database first
         try {
             val dbEntities = contactDao.getAllContacts()
             if (dbEntities.isNotEmpty()) {
-                Log.d("PoliceRepo", "Loaded ${dbEntities.size} contacts from Room Database")
-                return dbEntities.map { it.toPoliceContact() }
+                val dbContacts = dbEntities.map { it.toPoliceContact() }
+                val existingIds = dbContacts.map { it.id }.toHashSet()
+                val missingDefaults = defaultContacts.filter { !existingIds.contains(it.id) }
+                if (missingDefaults.isNotEmpty()) {
+                    try {
+                        contactDao.insertContacts(missingDefaults.map { it.toEntity() })
+                    } catch (ignored: Exception) {}
+                    return dbContacts + missingDefaults
+                }
+                return dbContacts
             }
         } catch (e: Exception) {
             Log.e("PoliceRepo", "Error loading from Room Database", e)
@@ -596,11 +621,13 @@ class PoliceRepository(private val context: Context) {
                 val json = persistentFile.readText()
                 val parsed = adapter.fromJson(json)
                 if (!parsed.isNullOrEmpty()) {
-                    Log.d("PoliceRepo", "Loaded ${parsed.size} contacts from persistent offline filesDir")
+                    val existingIds = parsed.map { it.id }.toHashSet()
+                    val missingDefaults = defaultContacts.filter { !existingIds.contains(it.id) }
+                    val merged = if (missingDefaults.isNotEmpty()) parsed + missingDefaults else parsed
                     try {
-                        contactDao.insertContacts(parsed.map { it.toEntity() })
+                        contactDao.insertContacts(merged.map { it.toEntity() })
                     } catch (ignored: Exception) {}
-                    return parsed
+                    return merged
                 }
             }
         } catch (e: Exception) {
@@ -614,7 +641,6 @@ class PoliceRepository(private val context: Context) {
                 val json = cacheFile.readText()
                 val parsed = adapter.fromJson(json)
                 if (!parsed.isNullOrEmpty()) {
-                    Log.d("PoliceRepo", "Loaded ${parsed.size} contacts from cacheDir")
                     try {
                         contactDao.insertContacts(parsed.map { it.toEntity() })
                     } catch (ignored: Exception) {}
@@ -625,12 +651,11 @@ class PoliceRepository(private val context: Context) {
             Log.e("PoliceRepo", "Error loading from cacheDir", e)
         }
 
-        // 4. Default Emergency contacts if no cache exists
-        val defaults = getDefaultEmergencyContacts()
+        // 4. Default contacts (Railway, Post Office, Schools, Emergency, Hospitals, Hotlines)
         try {
-            contactDao.insertContacts(defaults.map { it.toEntity() })
+            contactDao.insertContacts(defaultContacts.map { it.toEntity() })
         } catch (ignored: Exception) {}
-        return defaults
+        return defaultContacts
     }
 
     suspend fun getCachedContactsFast(): List<PoliceContact> {

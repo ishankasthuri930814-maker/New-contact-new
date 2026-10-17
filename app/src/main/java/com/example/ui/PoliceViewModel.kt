@@ -109,13 +109,32 @@ class PoliceViewModel(private val repository: PoliceRepository) : ViewModel() {
                 _uiState.update { it.copy(isOfflineMode = !isOnline) }
 
                 if (isOnline) {
-                    // Mobile data or Wi-Fi connected! Auto-refresh live data from Google Sheets!
                     if (!hasObservedInitialNetwork || wasOffline) {
                         hasObservedInitialNetwork = true
-                        loadContacts(forceRefresh = true, isAutoRefresh = true)
+                        // Run quiet background sync: checks if Google Sheets changed without blocking UI!
+                        performBackgroundSync()
                     }
                 } else {
                     hasObservedInitialNetwork = true
+                }
+            }
+        }
+    }
+
+    private fun performBackgroundSync() {
+        viewModelScope.launch(Dispatchers.IO) {
+            val updated = repository.syncIfRemoteChanged()
+            if (updated != null && updated.isNotEmpty()) {
+                updatePreIndexedContacts(updated)
+                val syncTime = repository.getLastSyncTimeString()
+                _uiState.update { state ->
+                    val filtered = filterContactsList(updated, state.searchQuery, state.selectedCategory)
+                    state.copy(
+                        contacts = updated,
+                        filteredContacts = filtered,
+                        lastSyncTime = syncTime,
+                        userMessage = "නව දත්ත සාර්ථකව යාවත්කාලීන විය!"
+                    )
                 }
             }
         }
@@ -384,7 +403,7 @@ class PoliceViewModel(private val repository: PoliceRepository) : ViewModel() {
 
         // 1. Fast path: If search query is empty, filter by category without any scoring
         if (q.isEmpty()) {
-            return contacts.filter { contact ->
+            val list = contacts.filter { contact ->
                 when (category) {
                     ContactCategory.POLICE -> {
                         contact.category == ContactCategory.POLICE ||
@@ -395,7 +414,10 @@ class PoliceViewModel(private val repository: PoliceRepository) : ViewModel() {
                                         contact.category != ContactCategory.FIRE_STATIONS &&
                                         contact.category != ContactCategory.GOVT_SERVICES &&
                                         contact.category != ContactCategory.TRAVEL &&
-                                        contact.category != ContactCategory.SHORT_CODES)
+                                        contact.category != ContactCategory.SHORT_CODES &&
+                                        contact.category != ContactCategory.RAILWAY &&
+                                        contact.category != ContactCategory.POST_OFFICE &&
+                                        contact.category != ContactCategory.SCHOOLS)
                     }
                     ContactCategory.ALL -> true
                     ContactCategory.FAVORITES -> contact.isFavorite
@@ -405,10 +427,22 @@ class PoliceViewModel(private val repository: PoliceRepository) : ViewModel() {
                     ContactCategory.HOSPITALS -> contact.category == ContactCategory.HOSPITALS
                     ContactCategory.GOVT_SERVICES -> contact.category == ContactCategory.GOVT_SERVICES
                     ContactCategory.TRAVEL -> contact.category == ContactCategory.TRAVEL
+                    ContactCategory.RAILWAY -> contact.category == ContactCategory.RAILWAY || contact.stationOrDesignation.contains("Railway", ignoreCase = true) || contact.stationOrDesignation.contains("දුම්රිය")
+                    ContactCategory.POST_OFFICE -> contact.category == ContactCategory.POST_OFFICE || contact.stationOrDesignation.contains("Post Office", ignoreCase = true) || contact.stationOrDesignation.contains("තැපැල්")
+                    ContactCategory.SCHOOLS -> contact.category == ContactCategory.SCHOOLS || contact.stationOrDesignation.contains("College", ignoreCase = true) || contact.stationOrDesignation.contains("Vidyalaya", ignoreCase = true) || contact.stationOrDesignation.contains("School", ignoreCase = true) || contact.stationOrDesignation.contains("පාසල්")
                     ContactCategory.DIVISIONS -> contact.category == ContactCategory.DIVISIONS || contact.stationOrDesignation.contains("Division", ignoreCase = true)
                     ContactCategory.RANGES -> contact.category == ContactCategory.RANGES || contact.stationOrDesignation.contains("Range", ignoreCase = true)
                     ContactCategory.SENIOR_OFFICERS -> contact.category == ContactCategory.SENIOR_OFFICERS || contact.rank.contains("DIG", ignoreCase = true) || contact.rank.contains("IGP", ignoreCase = true) || contact.rank.contains("SSP", ignoreCase = true)
                 }
+            }
+
+            return if (category == ContactCategory.ALL) {
+                list.sortedWith(
+                    compareByDescending<PoliceContact> { getPoliceSearchPriority(it) }
+                        .thenBy { it.stationOrDesignation }
+                )
+            } else {
+                list
             }
         }
 
@@ -438,6 +472,9 @@ class PoliceViewModel(private val repository: PoliceRepository) : ViewModel() {
                 ContactCategory.HOSPITALS -> contact.category == ContactCategory.HOSPITALS
                 ContactCategory.GOVT_SERVICES -> contact.category == ContactCategory.GOVT_SERVICES
                 ContactCategory.TRAVEL -> contact.category == ContactCategory.TRAVEL
+                ContactCategory.RAILWAY -> contact.category == ContactCategory.RAILWAY || contact.stationOrDesignation.contains("Railway", ignoreCase = true) || contact.stationOrDesignation.contains("දුම්රිය")
+                ContactCategory.POST_OFFICE -> contact.category == ContactCategory.POST_OFFICE || contact.stationOrDesignation.contains("Post Office", ignoreCase = true) || contact.stationOrDesignation.contains("තැපැල්")
+                ContactCategory.SCHOOLS -> contact.category == ContactCategory.SCHOOLS || contact.stationOrDesignation.contains("College", ignoreCase = true) || contact.stationOrDesignation.contains("Vidyalaya", ignoreCase = true) || contact.stationOrDesignation.contains("School", ignoreCase = true) || contact.stationOrDesignation.contains("පාසල්")
                 ContactCategory.DIVISIONS -> contact.category == ContactCategory.DIVISIONS || contact.stationOrDesignation.contains("Division", ignoreCase = true)
                 ContactCategory.RANGES -> contact.category == ContactCategory.RANGES || contact.stationOrDesignation.contains("Range", ignoreCase = true)
                 ContactCategory.SENIOR_OFFICERS -> contact.category == ContactCategory.SENIOR_OFFICERS || contact.rank.contains("DIG", ignoreCase = true) || contact.rank.contains("IGP", ignoreCase = true) || contact.rank.contains("SSP", ignoreCase = true)
@@ -452,10 +489,64 @@ class PoliceViewModel(private val repository: PoliceRepository) : ViewModel() {
             Pair(contact, score)
         }
 
+        // Rank Police contacts at the very top of search results, followed by relevance score
         return scoredList.sortedWith(
-            compareByDescending<Pair<PoliceContact, Int>> { it.second }
+            compareByDescending<Pair<PoliceContact, Int>> { getPoliceSearchPriority(it.first) }
+                .thenByDescending { it.second }
                 .thenBy { it.first.stationOrDesignation.length }
         ).map { it.first }
+    }
+
+    private fun getPoliceSearchPriority(contact: PoliceContact): Int {
+        // 1. National Police Emergency Hotline (119) -> Absolute Top Priority
+        if (contact.id == "hotline_119" || contact.generalPhone == "119" || contact.mobilePhone == "119") {
+            return 100
+        }
+
+        // 2. Direct Police category contacts (Police Stations, Divisions, Ranges, Senior Officers)
+        if (contact.category == ContactCategory.POLICE ||
+            contact.category == ContactCategory.DIVISIONS ||
+            contact.category == ContactCategory.RANGES ||
+            contact.category == ContactCategory.SENIOR_OFFICERS
+        ) {
+            return 90
+        }
+
+        // Exclude explicit other departments from false positive detection
+        val isExplicitOtherService = contact.category == ContactCategory.RAILWAY ||
+                contact.category == ContactCategory.POST_OFFICE ||
+                contact.category == ContactCategory.SCHOOLS ||
+                contact.category == ContactCategory.HOSPITALS ||
+                contact.category == ContactCategory.FIRE_STATIONS ||
+                contact.category == ContactCategory.TRAVEL
+
+        if (!isExplicitOtherService) {
+            val name = contact.stationOrDesignation
+            val rank = contact.rank
+            if (name.contains("Police", ignoreCase = true) ||
+                name.contains("පොලිස්") ||
+                name.contains("காவல்துறை") ||
+                rank.contains("OIC", ignoreCase = true) ||
+                rank.contains("HQI", ignoreCase = true) ||
+                rank.contains("DIG", ignoreCase = true) ||
+                rank.contains("SSP", ignoreCase = true) ||
+                rank.contains("ASP", ignoreCase = true) ||
+                rank.contains("SP", ignoreCase = true) ||
+                rank.contains("IP", ignoreCase = true) ||
+                rank.contains("SI", ignoreCase = true) ||
+                rank.contains("IGP", ignoreCase = true)
+            ) {
+                return 80
+            }
+        }
+
+        // 3. Other Emergency Numbers (110, 1990 Suwaseriya, etc.)
+        if (contact.category == ContactCategory.EMERGENCY || contact.category == ContactCategory.SHORT_CODES) {
+            return 40
+        }
+
+        // 4. Other Public & Government Services (Railway, Post Office, Schools, Bus stands, Councils, etc.)
+        return 10
     }
 
     // Direct Action Helpers
