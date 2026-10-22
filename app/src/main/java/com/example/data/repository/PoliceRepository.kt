@@ -7,8 +7,10 @@ import com.example.data.local.AppDatabase
 import com.example.data.local.toEntity
 import com.example.data.local.toPoliceContact
 import com.example.data.model.ContactCategory
+import com.example.data.model.ExternalSearchResult
 import com.example.data.model.PoliceContact
 import com.example.data.model.sanitized
+import com.example.data.remote.GoogleDirectorySearchService
 import com.example.data.remote.GoogleSheetsResponse
 import com.example.data.remote.PoliceApiService
 import com.example.util.AppUpdateManager
@@ -950,5 +952,52 @@ class PoliceRepository(private val context: Context) {
 
     fun saveLanguage(language: com.example.util.AppLanguage) {
         prefs.edit().putString("key_app_language", language.code).apply()
+    }
+
+    // ==========================================
+    // GOOGLE & RAINBOW PAGES LIVE IN-APP SEARCH
+    // ==========================================
+
+    private val googleDirectorySearchService = GoogleDirectorySearchService()
+
+    suspend fun searchExternalGoogleDirectory(query: String): Result<List<ExternalSearchResult>> {
+        return googleDirectorySearchService.searchSriLankaDirectory(query)
+    }
+
+    suspend fun saveExternalResultAsContact(result: ExternalSearchResult, chosenPhone: String): Result<PoliceContact> = withContext(Dispatchers.IO) {
+        try {
+            val titleLower = result.title.lowercase()
+            val categoryLower = result.category.lowercase()
+            val determinedCategory = when {
+                titleLower.contains("police") || categoryLower.contains("police") -> ContactCategory.POLICE
+                titleLower.contains("hospital") || categoryLower.contains("hospital") || titleLower.contains("medical") -> ContactCategory.HOSPITALS
+                titleLower.contains("fire") || categoryLower.contains("fire") -> ContactCategory.FIRE_STATIONS
+                titleLower.contains("railway") || (titleLower.contains("station") && titleLower.contains("train")) -> ContactCategory.RAILWAY
+                titleLower.contains("school") || titleLower.contains("college") -> ContactCategory.SCHOOLS
+                titleLower.contains("post") -> ContactCategory.POST_OFFICE
+                titleLower.contains("bus") || titleLower.contains("transport") -> ContactCategory.TRAVEL
+                titleLower.contains("emergency") || titleLower.contains("hotline") -> ContactCategory.EMERGENCY
+                else -> ContactCategory.GOVT_SERVICES
+            }
+
+            val newId = "ext_${System.currentTimeMillis()}_${(1000..9999).random()}"
+            val newContact = PoliceContact(
+                id = newId,
+                stationOrDesignation = result.title,
+                rank = result.category.ifBlank { "DIRECTORY" },
+                officerName = result.notes.ifBlank { "Google / Rainbow Pages Directory" },
+                generalPhone = chosenPhone.trim(),
+                officePhone2 = result.secondaryPhone?.trim() ?: "",
+                locationAddress = result.address,
+                category = determinedCategory,
+                isFavorite = false
+            )
+
+            contactDao.insertContact(newContact.toEntity())
+            Result.success(newContact)
+        } catch (e: Exception) {
+            Log.e("PoliceRepo", "Error saving external contact", e)
+            Result.failure(e)
+        }
     }
 }

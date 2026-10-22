@@ -10,6 +10,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.data.model.ContactCategory
+import com.example.data.model.ExternalSearchResult
 import com.example.data.model.PoliceContact
 import com.example.data.repository.PoliceRepository
 import kotlinx.coroutines.Dispatchers
@@ -20,6 +21,11 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
+enum class ExternalSearchTab {
+    GOOGLE,
+    RAINBOW_PAGES
+}
+
 data class PoliceUiState(
     val isLoading: Boolean = false,
     val isRefreshing: Boolean = false,
@@ -27,13 +33,20 @@ data class PoliceUiState(
     val contacts: List<PoliceContact> = emptyList(),
     val filteredContacts: List<PoliceContact> = emptyList(),
     val searchQuery: String = "",
-    val selectedCategory: ContactCategory = ContactCategory.POLICE,
+    val selectedCategory: ContactCategory = ContactCategory.ALL,
     val selectedContactForDetail: PoliceContact? = null,
     val lastSyncTime: String = "",
     val userMessage: String? = null,
     val searchHistory: List<String> = emptyList(),
     val isSearchHistoryDropdownOpen: Boolean = false,
-    val selectedLanguage: com.example.util.AppLanguage = com.example.util.AppLanguage.SINHALA
+    val selectedLanguage: com.example.util.AppLanguage = com.example.util.AppLanguage.SINHALA,
+    val isExternalSearching: Boolean = false,
+    val externalSearchResults: List<ExternalSearchResult> = emptyList(),
+    val externalSearchError: String? = null,
+    val showExternalDialog: Boolean = false,
+    val externalDialogInitialQuery: String = "",
+    val externalDialogInitialTab: ExternalSearchTab = ExternalSearchTab.GOOGLE,
+    val savedExternalTitles: Set<String> = emptySet()
 )
 
 class PoliceViewModel(private val repository: PoliceRepository) : ViewModel() {
@@ -195,7 +208,10 @@ class PoliceViewModel(private val repository: PoliceRepository) : ViewModel() {
                 state.copy(
                     searchQuery = query,
                     filteredContacts = filtered,
-                    isSearchHistoryDropdownOpen = false
+                    isSearchHistoryDropdownOpen = false,
+                    externalSearchResults = emptyList(),
+                    externalSearchError = null,
+                    isExternalSearching = false
                 )
             }
             return
@@ -215,6 +231,16 @@ class PoliceViewModel(private val repository: PoliceRepository) : ViewModel() {
             val state = _uiState.value
             val filtered = filterContactsList(state.contacts, trimmed, state.selectedCategory)
             _uiState.update { it.copy(filteredContacts = filtered) }
+
+            // If no contact found in local directory and user entered 3+ characters, automatically query Google & Rainbow Pages
+            if (filtered.isEmpty() && trimmed.length >= 3) {
+                kotlinx.coroutines.delay(650L)
+                if (_uiState.value.searchQuery.trim() == trimmed && _uiState.value.filteredContacts.isEmpty()) {
+                    searchExternalDirectory(trimmed)
+                }
+            } else if (filtered.isNotEmpty() && _uiState.value.externalSearchResults.isNotEmpty()) {
+                _uiState.update { it.copy(externalSearchResults = emptyList(), externalSearchError = null) }
+            }
         }
     }
 
@@ -234,6 +260,11 @@ class PoliceViewModel(private val repository: PoliceRepository) : ViewModel() {
                 val state = _uiState.value
                 val filtered = filterContactsList(state.contacts, trimmed, state.selectedCategory)
                 _uiState.update { it.copy(filteredContacts = filtered) }
+
+                // When user submits with Enter / Search button and no local match, search online directory immediately
+                if (filtered.isEmpty() && trimmed.length >= 2) {
+                    searchExternalDirectory(trimmed)
+                }
             }
         } else {
             _uiState.update { it.copy(isSearchHistoryDropdownOpen = false) }
@@ -791,19 +822,82 @@ class PoliceViewModel(private val repository: PoliceRepository) : ViewModel() {
             Toast.makeText(context, "කරුණාකර සොයන්න අවශ්‍ය නම හෝ අංකය ඇතුළත් කරන්න", Toast.LENGTH_SHORT).show()
             return
         }
-        try {
-            val searchQuery = if (cleanQuery.lowercase().contains("sri lanka") || cleanQuery.lowercase().contains("police")) {
-                "$cleanQuery contact phone number"
-            } else {
-                "$cleanQuery Sri Lanka police contact phone number"
+        openExternalSearchDialog(cleanQuery, ExternalSearchTab.GOOGLE)
+    }
+
+    // ==========================================
+    // IN-APP GOOGLE & RAINBOW PAGES LOOKUP
+    // ==========================================
+
+    fun openExternalSearchDialog(query: String = "", tab: ExternalSearchTab = ExternalSearchTab.GOOGLE) {
+        val clean = query.trim()
+        _uiState.update {
+            it.copy(
+                showExternalDialog = true,
+                externalDialogInitialQuery = clean,
+                externalDialogInitialTab = tab,
+                externalSearchError = null
+            )
+        }
+        if (tab == ExternalSearchTab.GOOGLE && clean.isNotEmpty()) {
+            searchExternalDirectory(clean)
+        }
+    }
+
+    fun dismissExternalSearchDialog() {
+        _uiState.update { it.copy(showExternalDialog = false) }
+    }
+
+    fun searchExternalDirectory(query: String) {
+        val clean = query.trim()
+        if (clean.isBlank()) return
+        viewModelScope.launch {
+            _uiState.update {
+                it.copy(
+                    isExternalSearching = true,
+                    externalSearchError = null,
+                    externalSearchResults = emptyList()
+                )
             }
-            val intent = Intent(Intent.ACTION_VIEW).apply {
-                data = Uri.parse("https://www.google.com/search?q=${Uri.encode(searchQuery)}")
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            val result = repository.searchExternalGoogleDirectory(clean)
+            result.onSuccess { list ->
+                _uiState.update {
+                    it.copy(
+                        isExternalSearching = false,
+                        externalSearchResults = list,
+                        externalSearchError = null
+                    )
+                }
+            }.onFailure { ex ->
+                _uiState.update {
+                    it.copy(
+                        isExternalSearching = false,
+                        externalSearchResults = emptyList(),
+                        externalSearchError = ex.localizedMessage ?: "සෙවුම් දෝෂයක් සිදු විය"
+                    )
+                }
             }
-            context.startActivity(intent)
-        } catch (e: Exception) {
-            Toast.makeText(context, "ගූගල් සෙවුම විවෘත කිරීමට නොහැකි විය", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    fun saveExternalContact(context: Context, result: ExternalSearchResult, phone: String) {
+        viewModelScope.launch {
+            val saveResult = repository.saveExternalResultAsContact(result, phone)
+            saveResult.onSuccess {
+                _uiState.update {
+                    it.copy(
+                        savedExternalTitles = it.savedExternalTitles + result.title
+                    )
+                }
+                loadCachedContactsImmediately()
+                Toast.makeText(
+                    context,
+                    "💾 '${result.title}' ඇප් එකට සාර්ථකව සුරකින ලදී!",
+                    Toast.LENGTH_LONG
+                ).show()
+            }.onFailure {
+                Toast.makeText(context, "සුරැකීමේදී දෝෂයක් සිදු විය", Toast.LENGTH_SHORT).show()
+            }
         }
     }
 

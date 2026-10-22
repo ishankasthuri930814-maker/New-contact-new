@@ -1,6 +1,6 @@
 {
-  "name": "ALL Police Contact",
-  "description": "Sri Lanka Police contact directory with search, direct call, and email functionality.",
+  "name": "SL Police Directory",
+  "description": "Sri Lanka Police and Emergency Directory with smart in-app Google and Rainbow Pages lookup.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

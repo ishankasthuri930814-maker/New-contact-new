@@ -60,6 +60,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Divider
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -127,9 +128,12 @@ import com.example.data.model.ContactCategory
 import com.example.data.model.PoliceContact
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import com.example.ui.ExternalSearchTab
 import com.example.ui.components.ContactCard
 import com.example.ui.components.ContactDetailBottomSheet
 import com.example.ui.components.ContactQrDialog
+import com.example.ui.components.ExternalContactCard
+import com.example.ui.components.ExternalDirectorySearchDialog
 import com.example.ui.components.AppUpdateDialog
 import com.example.ui.components.AppNoticeDialog
 import com.example.ui.components.PoliceDataBufferingView
@@ -183,7 +187,7 @@ fun PoliceScreen(
     val focusManager = LocalFocusManager.current
     val snackbarHostState = remember { SnackbarHostState() }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    var showInfoDialog by remember { mutableStateOf(true) }
+    var showInfoDialog by remember { mutableStateOf(false) }
     var showUserDialog by remember { mutableStateOf(false) }
     var showAiSearchDialog by remember { mutableStateOf(false) }
     var aiSearchQuery by remember { mutableStateOf("") }
@@ -278,6 +282,7 @@ fun PoliceScreen(
         enabled = currentTab == MainScreenTab.DIRECTORY &&
                 uiState.searchQuery.isEmpty() &&
                 uiState.selectedContactForDetail == null &&
+                !uiState.showExternalDialog &&
                 !showAiSearchDialog &&
                 !showUserDialog &&
                 !showInfoDialog &&
@@ -675,8 +680,7 @@ fun PoliceScreen(
                     }
                     Surface(
                         onClick = {
-                            aiSearchQuery = uiState.searchQuery
-                            showAiSearchDialog = true
+                            viewModel.openExternalSearchDialog(uiState.searchQuery, ExternalSearchTab.GOOGLE)
                         },
                         shape = RoundedCornerShape(20.dp),
                         color = PoliceGold,
@@ -1103,105 +1107,41 @@ fun PoliceScreen(
                                 )
 
                                 if (uiState.searchQuery.isNotEmpty()) {
-                                    Text(
-                                        text = "Query: \"${uiState.searchQuery}\"",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.primary
-                                    )
-                                }
-                            }
-                        }
-
-                        // Contact items
-                        if (uiState.filteredContacts.isEmpty()) {
-                            item {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(vertical = 32.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                        Icon(
-                                            imageVector = Icons.Default.SearchOff,
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.outline,
-                                            modifier = Modifier.size(52.dp)
-                                        )
-                                        Spacer(modifier = Modifier.height(12.dp))
-                                        Text(
-                                            text = "මෙම ඇප් එකේ සටහන් වී නැත / Not Found in App",
-                                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                                            color = MaterialTheme.colorScheme.onSurface
-                                        )
-                                        Spacer(modifier = Modifier.height(4.dp))
-                                         Text(
-                                            text = "ඇප් එකේ නොමැති ඕනෑම දුරකථන අංකයක් Rainbow Pages හෝ Google හරහා සෘජුවම සොයාගන්න",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                        Spacer(modifier = Modifier.height(16.dp))
-                                        
-                                        Column(
-                                            verticalArrangement = Arrangement.spacedBy(10.dp),
-                                            horizontalAlignment = Alignment.CenterHorizontally
+                                    Surface(
+                                        onClick = {
+                                            viewModel.searchExternalDirectory(uiState.searchQuery)
+                                        },
+                                        shape = RoundedCornerShape(12.dp),
+                                        color = PoliceGold.copy(alpha = 0.2f),
+                                        border = BorderStroke(0.5.dp, PoliceGold)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                            verticalAlignment = Alignment.CenterVertically
                                         ) {
-                                            // Primary SLT Rainbow Pages Search Button
-                                            Button(
-                                                onClick = {
-                                                    viewModel.openRainbowPagesSearch(context, uiState.searchQuery)
-                                                },
-                                                shape = RoundedCornerShape(12.dp),
-                                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE65100)),
-                                                modifier = Modifier.testTag("empty_state_rainbow_pages_button")
-                                            ) {
-                                                Icon(
-                                                    imageVector = Icons.Default.MenuBook,
-                                                    contentDescription = null,
-                                                    tint = Color.White,
-                                                    modifier = Modifier.size(18.dp)
+                                            Icon(
+                                                imageVector = Icons.Default.Search,
+                                                contentDescription = null,
+                                                tint = PoliceNavy,
+                                                modifier = Modifier.size(12.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Text(
+                                                text = "🌐 Google හිත් සොයන්න",
+                                                style = MaterialTheme.typography.labelSmall.copy(
+                                                    color = PoliceNavy,
+                                                    fontWeight = FontWeight.Bold,
+                                                    fontSize = 10.5.sp
                                                 )
-                                                Spacer(modifier = Modifier.width(8.dp))
-                                                Text(
-                                                    text = if (uiState.searchQuery.isNotEmpty()) "📖 '${uiState.searchQuery}' Rainbow Pages හි සොයන්න" else "📖 SLT Rainbow Pages (Directory)",
-                                                    style = MaterialTheme.typography.labelLarge.copy(
-                                                        fontWeight = FontWeight.Bold,
-                                                        color = Color.White
-                                                    )
-                                                )
-                                            }
-
-                                            // Secondary AI Google Search Button
-                                            OutlinedButton(
-                                                onClick = {
-                                                    aiSearchQuery = uiState.searchQuery
-                                                    showAiSearchDialog = true
-                                                },
-                                                shape = RoundedCornerShape(12.dp),
-                                                colors = ButtonDefaults.outlinedButtonColors(contentColor = PoliceNavy),
-                                                border = BorderStroke(1.dp, PoliceNavy),
-                                                modifier = Modifier.testTag("empty_state_ai_search_button")
-                                            ) {
-                                                Icon(
-                                                    imageVector = Icons.Default.Search,
-                                                    contentDescription = null,
-                                                    tint = PoliceNavy,
-                                                    modifier = Modifier.size(18.dp)
-                                                )
-                                                Spacer(modifier = Modifier.width(8.dp))
-                                                Text(
-                                                    text = if (uiState.searchQuery.isNotEmpty()) "🔍 '${uiState.searchQuery}' Google හි සොයන්න" else "✨ AI Google Search",
-                                                    style = MaterialTheme.typography.labelLarge.copy(
-                                                        fontWeight = FontWeight.Bold,
-                                                        color = PoliceNavy
-                                                    )
-                                                )
-                                            }
+                                            )
                                         }
                                     }
                                 }
                             }
-                        } else {
+                        }
+
+                        // 1. In-App Contacts (if any match)
+                        if (uiState.filteredContacts.isNotEmpty()) {
                             items(
                                 items = uiState.filteredContacts,
                                 key = { it.id }
@@ -1221,6 +1161,216 @@ fun PoliceScreen(
                                     isCompactSearchMode = uiState.searchQuery.isNotBlank(),
                                     searchQuery = uiState.searchQuery
                                 )
+                            }
+                        }
+
+                        // 2. Active External Searching Progress Banner
+                        if (uiState.isExternalSearching) {
+                            item {
+                                Card(
+                                    shape = RoundedCornerShape(16.dp),
+                                    colors = CardDefaults.cardColors(containerColor = PoliceNavy.copy(alpha = 0.08f)),
+                                    border = BorderStroke(1.dp, PoliceGold.copy(alpha = 0.5f)),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 8.dp)
+                                        .testTag("external_searching_progress_card")
+                                ) {
+                                    Column(
+                                        modifier = Modifier.padding(14.dp)
+                                    ) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            CircularProgressIndicator(
+                                                modifier = Modifier.size(20.dp),
+                                                strokeWidth = 2.5.dp,
+                                                color = PoliceNavy
+                                            )
+                                            Spacer(modifier = Modifier.width(12.dp))
+                                            Column {
+                                                Text(
+                                                    text = "🌐 '${uiState.searchQuery}' සජීවීව සොයමින් පවතී...",
+                                                    style = MaterialTheme.typography.titleSmall.copy(
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = PoliceNavy
+                                                    )
+                                                )
+                                                Text(
+                                                    text = "Google සහ SLT Rainbow Pages හරහා නිල අංක පරීක්ෂා කෙරේ",
+                                                    style = MaterialTheme.typography.bodySmall.copy(
+                                                        color = Color(0xFF475569),
+                                                        fontSize = 11.5.sp
+                                                    )
+                                                )
+                                            }
+                                        }
+                                        Spacer(modifier = Modifier.height(10.dp))
+                                        LinearProgressIndicator(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            color = PoliceGold,
+                                            trackColor = PoliceNavy.copy(alpha = 0.2f)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        // 3. Online Search Results (Google Grounded & Rainbow Pages)
+                        if (uiState.externalSearchResults.isNotEmpty()) {
+                            item {
+                                Surface(
+                                    shape = RoundedCornerShape(10.dp),
+                                    color = Color(0xFFEBF3FC),
+                                    border = BorderStroke(1.dp, Color(0xFFBEDBFE)),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(top = 8.dp, bottom = 4.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text(
+                                            text = "🌐 Google & Rainbow Pages මගින් සොයාගත් අංක (${uiState.externalSearchResults.size})",
+                                            style = MaterialTheme.typography.titleSmall.copy(
+                                                fontWeight = FontWeight.Bold,
+                                                color = PoliceNavy,
+                                                fontSize = 13.5.sp
+                                            )
+                                        )
+                                        Surface(
+                                            shape = RoundedCornerShape(6.dp),
+                                            color = Color(0xFFE8F5E9)
+                                        ) {
+                                            Text(
+                                                text = "සුරැකිය හැක",
+                                                style = MaterialTheme.typography.labelSmall.copy(
+                                                    color = Color(0xFF2E7D32),
+                                                    fontWeight = FontWeight.Bold,
+                                                    fontSize = 10.sp
+                                                ),
+                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+
+                            items(
+                                items = uiState.externalSearchResults,
+                                key = { "ext_${it.title}_${it.phone}" }
+                            ) { result ->
+                                val isSaved = uiState.savedExternalTitles.contains(result.title) ||
+                                        uiState.contacts.any { it.stationOrDesignation.equals(result.title, ignoreCase = true) }
+                                ExternalContactCard(
+                                    result = result,
+                                    isSaved = isSaved,
+                                    onCallClick = { phone -> viewModel.makePhoneCall(context, phone) },
+                                    onWhatsAppClick = { phone -> viewModel.openWhatsApp(context, phone) },
+                                    onSaveToApp = { res, phone -> viewModel.saveExternalContact(context, res, phone) }
+                                )
+                            }
+                        }
+
+                        // 4. Empty State (When neither local nor online results are present and not searching)
+                        if (uiState.filteredContacts.isEmpty() && uiState.externalSearchResults.isEmpty() && !uiState.isExternalSearching) {
+                            item {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 24.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                        Icon(
+                                            imageVector = Icons.Default.SearchOff,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.outline,
+                                            modifier = Modifier.size(48.dp)
+                                        )
+                                        Spacer(modifier = Modifier.height(10.dp))
+                                        Text(
+                                            text = "මෙම ඇප් එකේ සටහන් වී නැත / Not in App",
+                                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Text(
+                                            text = if (uiState.externalSearchError != null)
+                                                uiState.externalSearchError ?: ""
+                                            else
+                                                "Google සහ Rainbow Pages හරහා සජීවීව සොයා ඇප් එකට සුරකින්න:",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                        Spacer(modifier = Modifier.height(14.dp))
+
+                                        Column(
+                                            verticalArrangement = Arrangement.spacedBy(10.dp),
+                                            horizontalAlignment = Alignment.CenterHorizontally
+                                        ) {
+                                            // Primary Google Live Search In-App Button
+                                            Button(
+                                                onClick = {
+                                                    viewModel.searchExternalDirectory(uiState.searchQuery)
+                                                },
+                                                shape = RoundedCornerShape(12.dp),
+                                                colors = ButtonDefaults.buttonColors(containerColor = PoliceNavy),
+                                                modifier = Modifier.testTag("empty_state_google_search_button")
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Search,
+                                                    contentDescription = null,
+                                                    tint = PoliceGold,
+                                                    modifier = Modifier.size(18.dp)
+                                                )
+                                                Spacer(modifier = Modifier.width(8.dp))
+                                                Text(
+                                                    text = if (uiState.searchQuery.isNotEmpty())
+                                                        "🌐 '${uiState.searchQuery}' Google හරහා සොයන්න"
+                                                    else
+                                                        "🌐 Google Live Search",
+                                                    style = MaterialTheme.typography.labelLarge.copy(
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = Color.White
+                                                    )
+                                                )
+                                            }
+
+                                            // Secondary SLT Rainbow Pages In-App Button
+                                            OutlinedButton(
+                                                onClick = {
+                                                    viewModel.openExternalSearchDialog(
+                                                        query = uiState.searchQuery,
+                                                        tab = ExternalSearchTab.RAINBOW_PAGES
+                                                    )
+                                                },
+                                                shape = RoundedCornerShape(12.dp),
+                                                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFE65100)),
+                                                border = BorderStroke(1.5.dp, Color(0xFFE65100)),
+                                                modifier = Modifier.testTag("empty_state_rainbow_pages_button")
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.MenuBook,
+                                                    contentDescription = null,
+                                                    tint = Color(0xFFE65100),
+                                                    modifier = Modifier.size(18.dp)
+                                                )
+                                                Spacer(modifier = Modifier.width(8.dp))
+                                                Text(
+                                                    text = if (uiState.searchQuery.isNotEmpty())
+                                                        "📖 '${uiState.searchQuery}' Rainbow Pages හි සොයන්න"
+                                                    else
+                                                        "📖 SLT Rainbow Pages (In-App)",
+                                                    style = MaterialTheme.typography.labelLarge.copy(
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = Color(0xFFE65100)
+                                                    )
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
@@ -1842,14 +1992,28 @@ fun PoliceScreen(
                 }
             }
 
-            // AI Web Search Dialog
+            // External In-App Directory Search Dialog (Google Live Grounding & SLT Rainbow Pages)
+            if (uiState.showExternalDialog) {
+                ExternalDirectorySearchDialog(
+                    initialQuery = uiState.externalDialogInitialQuery,
+                    initialTab = uiState.externalDialogInitialTab,
+                    isSearching = uiState.isExternalSearching,
+                    searchResults = uiState.externalSearchResults,
+                    searchError = uiState.externalSearchError,
+                    onSearchGoogle = { q -> viewModel.searchExternalDirectory(q) },
+                    onSaveToApp = { res, phone -> viewModel.saveExternalContact(context, res, phone) },
+                    onDismiss = { viewModel.dismissExternalSearchDialog() }
+                )
+            }
+
+            // AI Web Search Dialog Fallback
             if (showAiSearchDialog) {
                 AiSearchDialog(
                     initialQuery = aiSearchQuery,
                     onDismiss = { showAiSearchDialog = false },
                     onSearch = { query ->
                         showAiSearchDialog = false
-                        viewModel.performGoogleSearch(context, query)
+                        viewModel.openExternalSearchDialog(query, ExternalSearchTab.GOOGLE)
                     }
                 )
             }

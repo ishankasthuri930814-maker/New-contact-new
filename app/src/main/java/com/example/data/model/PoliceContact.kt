@@ -78,8 +78,8 @@ enum class ContactCategory(
     val tamilName: String,
     val iconRes: String
 ) {
-    POLICE("Police Contacts", "පොලිස් ඇමතුම්", "காவல்துறை தொடர்புகள்", "local_police"),
     ALL("All", "සියල්ල", "அனைத்தும்", "all"),
+    POLICE("Police Contacts", "පොලිස් ඇමතුම්", "காவல்துறை தொடர்புகள்", "local_police"),
     EMERGENCY("Emergency", "හදිසි ඇමතුම්", "அவசர அழைப்புகள்", "emergency"),
     DIVISIONS("Divisions", "කොට්ඨාස", "பிரிவுகள்", "domain"),
     RANGES("DIG Ranges", "කලාප", "டிஐஜி வலயங்கள்", "shield"),
