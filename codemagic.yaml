@@ -11,20 +11,6 @@ workflows:
       - name: Set up local.properties
         script: |
           echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
-      - name: Generate Missing String Resources
-        script: |
-          STRINGS_FILE="app/src/main/res/values/strings.xml"
-          if [ -f "$STRINGS_FILE" ]; then
-            sed -i '' '/<\/resources>/d' "$STRINGS_FILE" || sed -i '/<\/resources>/d' "$STRINGS_FILE"
-            echo '    <string name="default_web_client_id">dummy_client_id</string>' >> "$STRINGS_FILE"
-            echo '</resources>' >> "$STRINGS_FILE"
-          else
-            mkdir -p app/src/main/res/values
-            echo '<?xml version="1.0" encoding="utf-8"?>' > "$STRINGS_FILE"
-            echo '<resources>' >> "$STRINGS_FILE"
-            echo '    <string name="default_web_client_id">dummy_client_id</string>' >> "$STRINGS_FILE"
-            echo '</resources>' >> "$STRINGS_FILE"
-          fi
       - name: Generate Dummy Keystore
         script: |
           keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
