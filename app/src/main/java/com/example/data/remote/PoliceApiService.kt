@@ -34,6 +34,10 @@ interface PoliceApiService {
         const val SECONDARY_SHEET_URL = "https://sheets.googleapis.com/v4/spreadsheets/1VTch65JpwfuZkUdnrrLpv7AA0YV-ekSLSY-fXToPpHs/values/Sheet1!A1:Z1000?key=AIzaSyC6wDD_qFJmgK3tQICKrmgh6IgtWUbI0ps"
         const val DEFAULT_SHEET_URL = PRIMARY_SHEET_URL
         const val FALLBACK_SHEET_URL = "https://sheets.googleapis.com/v1/spreadsheets/1tMu-Wpwht7dH0NF4YSfiWjlttS_WOsgrbfJ3_zsJYd0/values/Sheet1!A1:Z1000?key=AIzaSyC6wDD_qFJmgK3tQICKrmgh6IgtWUbI0ps"
+
+        // Official Sri Lanka Police Officers Contact List API
+        const val POLICE_OFFICERS_API_URL = "https://apps.police.lk:45565/officers/contact-list"
+        const val POLICE_OFFICERS_API_HTTP_URL = "http://apps.police.lk:45565/officers/contact-list"
     }
 }
 

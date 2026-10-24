@@ -108,7 +108,7 @@ class PoliceViewModel(private val repository: PoliceRepository) : ViewModel() {
                     filteredContacts = filtered,
                     lastSyncTime = syncTime,
                     userMessage = if (isOffline && cached.isNotEmpty()) {
-                        "Offline මාදිලිය: පෙර ලබාගත් Google Sheet දත්ත පෙන්වයි"
+                        "Offline මාදිලිය: සුරැකි පොලිස් තොරතුරු පෙන්වයි"
                     } else null
                 )
             }
@@ -170,7 +170,7 @@ class PoliceViewModel(private val repository: PoliceRepository) : ViewModel() {
                 _uiState.update { state ->
                     val filtered = filterContactsList(contactsList, state.searchQuery, state.selectedCategory)
                     val message = when {
-                        isAutoRefresh -> "ජාලය සම්බන්ධ විය. Google Sheet දත්ත යාවත්කාලීන විය!"
+                        isAutoRefresh -> "ජාලය සම්බන්ධ විය. නිල පොලිස් තොරතුරු යාවත්කාලීන විය!"
                         forceRefresh -> "තොරතුරු සාර්ථකව යාවත්කාලීන විය (Synced)"
                         !isOnline -> "Offline මාදිලිය: පෙර ලබාගත් දත්ත පෙන්වයි"
                         else -> null
