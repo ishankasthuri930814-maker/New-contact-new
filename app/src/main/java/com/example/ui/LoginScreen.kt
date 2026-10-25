@@ -85,7 +85,9 @@ enum class AuthMode {
 fun LoginScreen(
     authViewModel: AuthViewModel = viewModel(),
     facebookCallbackManager: CallbackManager? = null,
-    onLoginSuccess: () -> Unit
+    onLoginSuccess: () -> Unit,
+    onSkipLogin: () -> Unit = onLoginSuccess,
+    onOpenPhoneAuth: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val hostActivity: Activity? = remember(context) {
@@ -824,6 +826,59 @@ fun LoginScreen(
                                 color = Color.White
                             )
                         }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // Phone Auth Button (OTP Login)
+                    OutlinedButton(
+                        onClick = onOpenPhoneAuth,
+                        enabled = !isLoading,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp)
+                            .testTag("phone_auth_button"),
+                        shape = RoundedCornerShape(14.dp),
+                        border = BorderStroke(1.2.dp, PoliceGold),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            containerColor = Color.Transparent,
+                            contentColor = PoliceGold
+                        )
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Lock,
+                            contentDescription = null,
+                            tint = PoliceGold,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "දුරකථන අංකයෙන් පිවිසෙන්න (Phone / OTP Login)",
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 13.sp,
+                                color = PoliceNavy
+                            )
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // Skip / Continue as Guest Button
+                    TextButton(
+                        onClick = onSkipLogin,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("skip_login_button")
+                    ) {
+                        Text(
+                            text = "අමුත්තෙකු ලෙස ඉදිරියට යන්න (Continue as Guest) ➔",
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                fontWeight = FontWeight.Bold,
+                                color = PoliceNavy,
+                                fontSize = 13.sp
+                            )
+                        )
                     }
                 }
             }

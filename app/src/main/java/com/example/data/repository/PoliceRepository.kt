@@ -7,13 +7,13 @@ import com.example.data.local.AppDatabase
 import com.example.data.local.toEntity
 import com.example.data.local.toPoliceContact
 import com.example.data.model.ContactCategory
-import com.example.data.model.ExternalSearchResult
 import com.example.data.model.PoliceContact
+import com.example.data.model.StationOfficer
 import com.example.data.model.sanitized
-import com.example.data.remote.GoogleDirectorySearchService
 import com.example.data.remote.GoogleSheetsResponse
 import com.example.data.remote.PoliceApiService
 import com.example.util.AppUpdateManager
+import com.example.util.PhoneUtils
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.Types
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
@@ -27,12 +27,7 @@ import org.json.JSONObject
 import retrofit2.Retrofit
 import retrofit2.converter.moshi.MoshiConverterFactory
 import java.io.File
-import java.security.SecureRandom
-import java.security.cert.X509Certificate
 import java.util.concurrent.TimeUnit
-import javax.net.ssl.SSLContext
-import javax.net.ssl.TrustManager
-import javax.net.ssl.X509TrustManager
 
 class PoliceRepository(private val context: Context) {
 
@@ -111,12 +106,12 @@ class PoliceRepository(private val context: Context) {
     private suspend fun fetchAndCacheRemote(favorites: Set<String>): List<PoliceContact> {
         val allParsed = mutableListOf<PoliceContact>()
 
-        // 0. Fetch official Sri Lanka Police officer contact list from https://apps.police.lk:45565/officers/contact-list
+        // 0. Fetch Official Sri Lanka Police API (https://apps.police.lk:45565/officers/contact-list)
         try {
-            val officialContacts = fetchOfficialPoliceApiContacts()
+            val officialContacts = fetchOfficialPoliceOfficersList()
             if (officialContacts.isNotEmpty()) {
                 allParsed.addAll(officialContacts)
-                Log.d("PoliceRepo", "Loaded ${officialContacts.size} contacts from Official Police API")
+                Log.d("PoliceRepo", "Loaded ${officialContacts.size} contacts and stations from Official Police API")
             }
         } catch (e: Exception) {
             Log.e("PoliceRepo", "Official Police API fetch failed", e)
@@ -133,7 +128,7 @@ class PoliceRepository(private val context: Context) {
             Log.e("PoliceRepo", "GitHub Raw contacts fetch failed", e)
         }
 
-        // 2. Fetch all sheets/tabs dynamically from User's spreadsheet (1VTch65JpwfuZkUdnrrLpv7AA0YV-ekSLSY-fXToPpHs)
+        // 1. Fetch all sheets/tabs dynamically from User's spreadsheet (1VTch65JpwfuZkUdnrrLpv7AA0YV-ekSLSY-fXToPpHs)
         try {
             val userContacts = fetchAllSheetsFromSpreadsheet(PoliceApiService.USER_SPREADSHEET_ID)
             allParsed.addAll(userContacts)
@@ -142,7 +137,7 @@ class PoliceRepository(private val context: Context) {
             Log.e("PoliceRepo", "User spreadsheet multi-sheet fetch failed", e)
         }
 
-        // 3. Fetch all sheets/tabs dynamically from Primary spreadsheet (1tMu-Wpwht7dH0NF4YSfiWjlttS_WOsgrbfJ3_zsJYd0)
+        // 2. Fetch all sheets/tabs dynamically from Primary spreadsheet (1tMu-Wpwht7dH0NF4YSfiWjlttS_WOsgrbfJ3_zsJYd0)
         try {
             val primaryContacts = fetchAllSheetsFromSpreadsheet(PoliceApiService.PRIMARY_SPREADSHEET_ID)
             allParsed.addAll(primaryContacts)
@@ -163,23 +158,12 @@ class PoliceRepository(private val context: Context) {
             }
         }
 
-        // Merge contacts from all sheets, official Police API, and comprehensive island-wide default directory
+        // Merge contacts from all sheets and comprehensive island-wide default directory
         val mergedMap = mutableMapOf<String, PoliceContact>()
 
         for (raw in (AppDefaultDirectory.getAllDefaultContacts() + allParsed)) {
             val c = PoliceGpsDirectory.enrichContact(raw)
-            val key = if (c.id.startsWith("lk_officer_")) {
-                c.id
-            } else {
-                val sKey = c.stationOrDesignation.trim().lowercase().replace(Regex("[^a-z0-9]"), "")
-                val oKey = c.officerName.trim().lowercase().replace(Regex("[^a-z0-9]"), "")
-                val rKey = c.rank.trim().lowercase().replace(Regex("[^a-z0-9]"), "")
-                when {
-                    oKey.isNotBlank() -> "${sKey}_${oKey}"
-                    rKey.isNotBlank() -> "${sKey}_${rKey}"
-                    else -> sKey
-                }
-            }
+            val key = c.stationOrDesignation.trim().lowercase().replace(Regex("[^a-z0-9]"), "")
             if (key.isBlank()) continue
 
             val existing = mergedMap[key]
@@ -279,189 +263,6 @@ class PoliceRepository(private val context: Context) {
             }
         }
         return contacts
-    }
-
-    private fun createSafeOkHttpClient(): OkHttpClient {
-        return try {
-            val trustAllCerts = arrayOf<TrustManager>(
-                object : X509TrustManager {
-                    override fun checkClientTrusted(chain: Array<X509Certificate>?, authType: String?) {}
-                    override fun checkServerTrusted(chain: Array<X509Certificate>?, authType: String?) {}
-                    override fun getAcceptedIssuers(): Array<X509Certificate> = arrayOf()
-                }
-            )
-
-            val sslContext = SSLContext.getInstance("SSL")
-            sslContext.init(null, trustAllCerts, SecureRandom())
-
-            OkHttpClient.Builder()
-                .sslSocketFactory(sslContext.socketFactory, trustAllCerts[0] as X509TrustManager)
-                .hostnameVerifier { _, _ -> true }
-                .connectTimeout(15, TimeUnit.SECONDS)
-                .readTimeout(25, TimeUnit.SECONDS)
-                .build()
-        } catch (e: Exception) {
-            OkHttpClient.Builder()
-                .connectTimeout(15, TimeUnit.SECONDS)
-                .readTimeout(25, TimeUnit.SECONDS)
-                .build()
-        }
-    }
-
-    suspend fun fetchOfficialPoliceApiContacts(): List<PoliceContact> = withContext(Dispatchers.IO) {
-        val endpoints = listOf(
-            PoliceApiService.POLICE_OFFICERS_API_URL,
-            PoliceApiService.POLICE_OFFICERS_API_HTTP_URL
-        )
-
-        val client = createSafeOkHttpClient()
-
-        for (url in endpoints) {
-            try {
-                val request = Request.Builder()
-                    .url(url)
-                    .header("User-Agent", "Mozilla/5.0 (Android; PoliceContactApp)")
-                    .header("Accept", "application/json, text/plain, */*")
-                    .header("Cache-Control", "no-cache")
-                    .build()
-
-                client.newCall(request).execute().use { response ->
-                    if (response.isSuccessful) {
-                        val body = response.body?.string()
-                        if (!body.isNullOrBlank()) {
-                            val parsed = parseOfficialPoliceApiJson(body)
-                            if (parsed.isNotEmpty()) {
-                                Log.d("PoliceRepo", "Successfully fetched ${parsed.size} contacts from $url")
-                                return@withContext parsed
-                            }
-                        }
-                    } else {
-                        Log.w("PoliceRepo", "Official Police API response ${response.code} from $url")
-                    }
-                }
-            } catch (e: Exception) {
-                Log.w("PoliceRepo", "Official Police API error for $url: ${e.message}")
-            }
-        }
-        emptyList()
-    }
-
-    fun parseOfficialPoliceApiJson(jsonString: String): List<PoliceContact> {
-        val contacts = mutableListOf<PoliceContact>()
-        try {
-            val trimmed = jsonString.trim()
-            val array = when {
-                trimmed.startsWith("[") -> JSONArray(trimmed)
-                trimmed.startsWith("{") -> {
-                    val obj = JSONObject(trimmed)
-                    obj.optJSONArray("officers") ?: obj.optJSONArray("data") ?: obj.optJSONArray("contacts")
-                }
-                else -> null
-            } ?: return emptyList()
-
-            for (i in 0 until array.length()) {
-                val item = array.optJSONObject(i) ?: continue
-                val idRaw = item.opt("id")?.toString()?.trim() ?: i.toString()
-                val id = "lk_officer_$idRaw"
-
-                val designationRaw = item.optString("designation", "").replace("\r", " ").replace("\n", " ").trim()
-                val nameRaw = item.optString("name", "").replace("\r", " ").replace("\n", " ").trim()
-                val rankRaw = item.optString("rank", "").trim()
-                val generalNo = item.optString("general_no", "").trim()
-                val otherContacts = item.optString("other_contacts", "").trim()
-                val mobileNo = item.optString("mobile_no", "").trim()
-                val stationRaw = item.optString("station", "").replace("\r", " ").replace("\n", " ").trim()
-                val faxRaw = item.optString("fax", "").trim()
-                val emailRaw = item.optString("email", "").trim()
-                val emailClean = if (emailRaw.contains("@") && emailRaw != "0" && emailRaw != "00") emailRaw else ""
-
-                // Compute friendly stationOrDesignation
-                val cleanStation = stationRaw.replace(Regex("(?i)\\bpolice\\s+station\\b"), "").trim()
-                val stationOrDesignation = when {
-                    cleanStation.isNotBlank() && designationRaw.isNotBlank() -> {
-                        val sLower = cleanStation.lowercase()
-                        val dLower = designationRaw.lowercase()
-                        if (sLower == dLower || sLower.contains(dLower)) {
-                            cleanStation
-                        } else if (dLower.contains(sLower)) {
-                            designationRaw
-                        } else {
-                            "$cleanStation - $designationRaw"
-                        }
-                    }
-                    cleanStation.isNotBlank() -> cleanStation
-                    designationRaw.isNotBlank() -> designationRaw
-                    else -> "Sri Lanka Police Officer"
-                }
-
-                val desigLower = designationRaw.lowercase()
-                val primaryPhone = mobileNo.ifBlank { generalNo }
-                val oicTraffic = if (desigLower.contains("traffic")) primaryPhone else ""
-                val oicCrime = if (desigLower.contains("crime")) primaryPhone else ""
-                val oicVice = if (desigLower.contains("vice")) primaryPhone else ""
-                val oicComm = if (desigLower.contains("community") || desigLower.contains("c & w")) primaryPhone else ""
-
-                val officePhone2 = if (otherContacts.isNotBlank() && otherContacts != generalNo && otherContacts != mobileNo) {
-                    otherContacts
-                } else {
-                    ""
-                }
-
-                // Determine appropriate contact category
-                val rankUpper = rankRaw.uppercase()
-                val desigUpper = designationRaw.uppercase()
-                val category = when {
-                    rankUpper in listOf("IGP", "SDIG", "DIG", "SSP", "SP", "ASP", "WDIG", "WSSP", "WSP", "WASP") ||
-                    desigUpper.contains("DIG") || desigUpper.contains("DIRECTOR") || desigUpper.contains("SENIOR") -> {
-                        if (desigUpper.contains("RANGE") || desigUpper.contains("PROVINCE")) {
-                            ContactCategory.RANGES
-                        } else {
-                            ContactCategory.SENIOR_OFFICERS
-                        }
-                    }
-                    desigUpper.contains("DIVISION") || stationRaw.uppercase().contains("DIVISION") -> ContactCategory.DIVISIONS
-                    desigUpper.contains("EMERGENCY") || desigUpper.contains("HOTLINE") -> ContactCategory.EMERGENCY
-                    else -> ContactCategory.POLICE
-                }
-
-                val address = if (cleanStation.isNotBlank()) "$cleanStation, Sri Lanka" else "Sri Lanka"
-
-                val contact = PoliceContact(
-                    id = id,
-                    stationOrDesignation = stationOrDesignation,
-                    rank = rankRaw,
-                    officerName = nameRaw,
-                    generalPhone = generalNo,
-                    mobilePhone = mobileNo,
-                    officePhone2 = officePhone2,
-                    fax = faxRaw,
-                    email = emailClean,
-                    oicTraffic = oicTraffic,
-                    oicCrime = oicCrime,
-                    oicVice = oicVice,
-                    oicCommunityPolicing = oicComm,
-                    locationAddress = address,
-                    category = category
-                )
-
-                contacts.add(PoliceGpsDirectory.enrichContact(contact))
-            }
-        } catch (e: Exception) {
-            Log.e("PoliceRepo", "Failed to parse official police API JSON", e)
-        }
-        return contacts
-    }
-
-    fun loadBundledPoliceOfficers(): List<PoliceContact> {
-        return try {
-            context.assets.open("police_officers.json").use { inputStream ->
-                val json = inputStream.bufferedReader().use { it.readText() }
-                parseOfficialPoliceApiJson(json)
-            }
-        } catch (e: Exception) {
-            Log.e("PoliceRepo", "Error loading bundled police_officers.json from assets", e)
-            emptyList()
-        }
     }
 
     private suspend fun fetchGitHubRawContacts(): List<PoliceContact> = withContext(Dispatchers.IO) {
@@ -598,6 +399,223 @@ class PoliceRepository(private val context: Context) {
             Log.e("PoliceRepo", "Error parsing contacts.json", e)
         }
         return contacts
+    }
+
+    suspend fun fetchOfficialPoliceOfficersList(): List<PoliceContact> = withContext(Dispatchers.IO) {
+        val resultContacts = mutableListOf<PoliceContact>()
+        var rawJson: String? = null
+
+        // 1. Try live network query from https://apps.police.lk:45565/officers/contact-list (and fallback http)
+        val client = OkHttpClient.Builder()
+            .connectTimeout(12, TimeUnit.SECONDS)
+            .readTimeout(15, TimeUnit.SECONDS)
+            .build()
+
+        val urls = listOf(
+            "https://apps.police.lk:45565/officers/contact-list",
+            "http://apps.police.lk:45565/officers/contact-list"
+        )
+
+        for (url in urls) {
+            try {
+                val request = Request.Builder()
+                    .url(url)
+                    .header("User-Agent", "Mozilla/5.0")
+                    .header("Accept", "application/json")
+                    .build()
+
+                client.newCall(request).execute().use { response ->
+                    if (response.isSuccessful) {
+                        val body = response.body?.string()
+                        if (!body.isNullOrBlank() && (body.trim().startsWith("[") || body.trim().startsWith("{"))) {
+                            rawJson = body
+                            try {
+                                File(context.filesDir, "officers_contact_list_live.json").writeText(body)
+                            } catch (e: Exception) {
+                                Log.e("PoliceRepo", "Failed to cache live officers json", e)
+                            }
+                        }
+                    }
+                }
+                if (rawJson != null) break
+            } catch (e: Exception) {
+                Log.d("PoliceRepo", "Official officers attempt failed for $url: ${e.message}")
+            }
+        }
+
+        // 2. If live failed, try local file cache
+        if (rawJson.isNullOrBlank()) {
+            try {
+                val liveFile = File(context.filesDir, "officers_contact_list_live.json")
+                if (liveFile.exists() && liveFile.length() > 0) {
+                    rawJson = liveFile.readText()
+                }
+            } catch (ignored: Exception) {}
+        }
+
+        // 3. Fallback to bundled asset
+        if (rawJson.isNullOrBlank()) {
+            try {
+                context.assets.open("officers_contact_list.json").use { inputStream ->
+                    rawJson = inputStream.bufferedReader().use { it.readText() }
+                }
+            } catch (e: Exception) {
+                Log.e("PoliceRepo", "Error reading bundled officers_contact_list.json asset", e)
+            }
+        }
+
+        if (!rawJson.isNullOrBlank()) {
+            resultContacts.addAll(parseOfficialOfficersJson(rawJson!!))
+        }
+        resultContacts
+    }
+
+    private fun parseOfficialOfficersJson(jsonString: String): List<PoliceContact> {
+        val results = mutableListOf<PoliceContact>()
+        try {
+            val trimmed = jsonString.trim()
+            val jsonArray = when {
+                trimmed.startsWith("[") -> JSONArray(trimmed)
+                trimmed.startsWith("{") -> {
+                    val obj = JSONObject(trimmed)
+                    obj.optJSONArray("data") ?: obj.optJSONArray("officers") ?: JSONArray()
+                }
+                else -> JSONArray()
+            }
+
+            val stationOfficersMap = mutableMapOf<String, MutableList<StationOfficer>>()
+            val officerContactsList = mutableListOf<PoliceContact>()
+
+            for (i in 0 until jsonArray.length()) {
+                val item = jsonArray.optJSONObject(i) ?: continue
+
+                val id = item.optLong("id", (i + 1).toLong()).toString()
+                val stationRaw = item.optString("station", "").trim()
+                val desigRaw = item.optString("designation", "").trim().replace("\r\n", " ").replace("\n", " ").trim()
+                val nameRaw = item.optString("name", "").trim()
+                val rankRaw = item.optString("rank", "").trim()
+                val generalNo = item.optString("general_no", "").trim()
+                val mobileNo = item.optString("mobile_no", "").trim()
+                val otherContacts = item.optString("other_contacts", "").trim()
+                val faxRaw = item.optString("fax", "").trim()
+                val emailRaw = PhoneUtils.cleanEmail(item.optString("email", ""))
+
+                // CRITICAL REQUIREMENT: Strictly deduplicate phone numbers so no number is repeated!
+                val distinctPhones = PhoneUtils.getDistinctPhones(generalNo, mobileNo, otherContacts)
+                val primaryPhone = distinctPhones.getOrNull(0) ?: ""
+                val secondaryPhone = distinctPhones.getOrNull(1) ?: ""
+                val officePhone2 = distinctPhones.getOrNull(2) ?: ""
+                val cleanFax = if (PhoneUtils.isFaxDuplicate(faxRaw, primaryPhone, secondaryPhone, officePhone2)) "" else faxRaw
+
+                val stationOfficer = StationOfficer(
+                    id = id,
+                    name = nameRaw,
+                    rank = rankRaw,
+                    designation = desigRaw,
+                    station = stationRaw,
+                    primaryPhone = primaryPhone,
+                    secondaryPhone = secondaryPhone,
+                    email = emailRaw
+                )
+
+                val stationKey = if (stationRaw.isNotBlank()) stationRaw else "Police Headquarters"
+                if (!stationOfficersMap.containsKey(stationKey)) {
+                    stationOfficersMap[stationKey] = mutableListOf()
+                }
+                stationOfficersMap[stationKey]?.add(stationOfficer)
+
+                val officerCategory = when {
+                    rankRaw in listOf("IGP", "SDIG", "DIG", "SSP", "SP", "ASP") -> ContactCategory.SENIOR_OFFICERS
+                    desigRaw.contains("DIG", true) || desigRaw.contains("IGP", true) || desigRaw.contains("SSP", true) -> ContactCategory.SENIOR_OFFICERS
+                    else -> ContactCategory.POLICE
+                }
+
+                val stationDisplay = if (stationRaw.isNotBlank()) {
+                    if (stationRaw.endsWith("Police Station", ignoreCase = true) || stationRaw.contains("Headquarters", ignoreCase = true) || stationRaw.contains("Unit", ignoreCase = true) || stationRaw.contains("Branch", ignoreCase = true)) {
+                        stationRaw
+                    } else {
+                        "$stationRaw Police Station"
+                    }
+                } else "Sri Lanka Police"
+
+                val rankDisplay = if (desigRaw.isNotBlank() && !desigRaw.equals(rankRaw, ignoreCase = true)) {
+                    "$rankRaw • $desigRaw"
+                } else if (rankRaw.isNotBlank()) {
+                    rankRaw
+                } else {
+                    desigRaw
+                }
+
+                val officerContact = PoliceContact(
+                    id = "officer_$id",
+                    stationOrDesignation = stationDisplay,
+                    rank = rankDisplay,
+                    officerName = nameRaw,
+                    generalPhone = primaryPhone,
+                    mobilePhone = secondaryPhone,
+                    officePhone2 = officePhone2,
+                    fax = cleanFax,
+                    email = emailRaw,
+                    locationAddress = if (stationRaw.isNotBlank()) "$stationRaw, Sri Lanka" else "Sri Lanka",
+                    category = officerCategory
+                )
+                officerContactsList.add(PoliceGpsDirectory.enrichContact(officerContact.sanitized()))
+            }
+
+            // CRITICAL REQUIREMENT: Group officers into their respective Police Stations!
+            val stationContactsList = mutableListOf<PoliceContact>()
+            for ((stationName, officers) in stationOfficersMap) {
+                val stationDisplay = if (stationName.endsWith("Police Station", ignoreCase = true) || stationName.contains("Headquarters", ignoreCase = true) || stationName.contains("Branch", ignoreCase = true) || stationName.contains("Unit", ignoreCase = true)) {
+                    stationName
+                } else {
+                    "$stationName Police Station"
+                }
+
+                // Identify commander (OIC / HQI / ASP / CI / IP)
+                val commander = officers.firstOrNull { 
+                    it.designation.contains("OIC", true) || 
+                    it.designation.contains("HQI", true) || 
+                    it.designation.contains("ASP", true) ||
+                    it.rank in listOf("CI", "IP", "ASP", "SSP") 
+                } ?: officers.firstOrNull()
+
+                val primaryStationPhone = commander?.primaryPhone?.ifBlank { officers.firstNotNullOfOrNull { if (it.primaryPhone.isNotBlank()) it.primaryPhone else null } ?: "" } ?: ""
+                val secondaryStationPhone = commander?.secondaryPhone?.ifBlank { officers.firstNotNullOfOrNull { if (it.secondaryPhone.isNotBlank()) it.secondaryPhone else null } ?: "" } ?: ""
+
+                val distinctStationPhones = PhoneUtils.getDistinctPhones(primaryStationPhone, secondaryStationPhone)
+                val stPrimary = distinctStationPhones.getOrNull(0) ?: ""
+                val stSecondary = distinctStationPhones.getOrNull(1) ?: ""
+
+                val commanderName = if (commander != null) {
+                    "${commander.rank} ${commander.name} (${commander.designation})"
+                } else {
+                    "Officers: ${officers.size}"
+                }
+
+                val stationId = "station_${stationName.lowercase().replace(Regex("[^a-z0-9]"), "_")}"
+
+                val stationContact = PoliceContact(
+                    id = stationId,
+                    stationOrDesignation = stationDisplay,
+                    rank = "POLICE STATION",
+                    officerName = commanderName,
+                    generalPhone = stPrimary,
+                    mobilePhone = stSecondary,
+                    email = commander?.email ?: "",
+                    locationAddress = "$stationName, Sri Lanka",
+                    category = ContactCategory.DIVISIONS,
+                    attachedOfficers = officers
+                )
+                stationContactsList.add(PoliceGpsDirectory.enrichContact(stationContact.sanitized()))
+            }
+
+            results.addAll(stationContactsList)
+            results.addAll(officerContactsList)
+            Log.d("PoliceRepo", "Loaded ${stationContactsList.size} stations and ${officerContactsList.size} officers from Official API")
+        } catch (e: Exception) {
+            Log.e("PoliceRepo", "Error parsing official officers JSON", e)
+        }
+        return results
     }
 
     private fun parseSheetRows(rows: List<List<String>>): List<PoliceContact> {
@@ -773,6 +791,45 @@ class PoliceRepository(private val context: Context) {
         }
     }
 
+    suspend fun restoreDefaultContacts(): Result<List<PoliceContact>> = withContext(Dispatchers.IO) {
+        try {
+            contactDao.clearAll()
+            val favorites = getFavoritesSet()
+            val freshContacts = fetchAndCacheRemote(favorites)
+            Result.success(freshContacts)
+        } catch (e: Exception) {
+            Log.e("PoliceRepo", "Error restoring default contacts", e)
+            Result.failure(e)
+        }
+    }
+
+    suspend fun fetchOfficialPoliceApiContacts(): List<PoliceContact> = fetchOfficialPoliceOfficersList()
+
+    suspend fun searchExternalGoogleDirectory(query: String): Result<List<com.example.data.model.ExternalSearchResult>> {
+        return com.example.data.remote.GoogleDirectorySearchService().searchSriLankaDirectory(query)
+    }
+
+    suspend fun saveExternalResultAsContact(result: com.example.data.model.ExternalSearchResult, phone: String): Result<Unit> {
+        val category = when {
+            result.category.contains("Police", ignoreCase = true) -> ContactCategory.POLICE
+            result.category.contains("Hospital", ignoreCase = true) -> ContactCategory.HOSPITALS
+            result.category.contains("Emergency", ignoreCase = true) -> ContactCategory.EMERGENCY
+            result.category.contains("Fire", ignoreCase = true) -> ContactCategory.FIRE_STATIONS
+            else -> ContactCategory.GOVT_SERVICES
+        }
+        val newContact = PoliceContact(
+            id = "ext_${System.currentTimeMillis()}",
+            stationOrDesignation = result.title,
+            officerName = "",
+            rank = "Directory Record",
+            generalPhone = phone.ifBlank { result.phone },
+            mobilePhone = result.secondaryPhone ?: "",
+            locationAddress = result.address,
+            category = category
+        )
+        return saveContact(newContact)
+    }
+
     private suspend fun saveToLocalCache(contacts: List<PoliceContact>) {
         if (contacts.isEmpty()) return
         try {
@@ -803,21 +860,29 @@ class PoliceRepository(private val context: Context) {
 
     suspend fun loadFromLocalCache(): List<PoliceContact> {
         val defaultContacts = AppDefaultDirectory.getAllDefaultContacts()
-        val bundledOfficers = loadBundledPoliceOfficers()
-        val baseSeed = defaultContacts + bundledOfficers
 
         // 1. Try Room Database first
         try {
             val dbEntities = contactDao.getAllContacts()
             if (dbEntities.isNotEmpty()) {
                 val dbContacts = dbEntities.map { it.toPoliceContact() }
+                val hasOfficialPolice = dbContacts.any { it.id.startsWith("officer_") || it.id.startsWith("station_") }
+                if (!hasOfficialPolice) {
+                    val officialContacts = fetchOfficialPoliceOfficersList()
+                    if (officialContacts.isNotEmpty()) {
+                        try {
+                            contactDao.insertContacts(officialContacts.map { it.toEntity() })
+                        } catch (ignored: Exception) {}
+                        return dbContacts + officialContacts
+                    }
+                }
                 val existingIds = dbContacts.map { it.id }.toHashSet()
-                val missingSeed = baseSeed.filter { !existingIds.contains(it.id) }
-                if (missingSeed.isNotEmpty()) {
+                val missingDefaults = defaultContacts.filter { !existingIds.contains(it.id) }
+                if (missingDefaults.isNotEmpty()) {
                     try {
-                        contactDao.insertContacts(missingSeed.map { it.toEntity() })
+                        contactDao.insertContacts(missingDefaults.map { it.toEntity() })
                     } catch (ignored: Exception) {}
-                    return dbContacts + missingSeed
+                    return dbContacts + missingDefaults
                 }
                 return dbContacts
             }
@@ -836,8 +901,8 @@ class PoliceRepository(private val context: Context) {
                 val parsed = adapter.fromJson(json)
                 if (!parsed.isNullOrEmpty()) {
                     val existingIds = parsed.map { it.id }.toHashSet()
-                    val missingSeed = baseSeed.filter { !existingIds.contains(it.id) }
-                    val merged = if (missingSeed.isNotEmpty()) parsed + missingSeed else parsed
+                    val missingDefaults = defaultContacts.filter { !existingIds.contains(it.id) }
+                    val merged = if (missingDefaults.isNotEmpty()) parsed + missingDefaults else parsed
                     try {
                         contactDao.insertContacts(merged.map { it.toEntity() })
                     } catch (ignored: Exception) {}
@@ -848,31 +913,25 @@ class PoliceRepository(private val context: Context) {
             Log.e("PoliceRepo", "Error loading from persistent offline storage", e)
         }
 
-        // 3. Fallback to cacheDir
+        // 3. Fallback to official police officers from bundled asset
         try {
-            val cacheFile = File(context.cacheDir, "police_contacts_cache.json")
-            if (cacheFile.exists() && cacheFile.length() > 0) {
-                val json = cacheFile.readText()
-                val parsed = adapter.fromJson(json)
-                if (!parsed.isNullOrEmpty()) {
-                    val existingIds = parsed.map { it.id }.toHashSet()
-                    val missingSeed = baseSeed.filter { !existingIds.contains(it.id) }
-                    val merged = if (missingSeed.isNotEmpty()) parsed + missingSeed else parsed
-                    try {
-                        contactDao.insertContacts(merged.map { it.toEntity() })
-                    } catch (ignored: Exception) {}
-                    return merged
-                }
+            val officialContacts = fetchOfficialPoliceOfficersList()
+            if (officialContacts.isNotEmpty()) {
+                val allInitial = defaultContacts + officialContacts
+                try {
+                    contactDao.insertContacts(allInitial.map { it.toEntity() })
+                } catch (ignored: Exception) {}
+                return allInitial
             }
         } catch (e: Exception) {
-            Log.e("PoliceRepo", "Error loading from cacheDir", e)
+            Log.e("PoliceRepo", "Error loading bundled official officers", e)
         }
 
-        // 4. Default contacts & bundled police officers
+        // 4. Default contacts (Railway, Post Office, Schools, Emergency, Hospitals, Hotlines)
         try {
-            contactDao.insertContacts(baseSeed.map { it.toEntity() })
+            contactDao.insertContacts(defaultContacts.map { it.toEntity() })
         } catch (ignored: Exception) {}
-        return baseSeed
+        return defaultContacts
     }
 
     suspend fun getCachedContactsFast(): List<PoliceContact> {
@@ -1160,59 +1219,12 @@ class PoliceRepository(private val context: Context) {
     // ==========================================
 
     fun getSavedLanguage(): com.example.util.AppLanguage {
-        val code = prefs.getString("key_app_language", com.example.util.AppLanguage.SINHALA.code)
-            ?: com.example.util.AppLanguage.SINHALA.code
+        val code = prefs.getString("key_app_language", com.example.util.AppLanguage.ENGLISH.code)
+            ?: com.example.util.AppLanguage.ENGLISH.code
         return com.example.util.AppLanguage.fromCode(code)
     }
 
     fun saveLanguage(language: com.example.util.AppLanguage) {
         prefs.edit().putString("key_app_language", language.code).apply()
-    }
-
-    // ==========================================
-    // GOOGLE & RAINBOW PAGES LIVE IN-APP SEARCH
-    // ==========================================
-
-    private val googleDirectorySearchService = GoogleDirectorySearchService()
-
-    suspend fun searchExternalGoogleDirectory(query: String): Result<List<ExternalSearchResult>> {
-        return googleDirectorySearchService.searchSriLankaDirectory(query)
-    }
-
-    suspend fun saveExternalResultAsContact(result: ExternalSearchResult, chosenPhone: String): Result<PoliceContact> = withContext(Dispatchers.IO) {
-        try {
-            val titleLower = result.title.lowercase()
-            val categoryLower = result.category.lowercase()
-            val determinedCategory = when {
-                titleLower.contains("police") || categoryLower.contains("police") -> ContactCategory.POLICE
-                titleLower.contains("hospital") || categoryLower.contains("hospital") || titleLower.contains("medical") -> ContactCategory.HOSPITALS
-                titleLower.contains("fire") || categoryLower.contains("fire") -> ContactCategory.FIRE_STATIONS
-                titleLower.contains("railway") || (titleLower.contains("station") && titleLower.contains("train")) -> ContactCategory.RAILWAY
-                titleLower.contains("school") || titleLower.contains("college") -> ContactCategory.SCHOOLS
-                titleLower.contains("post") -> ContactCategory.POST_OFFICE
-                titleLower.contains("bus") || titleLower.contains("transport") -> ContactCategory.TRAVEL
-                titleLower.contains("emergency") || titleLower.contains("hotline") -> ContactCategory.EMERGENCY
-                else -> ContactCategory.GOVT_SERVICES
-            }
-
-            val newId = "ext_${System.currentTimeMillis()}_${(1000..9999).random()}"
-            val newContact = PoliceContact(
-                id = newId,
-                stationOrDesignation = result.title,
-                rank = result.category.ifBlank { "DIRECTORY" },
-                officerName = result.notes.ifBlank { "Google / Rainbow Pages Directory" },
-                generalPhone = chosenPhone.trim(),
-                officePhone2 = result.secondaryPhone?.trim() ?: "",
-                locationAddress = result.address,
-                category = determinedCategory,
-                isFavorite = false
-            )
-
-            contactDao.insertContact(newContact.toEntity())
-            Result.success(newContact)
-        } catch (e: Exception) {
-            Log.e("PoliceRepo", "Error saving external contact", e)
-            Result.failure(e)
-        }
     }
 }

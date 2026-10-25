@@ -78,7 +78,7 @@ fun ContactDetailBottomSheet(
     onQrCodeClick: ((PoliceContact) -> Unit)? = null,
     onEditClick: ((PoliceContact) -> Unit)? = null,
     modifier: Modifier = Modifier,
-    selectedLanguage: com.example.util.AppLanguage = com.example.util.AppLanguage.SINHALA
+    selectedLanguage: com.example.util.AppLanguage = com.example.util.AppLanguage.ENGLISH
 ) {
     val context = LocalContext.current
     val displayContact = androidx.compose.runtime.remember(contact, selectedLanguage) {
@@ -258,94 +258,42 @@ fun ContactDetailBottomSheet(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // General Telephone Card
-            if (contact.generalPhone.isNotBlank()) {
-                ContactDetailActionRow(
-                    label = "ප්‍රධාන දුරකථන / Telephone",
-                    value = contact.generalPhone,
-                    icon = Icons.Default.Phone,
-                    onCall = { onCallClick(contact.generalPhone) },
-                    onWhatsApp = if (contact.generalPhone.startsWith("07") || contact.generalPhone.startsWith("+947") || contact.generalPhone.startsWith("947")) {
-                        { onWhatsAppClick(contact.generalPhone) }
-                    } else null,
-                    onCopy = { onCopyClick(contact.generalPhone, "Telephone Number") },
-                    isPrimary = true,
-                    isEmergency = isEmergency
-                )
-                Spacer(modifier = Modifier.height(10.dp))
+            // Deduplicated Phone Numbers (strictly no identical number is ever shown twice!)
+            val distinctPhones = contact.distinctPhones
+            if (distinctPhones.isNotEmpty()) {
+                distinctPhones.forEachIndexed { index, phone ->
+                    val isPrimary = index == 0
+                    val isMobile = com.example.util.PhoneUtils.isWhatsAppSupported(phone)
+                    val label = when (index) {
+                        0 -> if (isMobile) "ප්‍රධාන ජංගම / Mobile" else "ප්‍රධාන දුරකථන / Primary Telephone"
+                        1 -> if (isMobile) "අතිරේක ජංගම / Mobile 2" else "අතිරේක මාර්ගය 1 / Additional Line 1"
+                        2 -> "අතිරේක මාර්ගය 2 / Additional Line 2"
+                        else -> "අතිරේක අංකය / Line ${index + 1}"
+                    }
+                    ContactDetailActionRow(
+                        label = label,
+                        value = phone,
+                        icon = if (isMobile) Icons.Default.PhoneAndroid else Icons.Default.Phone,
+                        onCall = { onCallClick(phone) },
+                        onWhatsApp = if (isMobile) {
+                            { onWhatsAppClick(phone) }
+                        } else null,
+                        onCopy = { onCopyClick(phone, label) },
+                        isPrimary = isPrimary,
+                        isEmergency = isEmergency && isPrimary
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                }
             }
 
-            // Mobile Telephone Card
-            if (contact.mobilePhone.isNotBlank() && contact.mobilePhone != contact.generalPhone) {
-                ContactDetailActionRow(
-                    label = "ජංගම දුරකථන / Mobile",
-                    value = contact.mobilePhone,
-                    icon = Icons.Default.PhoneAndroid,
-                    onCall = { onCallClick(contact.mobilePhone) },
-                    onWhatsApp = { onWhatsAppClick(contact.mobilePhone) },
-                    onCopy = { onCopyClick(contact.mobilePhone, "Mobile Number") },
-                    isPrimary = false,
-                    isEmergency = false
-                )
-                Spacer(modifier = Modifier.height(10.dp))
-            }
-
-            // PVT Private Number Card
-            if (contact.pvtNumber.isNotBlank()) {
-                ContactDetailActionRow(
-                    label = "පුද්ගලික අංකය / PVT Number",
-                    value = contact.pvtNumber,
-                    icon = Icons.Default.PhoneAndroid,
-                    onCall = { onCallClick(contact.pvtNumber) },
-                    onWhatsApp = { onWhatsAppClick(contact.pvtNumber) },
-                    onCopy = { onCopyClick(contact.pvtNumber, "PVT Number") },
-                    isPrimary = false,
-                    isEmergency = false
-                )
-                Spacer(modifier = Modifier.height(10.dp))
-            }
-
-            // Additional Office Phone 2
-            if (contact.officePhone2.isNotBlank()) {
-                ContactDetailActionRow(
-                    label = "අතිරේක මාර්ගය 2 / Office Line 2",
-                    value = contact.officePhone2,
-                    icon = Icons.Default.Phone,
-                    onCall = { onCallClick(contact.officePhone2) },
-                    onWhatsApp = if (contact.officePhone2.startsWith("07") || contact.officePhone2.startsWith("+947") || contact.officePhone2.startsWith("947")) {
-                        { onWhatsAppClick(contact.officePhone2) }
-                    } else null,
-                    onCopy = { onCopyClick(contact.officePhone2, "Office Line 2") },
-                    isPrimary = false,
-                    isEmergency = false
-                )
-                Spacer(modifier = Modifier.height(10.dp))
-            }
-
-            // Additional Office Phone 3
-            if (contact.officePhone3.isNotBlank()) {
-                ContactDetailActionRow(
-                    label = "අතිරේක මාර්ගය 3 / Office Line 3",
-                    value = contact.officePhone3,
-                    icon = Icons.Default.Phone,
-                    onCall = { onCallClick(contact.officePhone3) },
-                    onWhatsApp = if (contact.officePhone3.startsWith("07") || contact.officePhone3.startsWith("+947") || contact.officePhone3.startsWith("947")) {
-                        { onWhatsAppClick(contact.officePhone3) }
-                    } else null,
-                    onCopy = { onCopyClick(contact.officePhone3, "Office Line 3") },
-                    isPrimary = false,
-                    isEmergency = false
-                )
-                Spacer(modifier = Modifier.height(10.dp))
-            }
-
-            // Fax Number if present
-            if (contact.fax.isNotBlank()) {
+            // Fax Number (ONLY shown if genuinely distinct from all voice telephone numbers)
+            if (contact.isFaxDistinct && contact.fax.isNotBlank()) {
                 ContactDetailActionRow(
                     label = "ෆැක්ස් / Fax Number",
                     value = contact.fax,
-                    icon = Icons.Default.Phone,
+                    icon = Icons.Default.Print,
                     onCall = null,
+                    onWhatsApp = null,
                     onCopy = { onCopyClick(contact.fax, "Fax Number") },
                     isPrimary = false,
                     isEmergency = false
@@ -353,8 +301,8 @@ fun ContactDetailBottomSheet(
                 Spacer(modifier = Modifier.height(10.dp))
             }
 
-            // Email Action
-            if (contact.email.isNotBlank()) {
+            // Email Action (strictly suppressed if "0", "null", or empty)
+            if (contact.cleanEmail.isNotBlank()) {
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(14.dp),
@@ -369,7 +317,7 @@ fun ContactDetailBottomSheet(
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = contact.email,
+                            text = contact.cleanEmail,
                             style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold, fontSize = 14.5.sp),
                             color = Color(0xFF0F172A)
                         )
@@ -379,7 +327,7 @@ fun ContactDetailBottomSheet(
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Button(
-                                onClick = { onEmailClick(contact.email, contact.stationOrDesignation) },
+                                onClick = { onEmailClick(contact.cleanEmail, contact.stationOrDesignation) },
                                 modifier = Modifier.weight(1f).height(40.dp),
                                 shape = RoundedCornerShape(10.dp),
                                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD97706))
@@ -389,7 +337,7 @@ fun ContactDetailBottomSheet(
                                 Text("Email යවන්න", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color.White)
                             }
                             IconButton(
-                                onClick = { onCopyClick(contact.email, "Email Address") },
+                                onClick = { onCopyClick(contact.cleanEmail, "Email Address") },
                                 modifier = Modifier.size(40.dp).clip(RoundedCornerShape(10.dp)).background(Color.White)
                             ) {
                                 Icon(Icons.Default.ContentCopy, contentDescription = "Copy", tint = Color(0xFFB45309), modifier = Modifier.size(18.dp))
@@ -400,11 +348,176 @@ fun ContactDetailBottomSheet(
                 Spacer(modifier = Modifier.height(10.dp))
             }
 
-            // OIC Direct Contact Lines Section
-            if (contact.oicTraffic.isNotBlank() || contact.oicCrime.isNotBlank() || contact.oicVice.isNotBlank() || contact.oicCommunityPolicing.isNotBlank()) {
+            // ATTACHED OFFICERS UNDER THIS STATION ("adala police walatama athulath karala hadann")
+            if (contact.attachedOfficers.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(6.dp))
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.LocalPolice,
+                        contentDescription = null,
+                        tint = PoliceNavy,
+                        modifier = Modifier.size(22.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "👮 මෙම ස්ථානයේ නිලධාරීන් / Station Officers (${contact.attachedOfficers.size})",
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp
+                        ),
+                        color = PoliceNavy
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                contact.attachedOfficers.forEach { officer ->
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Text(
+                                text = officer.name.ifBlank { "Officer" },
+                                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            val subtitle = listOf(officer.rank, officer.designation)
+                                .filter { it.isNotBlank() }
+                                .joinToString(" • ")
+                            if (subtitle.isNotBlank()) {
+                                Text(
+                                    text = subtitle,
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        color = MaterialTheme.colorScheme.primary,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                )
+                            }
+
+                            val offPhones = officer.distinctPhones
+                            if (offPhones.isNotEmpty()) {
+                                Spacer(modifier = Modifier.height(8.dp))
+                                offPhones.forEach { ph ->
+                                    val isMob = com.example.util.PhoneUtils.isWhatsAppSupported(ph)
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(vertical = 2.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            modifier = Modifier.weight(1f)
+                                        ) {
+                                            Icon(
+                                                imageVector = if (isMob) Icons.Default.PhoneAndroid else Icons.Default.Phone,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Text(
+                                                text = ph,
+                                                style = MaterialTheme.typography.bodyMedium.copy(
+                                                    fontWeight = FontWeight.Bold,
+                                                    fontSize = 13.5.sp
+                                                ),
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            )
+                                        }
+
+                                        Row(
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Button(
+                                                onClick = { onCallClick(ph) },
+                                                shape = RoundedCornerShape(8.dp),
+                                                modifier = Modifier.height(32.dp),
+                                                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp)
+                                            ) {
+                                                Icon(Icons.Default.Phone, contentDescription = "Call", modifier = Modifier.size(12.dp))
+                                                Spacer(modifier = Modifier.width(4.dp))
+                                                Text("Call", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                            }
+                                            if (isMob) {
+                                                Button(
+                                                    onClick = { onWhatsAppClick(ph) },
+                                                    shape = RoundedCornerShape(8.dp),
+                                                    modifier = Modifier.height(32.dp),
+                                                    colors = ButtonDefaults.buttonColors(containerColor = WhatsAppDarkGreen),
+                                                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp)
+                                                ) {
+                                                    Text("WhatsApp", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                                }
+                                            }
+                                            IconButton(
+                                                onClick = { onCopyClick(ph, "Officer Phone") },
+                                                modifier = Modifier.size(32.dp)
+                                            ) {
+                                                Icon(Icons.Default.ContentCopy, contentDescription = "Copy", modifier = Modifier.size(14.dp))
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            if (officer.cleanEmail.isNotBlank()) {
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Email,
+                                        contentDescription = null,
+                                        tint = Color(0xFFB45309),
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = officer.cleanEmail,
+                                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    IconButton(
+                                        onClick = { onEmailClick(officer.cleanEmail, officer.station) },
+                                        modifier = Modifier.size(28.dp)
+                                    ) {
+                                        Icon(Icons.Default.Email, contentDescription = "Send Email", modifier = Modifier.size(14.dp), tint = Color(0xFFB45309))
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(10.dp))
+            }
+
+            // OIC Direct Contact Lines Section (ONLY if genuinely distinct and not already listed above)
+            val oicDirects = listOfNotNull(
+                if (contact.oicTraffic.isNotBlank() && !distinctPhones.contains(contact.oicTraffic)) "🚦 Traffic OIC" to contact.oicTraffic else null,
+                if (contact.oicCrime.isNotBlank() && !distinctPhones.contains(contact.oicCrime)) "🔍 Crime OIC" to contact.oicCrime else null,
+                if (contact.oicVice.isNotBlank() && !distinctPhones.contains(contact.oicVice)) "🛡️ Vice OIC" to contact.oicVice else null,
+                if (contact.oicCommunityPolicing.isNotBlank() && !distinctPhones.contains(contact.oicCommunityPolicing)) "🤝 Community OIC" to contact.oicCommunityPolicing else null
+            )
+            if (oicDirects.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(6.dp))
                 Text(
-                    text = "OIC ස්ථානාධිපති සෘජු අංශ / OIC Emergency Direct Lines",
+                    text = "OIC ස්ථානාධිපති සෘජු අංශ / OIC Direct Lines",
                     style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold, fontSize = 13.sp),
                     color = PoliceNavy
                 )
@@ -415,53 +528,21 @@ fun ContactDetailBottomSheet(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    if (contact.oicTraffic.isNotBlank()) {
+                    oicDirects.forEach { (label, number) ->
                         OicDirectButton(
-                            title = "🚦 Traffic OIC",
-                            number = contact.oicTraffic,
-                            onCall = { onCallClick(contact.oicTraffic) },
-                            onWhatsApp = if (contact.oicTraffic.startsWith("07") || contact.oicTraffic.startsWith("+947") || contact.oicTraffic.startsWith("947")) {
-                                { onWhatsAppClick(contact.oicTraffic) }
+                            title = label,
+                            number = number,
+                            onCall = { onCallClick(number) },
+                            onWhatsApp = if (com.example.util.PhoneUtils.isWhatsAppSupported(number)) {
+                                { onWhatsAppClick(number) }
                             } else null,
-                            onCopy = { onCopyClick(contact.oicTraffic, "OIC Traffic") }
-                        )
-                    }
-                    if (contact.oicCrime.isNotBlank()) {
-                        OicDirectButton(
-                            title = "🔍 Crime OIC",
-                            number = contact.oicCrime,
-                            onCall = { onCallClick(contact.oicCrime) },
-                            onWhatsApp = if (contact.oicCrime.startsWith("07") || contact.oicCrime.startsWith("+947") || contact.oicCrime.startsWith("947")) {
-                                { onWhatsAppClick(contact.oicCrime) }
-                            } else null,
-                            onCopy = { onCopyClick(contact.oicCrime, "OIC Crime") }
-                        )
-                    }
-                    if (contact.oicVice.isNotBlank()) {
-                        OicDirectButton(
-                            title = "🛡️ Vice OIC",
-                            number = contact.oicVice,
-                            onCall = { onCallClick(contact.oicVice) },
-                            onWhatsApp = if (contact.oicVice.startsWith("07") || contact.oicVice.startsWith("+947") || contact.oicVice.startsWith("947")) {
-                                { onWhatsAppClick(contact.oicVice) }
-                            } else null,
-                            onCopy = { onCopyClick(contact.oicVice, "OIC Vice") }
-                        )
-                    }
-                    if (contact.oicCommunityPolicing.isNotBlank()) {
-                        OicDirectButton(
-                            title = "🤝 Community OIC",
-                            number = contact.oicCommunityPolicing,
-                            onCall = { onCallClick(contact.oicCommunityPolicing) },
-                            onWhatsApp = if (contact.oicCommunityPolicing.startsWith("07") || contact.oicCommunityPolicing.startsWith("+947") || contact.oicCommunityPolicing.startsWith("947")) {
-                                { onWhatsAppClick(contact.oicCommunityPolicing) }
-                            } else null,
-                            onCopy = { onCopyClick(contact.oicCommunityPolicing, "OIC Community") }
+                            onCopy = { onCopyClick(number, label) }
                         )
                     }
                 }
                 Spacer(modifier = Modifier.height(10.dp))
             }
+
 
             // Google Maps GPS Navigation & Location Card
             Surface(

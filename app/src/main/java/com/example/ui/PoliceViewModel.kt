@@ -39,7 +39,7 @@ data class PoliceUiState(
     val userMessage: String? = null,
     val searchHistory: List<String> = emptyList(),
     val isSearchHistoryDropdownOpen: Boolean = false,
-    val selectedLanguage: com.example.util.AppLanguage = com.example.util.AppLanguage.SINHALA,
+    val selectedLanguage: com.example.util.AppLanguage = com.example.util.AppLanguage.ENGLISH,
     val isExternalSearching: Boolean = false,
     val externalSearchResults: List<ExternalSearchResult> = emptyList(),
     val externalSearchError: String? = null,
@@ -421,6 +421,34 @@ class PoliceViewModel(private val repository: PoliceRepository) : ViewModel() {
                 onSuccess(count)
             }.onFailure { err ->
                 onError(err.message ?: "Failed to import contacts")
+            }
+        }
+    }
+
+    fun restoreDefaultContacts(
+        onSuccess: (Int) -> Unit = {},
+        onError: (String) -> Unit = {}
+    ) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true, userMessage = "පෙරනිමි තොරතුරු ප්‍රතිස්ථාපනය වෙමින් පවතී... (Restoring default directory...)") }
+            val result = repository.restoreDefaultContacts()
+            result.onSuccess { restoredList ->
+                updatePreIndexedContacts(restoredList)
+                val syncTime = repository.getLastSyncTimeString()
+                _uiState.update { state ->
+                    val filtered = filterContactsList(restoredList, state.searchQuery, state.selectedCategory)
+                    state.copy(
+                        isLoading = false,
+                        contacts = restoredList,
+                        filteredContacts = filtered,
+                        lastSyncTime = syncTime,
+                        userMessage = "පෙරනිමි සම්බන්ධතා ${restoredList.size} සාර්ථකව ප්‍රතිස්ථාපනය කරන ලදී (Successfully restored ${restoredList.size} default contacts)"
+                    )
+                }
+                onSuccess(restoredList.size)
+            }.onFailure { error ->
+                _uiState.update { it.copy(isLoading = false, userMessage = "ප්‍රතිස්ථාපනය අසාර්ථක විය: ${error.message}") }
+                onError(error.message ?: "Failed to restore default contacts")
             }
         }
     }

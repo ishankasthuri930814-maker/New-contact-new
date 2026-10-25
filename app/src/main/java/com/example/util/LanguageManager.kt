@@ -15,7 +15,7 @@ enum class AppLanguage(
 
     companion object {
         fun fromCode(code: String): AppLanguage {
-            return values().firstOrNull { it.code.equals(code, ignoreCase = true) } ?: SINHALA
+            return values().firstOrNull { it.code.equals(code, ignoreCase = true) } ?: ENGLISH
         }
     }
 }
@@ -26,7 +26,7 @@ object LanguageManager {
 
     fun getSavedLanguage(context: Context): AppLanguage {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val code = prefs.getString(KEY_LANGUAGE, AppLanguage.SINHALA.code) ?: AppLanguage.SINHALA.code
+        val code = prefs.getString(KEY_LANGUAGE, AppLanguage.ENGLISH.code) ?: AppLanguage.ENGLISH.code
         return AppLanguage.fromCode(code)
     }
 

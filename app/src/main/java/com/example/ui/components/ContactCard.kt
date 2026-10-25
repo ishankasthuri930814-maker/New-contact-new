@@ -1,5 +1,7 @@
 package com.example.ui.components
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -17,9 +19,12 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.ArrowDropUp
 import androidx.compose.material.icons.filled.Directions
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.LocalPolice
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.PhoneAndroid
@@ -28,6 +33,10 @@ import androidx.compose.material.icons.filled.QrCode2
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.StarOutline
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -69,7 +78,7 @@ fun ContactCard(
     onQrCodeClick: ((PoliceContact) -> Unit)? = null,
     onEditClick: ((PoliceContact) -> Unit)? = null,
     modifier: Modifier = Modifier,
-    selectedLanguage: com.example.util.AppLanguage = com.example.util.AppLanguage.SINHALA,
+    selectedLanguage: com.example.util.AppLanguage = com.example.util.AppLanguage.ENGLISH,
     isCompactSearchMode: Boolean = false,
     searchQuery: String = ""
 ) {
@@ -94,139 +103,7 @@ fun ContactCard(
         }
     }
 
-    if (isCompactSearchMode) {
-        // Compact Search Mode View: Shows only Name, Station, Officer, and a prompt to tap for full details
-        Card(
-            modifier = modifier
-                .fillMaxWidth()
-                .testTag("contact_card_${contact.id}")
-                .clickable { onCardClick(contact) },
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = if (isEmergency) {
-                    EmergencyRed.copy(alpha = 0.07f)
-                } else {
-                    MaterialTheme.colorScheme.surface
-                }
-            ),
-            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(14.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Row(
-                    modifier = Modifier.weight(1f),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(44.dp)
-                            .clip(CircleShape)
-                            .background(if (isEmergency) EmergencyRed.copy(alpha = 0.15f) else MaterialTheme.colorScheme.primaryContainer),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = if (isEmergency) Icons.Default.Phone else Icons.Default.LocationOn,
-                            contentDescription = null,
-                            tint = if (isEmergency) EmergencyRed else MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(22.dp)
-                        )
-                    }
 
-                    Spacer(modifier = Modifier.width(12.dp))
-
-                    Column {
-                        // Rank or District Badge if available
-                        if (displayContact.rank.isNotBlank()) {
-                            Surface(
-                                shape = RoundedCornerShape(4.dp),
-                                color = if (isEmergency) EmergencyRed else MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.padding(bottom = 3.dp)
-                            ) {
-                                Text(
-                                    text = displayContact.rank,
-                                    style = MaterialTheme.typography.labelSmall.copy(
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color.White
-                                    ),
-                                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
-                                )
-                            }
-                        }
-
-                        // Station / Designation Name
-                        Text(
-                            text = displayContact.stationOrDesignation,
-                            style = MaterialTheme.typography.titleMedium.copy(
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 16.sp
-                            ),
-                            color = if (isEmergency) EmergencyRed else MaterialTheme.colorScheme.onSurface
-                        )
-
-                        // Officer Name
-                        if (displayContact.officerName.isNotBlank()) {
-                            Text(
-                                text = "👮 ${displayContact.officerName}",
-                                style = MaterialTheme.typography.bodyMedium.copy(
-                                    fontSize = 13.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            )
-                        }
-
-                        // Tap for details prompt
-                        Text(
-                            text = "විස්තර බැලීමට තට්ටු කරන්න (Tap for details) ➔",
-                            style = MaterialTheme.typography.labelSmall.copy(
-                                fontSize = 12.sp,
-                                color = MaterialTheme.colorScheme.primary,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                        )
-                    }
-                }
-
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (primaryPhone.isNotBlank()) {
-                        IconButton(
-                            onClick = { onCallClick(primaryPhone) },
-                            modifier = Modifier
-                                .size(38.dp)
-                                .clip(CircleShape)
-                                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f))
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Phone,
-                                contentDescription = "Call",
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
-                        Spacer(modifier = Modifier.width(4.dp))
-                    }
-
-                    IconButton(
-                        onClick = { onFavoriteToggle(contact) },
-                        modifier = Modifier.size(36.dp)
-                    ) {
-                        Icon(
-                            imageVector = if (contact.isFavorite) Icons.Default.Star else Icons.Outlined.StarOutline,
-                            contentDescription = if (contact.isFavorite) "Favorite" else "Unfavorite",
-                            tint = if (contact.isFavorite) PoliceGold else MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-                }
-            }
-        }
-        return
-    }
 
     val callBtnText = when (selectedLanguage) {
         com.example.util.AppLanguage.SINHALA -> "ඇමතුම්"
@@ -390,69 +267,74 @@ fun ContactCard(
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
             Spacer(modifier = Modifier.height(10.dp))
 
-            // Phone Numbers Section with Direct Action Buttons
-            if (contact.generalPhone.isNotBlank() || contact.mobilePhone.isNotBlank() || contact.officePhone2.isNotBlank() || contact.officePhone3.isNotBlank() || contact.pvtNumber.isNotBlank()) {
+            // Deduplicated Phone Numbers Section (NO identical number is ever shown twice!)
+            val distinctPhones = contact.distinctPhones
+            if (distinctPhones.isNotEmpty()) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    // General Phone Row
-                    if (contact.generalPhone.isNotBlank()) {
+                    // 1. Primary Phone Row
+                    val primary = distinctPhones[0]
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
                         Row(
-                            modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
+                            modifier = Modifier.weight(1f)
                         ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.weight(1f)
+                            Box(
+                                modifier = Modifier
+                                    .size(32.dp)
+                                    .clip(CircleShape)
+                                    .background(MaterialTheme.colorScheme.primaryContainer),
+                                contentAlignment = Alignment.Center
                             ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(30.dp)
-                                        .clip(CircleShape)
-                                        .background(MaterialTheme.colorScheme.primaryContainer),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Phone,
-                                        contentDescription = "General Phone",
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(15.dp)
-                                    )
-                                }
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Column {
-                                    Text(
-                                        text = phoneLabelText,
-                                        style = MaterialTheme.typography.labelSmall.copy(
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.SemiBold
-                                        ),
-                                        color = Color(0xFF334155)
-                                    )
-                                    Text(
-                                        text = contact.generalPhone,
-                                        style = MaterialTheme.typography.bodyMedium.copy(
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 13.sp
-                                        ),
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                }
+                                Icon(
+                                    imageVector = Icons.Default.Phone,
+                                    contentDescription = "Primary Phone",
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(16.dp)
+                                )
                             }
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Column {
+                                Text(
+                                    text = phoneLabelText,
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.SemiBold
+                                    ),
+                                    color = Color(0xFF334155)
+                                )
+                                Text(
+                                    text = primary,
+                                    style = MaterialTheme.typography.bodyMedium.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 13.5.sp
+                                    ),
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
 
-                            Spacer(modifier = Modifier.width(6.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
 
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
                             Button(
-                                onClick = { onCallClick(contact.generalPhone) },
+                                onClick = { onCallClick(primary) },
                                 shape = RoundedCornerShape(10.dp),
                                 colors = ButtonDefaults.buttonColors(
                                     containerColor = if (isEmergency) EmergencyRed else MaterialTheme.colorScheme.primary
                                 ),
                                 modifier = Modifier.height(36.dp),
-                                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp)
+                                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp)
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Phone,
-                                    contentDescription = "Call General",
+                                    contentDescription = "Call",
                                     modifier = Modifier.size(14.dp)
                                 )
                                 Spacer(modifier = Modifier.width(4.dp))
@@ -461,11 +343,35 @@ fun ContactCard(
                                     style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold, fontSize = 12.sp)
                                 )
                             }
+
+                            if (com.example.util.PhoneUtils.isWhatsAppSupported(primary)) {
+                                Button(
+                                    onClick = { onWhatsAppClick(primary) },
+                                    shape = RoundedCornerShape(10.dp),
+                                    modifier = Modifier.height(36.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = WhatsAppDarkGreen),
+                                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Phone,
+                                        contentDescription = "WhatsApp",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(13.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(3.dp))
+                                    Text(
+                                        text = "WhatsApp",
+                                        color = Color.White,
+                                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                                    )
+                                }
+                            }
                         }
                     }
 
-                    // Mobile Phone Row if present
-                    if (contact.mobilePhone.isNotBlank() && contact.mobilePhone != contact.generalPhone) {
+                    // 2. Secondary Distinct Phone (ONLY if genuinely a different number exists!)
+                    if (distinctPhones.size > 1) {
+                        val secondary = distinctPhones[1]
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically,
@@ -484,7 +390,7 @@ fun ContactCard(
                                 ) {
                                     Icon(
                                         imageVector = Icons.Default.PhoneAndroid,
-                                        contentDescription = "Mobile Phone",
+                                        contentDescription = "Secondary Phone",
                                         tint = MaterialTheme.colorScheme.secondary,
                                         modifier = Modifier.size(15.dp)
                                     )
@@ -500,7 +406,7 @@ fun ContactCard(
                                         color = Color(0xFF334155)
                                     )
                                     Text(
-                                        text = contact.mobilePhone,
+                                        text = secondary,
                                         style = MaterialTheme.typography.bodyMedium.copy(
                                             fontWeight = FontWeight.Bold,
                                             fontSize = 13.sp
@@ -517,14 +423,14 @@ fun ContactCard(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 OutlinedButton(
-                                    onClick = { onCallClick(contact.mobilePhone) },
+                                    onClick = { onCallClick(secondary) },
                                     shape = RoundedCornerShape(8.dp),
                                     modifier = Modifier.height(34.dp),
                                     contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp)
                                 ) {
                                     Icon(
                                         imageVector = Icons.Default.PhoneAndroid,
-                                        contentDescription = "Call Mobile",
+                                        contentDescription = "Call",
                                         modifier = Modifier.size(13.dp)
                                     )
                                     Spacer(modifier = Modifier.width(3.dp))
@@ -534,129 +440,28 @@ fun ContactCard(
                                     )
                                 }
 
-                                Button(
-                                    onClick = { onWhatsAppClick(contact.mobilePhone) },
-                                    shape = RoundedCornerShape(8.dp),
-                                    modifier = Modifier.height(34.dp),
-                                    colors = ButtonDefaults.buttonColors(containerColor = WhatsAppDarkGreen),
-                                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Phone,
-                                        contentDescription = "WhatsApp",
-                                        tint = Color.White,
-                                        modifier = Modifier.size(13.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(3.dp))
-                                    Text(
-                                        text = "WhatsApp",
-                                        color = Color.White,
-                                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold, fontSize = 11.sp)
-                                    )
+                                if (com.example.util.PhoneUtils.isWhatsAppSupported(secondary)) {
+                                    Button(
+                                        onClick = { onWhatsAppClick(secondary) },
+                                        shape = RoundedCornerShape(8.dp),
+                                        modifier = Modifier.height(34.dp),
+                                        colors = ButtonDefaults.buttonColors(containerColor = WhatsAppDarkGreen),
+                                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp)
+                                    ) {
+                                        Text(
+                                            text = "WhatsApp",
+                                            color = Color.White,
+                                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                                        )
+                                    }
                                 }
                             }
                         }
                     }
 
-                    // PVT Number Row if present
-                    if (contact.pvtNumber.isNotBlank()) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(30.dp)
-                                        .clip(CircleShape)
-                                        .background(PoliceGold.copy(alpha = 0.2f)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.PhoneAndroid,
-                                        contentDescription = "PVT Number",
-                                        tint = PoliceGold,
-                                        modifier = Modifier.size(15.dp)
-                                    )
-                                }
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Column {
-                                    Text(
-                                        text = pvtLabelText,
-                                        style = MaterialTheme.typography.labelSmall.copy(
-                                            fontSize = 10.sp,
-                                            fontWeight = FontWeight.Bold
-                                        ),
-                                        color = MaterialTheme.colorScheme.primary
-                                    )
-                                    Text(
-                                        text = contact.pvtNumber,
-                                        style = MaterialTheme.typography.bodyMedium.copy(
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 13.sp
-                                        ),
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.width(4.dp))
-
-                            Row(
-                                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                OutlinedButton(
-                                    onClick = { onCallClick(contact.pvtNumber) },
-                                    shape = RoundedCornerShape(8.dp),
-                                    modifier = Modifier.height(34.dp),
-                                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp),
-                                    colors = ButtonDefaults.outlinedButtonColors(
-                                        contentColor = MaterialTheme.colorScheme.primary
-                                    )
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Phone,
-                                        contentDescription = "Call PVT",
-                                        modifier = Modifier.size(13.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(3.dp))
-                                    Text(
-                                        text = callBtnText,
-                                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold, fontSize = 11.sp)
-                                    )
-                                }
-
-                                Button(
-                                    onClick = { onWhatsAppClick(contact.pvtNumber) },
-                                    shape = RoundedCornerShape(8.dp),
-                                    modifier = Modifier.height(34.dp),
-                                    colors = ButtonDefaults.buttonColors(containerColor = WhatsAppDarkGreen),
-                                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Phone,
-                                        contentDescription = "WhatsApp",
-                                        tint = Color.White,
-                                        modifier = Modifier.size(13.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(3.dp))
-                                    Text(
-                                        text = "WhatsApp",
-                                        color = Color.White,
-                                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold, fontSize = 11.sp)
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    // Office Phone 2 / 3
-                    if (contact.officePhone2.isNotBlank()) {
+                    // 3. Line 3 (ONLY if a 3rd distinct number exists!)
+                    if (distinctPhones.size > 2) {
+                        val line3 = distinctPhones[2]
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically,
@@ -675,7 +480,7 @@ fun ContactCard(
                                 ) {
                                     Icon(
                                         imageVector = Icons.Default.Phone,
-                                        contentDescription = "Office Line 2",
+                                        contentDescription = "Line 3",
                                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                         modifier = Modifier.size(15.dp)
                                     )
@@ -683,39 +488,176 @@ fun ContactCard(
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Column {
                                     Text(
-                                        text = "අතිරේක ඇමතුම් / Office 2",
-                                        style = MaterialTheme.typography.labelSmall.copy(
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.SemiBold
-                                        ),
+                                        text = "අතිරේක මාර්ගය / Line 3",
+                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
                                         color = Color(0xFF334155)
                                     )
                                     Text(
-                                        text = contact.officePhone2,
-                                        style = MaterialTheme.typography.bodyMedium.copy(
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 13.sp
-                                        ),
+                                        text = line3,
+                                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold, fontSize = 13.sp),
                                         color = MaterialTheme.colorScheme.onSurface
                                     )
                                 }
                             }
-
-                            Spacer(modifier = Modifier.width(6.dp))
-
                             OutlinedButton(
-                                onClick = { onCallClick(contact.officePhone2) },
-                                shape = RoundedCornerShape(10.dp),
-                                modifier = Modifier.height(36.dp),
-                                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp)
+                                onClick = { onCallClick(line3) },
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.height(34.dp),
+                                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp)
                             ) {
-                                Text(
-                                    text = "Call 2",
-                                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                                )
+                                Text(text = "Call 3", style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold, fontSize = 11.sp))
                             }
                         }
                     }
+                }
+            }
+
+            // ATTACHED OFFICERS UNDER THIS POLICE STATION (Show station's personnel with roles)
+            if (contact.attachedOfficers.isNotEmpty()) {
+                var isOfficersExpanded by remember { mutableStateOf(false) }
+                Spacer(modifier = Modifier.height(10.dp))
+                Surface(
+                    onClick = { isOfficersExpanded = !isOfficersExpanded },
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.08f),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(10.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.LocalPolice,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "👮 මෙම ස්ථානයේ නිලධාරීන් / Station Officers (${contact.attachedOfficers.size})",
+                                    style = MaterialTheme.typography.labelMedium.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        fontSize = 12.5.sp
+                                    )
+                                )
+                            }
+                            Icon(
+                                imageVector = if (isOfficersExpanded) Icons.Default.ArrowDropUp else Icons.Default.ArrowDropDown,
+                                contentDescription = if (isOfficersExpanded) "Collapse" else "Expand",
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
+
+                        AnimatedVisibility(visible = isOfficersExpanded) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 8.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                contact.attachedOfficers.forEach { officer ->
+                                    Surface(
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = Color.White,
+                                        shadowElevation = 1.dp,
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(8.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    Surface(
+                                                        shape = RoundedCornerShape(4.dp),
+                                                        color = PoliceGold,
+                                                        modifier = Modifier.padding(end = 6.dp)
+                                                    ) {
+                                                        Text(
+                                                            text = officer.rank,
+                                                            color = Color(0xFF0F172A),
+                                                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, fontWeight = FontWeight.Bold),
+                                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                        )
+                                                    }
+                                                    Text(
+                                                        text = officer.designation,
+                                                        style = MaterialTheme.typography.labelSmall.copy(
+                                                            fontWeight = FontWeight.Bold,
+                                                            fontSize = 11.5.sp,
+                                                            color = Color(0xFF0F172A)
+                                                        )
+                                                    )
+                                                }
+                                                Spacer(modifier = Modifier.height(2.dp))
+                                                Text(
+                                                    text = officer.name,
+                                                    style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium, fontSize = 12.sp),
+                                                    color = MaterialTheme.colorScheme.onSurface
+                                                )
+                                                if (officer.primaryPhone.isNotBlank()) {
+                                                    Text(
+                                                        text = "📞 ${officer.primaryPhone}",
+                                                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold, fontSize = 11.sp),
+                                                        color = Color(0xFF1E293B)
+                                                    )
+                                                }
+                                            }
+
+                                            if (officer.primaryPhone.isNotBlank()) {
+                                                Row(
+                                                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    IconButton(
+                                                        onClick = { onCallClick(officer.primaryPhone) },
+                                                        modifier = Modifier
+                                                            .size(34.dp)
+                                                            .clip(CircleShape)
+                                                            .background(MaterialTheme.colorScheme.primaryContainer)
+                                                    ) {
+                                                        Icon(
+                                                            imageVector = Icons.Default.Phone,
+                                                            contentDescription = "Call Officer",
+                                                            tint = MaterialTheme.colorScheme.primary,
+                                                            modifier = Modifier.size(16.dp)
+                                                        )
+                                                    }
+
+                                                    if (com.example.util.PhoneUtils.isWhatsAppSupported(officer.primaryPhone)) {
+                                                        IconButton(
+                                                            onClick = { onWhatsAppClick(officer.primaryPhone) },
+                                                            modifier = Modifier
+                                                                .size(34.dp)
+                                                                .clip(CircleShape)
+                                                                .background(WhatsAppDarkGreen)
+                                                        ) {
+                                                            Icon(
+                                                                imageVector = Icons.Default.Phone,
+                                                                contentDescription = "WhatsApp Officer",
+                                                                tint = Color.White,
+                                                                modifier = Modifier.size(16.dp)
+                                                            )
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
 
                     // OIC Contacts Section (Traffic, Crime, Vice, Community) - Uses FlowRow for perfect wrapping on any screen!
                     if (contact.oicTraffic.isNotBlank() || contact.oicCrime.isNotBlank() || contact.oicVice.isNotBlank() || contact.oicCommunityPolicing.isNotBlank()) {
@@ -803,11 +745,9 @@ fun ContactCard(
                             color = MaterialTheme.colorScheme.primary
                         )
                     }
-                }
-            }
 
             // Email Section
-            if (contact.email.isNotBlank()) {
+            if (contact.cleanEmail.isNotBlank()) {
                 Spacer(modifier = Modifier.height(8.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -843,7 +783,7 @@ fun ContactCard(
                                 color = Color(0xFF334155)
                             )
                             Text(
-                                text = contact.email,
+                                text = contact.cleanEmail,
                                 style = MaterialTheme.typography.bodySmall.copy(
                                     fontWeight = FontWeight.Medium,
                                     fontSize = 12.sp

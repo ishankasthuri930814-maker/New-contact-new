@@ -93,6 +93,9 @@ import com.example.ui.components.ContactQrDialog
 import com.example.ui.components.AdminUpdateSettingsCard
 import com.example.ui.components.AdminAgoraSettingsCard
 import com.example.ui.components.AdminPoliceApiSettingsCard
+import com.example.ui.components.AdminPortalsCard
+import com.example.ui.components.AdminAmisSearchDialog
+import com.example.ui.components.AdminIntranetBrowserDialog
 import com.example.ui.theme.PoliceGold
 import com.example.ui.theme.PoliceNavy
 import kotlinx.coroutines.delay
@@ -119,12 +122,16 @@ fun AdminPanelScreen(
     var contactToDelete by remember { mutableStateOf<PoliceContact?>(null) }
     var showDeleteConfirmDialog by remember { mutableStateOf(false) }
     var showBulkImportDialog by remember { mutableStateOf(false) }
+    var showRestoreConfirmDialog by remember { mutableStateOf(false) }
     var qrContactToShow by remember { mutableStateOf<PoliceContact?>(null) }
+    var showAmisDialog by remember { mutableStateOf(false) }
+    var showIntranetDialog by remember { mutableStateOf(false) }
 
     // Operation Visual Loading States
     var isSaving by remember { mutableStateOf(false) }
     var isDeleting by remember { mutableStateOf(false) }
     var isBulkImporting by remember { mutableStateOf(false) }
+    var isRestoring by remember { mutableStateOf(false) }
 
     // Rotation animation for refresh icon
     val rotationAngle by animateFloatAsState(
@@ -172,7 +179,7 @@ fun AdminPanelScreen(
                     Column {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
-                                text = "පරිපාලක පුවරුව",
+                                text = "Admin Panel",
                                 style = MaterialTheme.typography.titleMedium.copy(
                                     fontWeight = FontWeight.Bold,
                                     color = Color.White,
@@ -263,13 +270,13 @@ fun AdminPanelScreen(
                             horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
                             AdminStatMiniCard(
-                                title = "මුළු ගණන (Total)",
+                                title = "Total Contacts",
                                 count = uiState.contacts.size.toString(),
                                 iconColor = PoliceNavy,
                                 modifier = Modifier.weight(1f)
                             )
                             AdminStatMiniCard(
-                                title = "පොලිස් ස්ථාන",
+                                title = "Police Stations",
                                 count = uiState.contacts.count {
                                     it.category == ContactCategory.POLICE ||
                                             it.category == ContactCategory.DIVISIONS ||
@@ -287,13 +294,13 @@ fun AdminPanelScreen(
                             horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
                             AdminStatMiniCard(
-                                title = "හදිසි ඇමතුම් (119/1990)",
+                                title = "Emergency (119/1990)",
                                 count = uiState.contacts.count { it.category == ContactCategory.EMERGENCY }.toString(),
                                 iconColor = Color(0xFFDC2626),
                                 modifier = Modifier.weight(1f)
                             )
                             AdminStatMiniCard(
-                                title = "ගිනි නිවීම් / රෝහල්",
+                                title = "Fire & Hospitals",
                                 count = uiState.contacts.count {
                                     it.category == ContactCategory.FIRE_STATIONS || it.category == ContactCategory.HOSPITALS
                                 }.toString(),
@@ -304,7 +311,15 @@ fun AdminPanelScreen(
                     }
                 }
 
-                // 2. Official Sri Lanka Police API Live Sync Card
+                // 2. Official Police Portals & Databases (AMIS Search & Intranet In-App Browser)
+                item {
+                    AdminPortalsCard(
+                        onOpenAmisSearch = { showAmisDialog = true },
+                        onOpenIntranet = { showIntranetDialog = true }
+                    )
+                }
+
+                // 2.1 Official Sri Lanka Police API Live Sync Card
                 item {
                     AdminPoliceApiSettingsCard(
                         officersCount = uiState.contacts.count { it.id.startsWith("lk_officer_") },
@@ -316,11 +331,14 @@ fun AdminPanelScreen(
                             scope.launch {
                                 snackbarHostState.showSnackbar(msg)
                             }
+                        },
+                        onRestoreDefault = {
+                            showRestoreConfirmDialog = true
                         }
                     )
                 }
 
-                // 2.1 GitHub In-App Auto-Update Settings & Management Card
+                // 2.2 GitHub In-App Auto-Update Settings & Management Card
                 item {
                     AdminUpdateSettingsCard(
                         onShowMessage = { msg ->
@@ -331,7 +349,7 @@ fun AdminPanelScreen(
                     )
                 }
 
-                // 2.2 Agora Real-Time Voice & Chat Engine Settings Card
+                // 2.3 Agora Real-Time Voice & Chat Engine Settings Card
                 item {
                     AdminAgoraSettingsCard(
                         onShowMessage = { msg ->
@@ -378,7 +396,7 @@ fun AdminPanelScreen(
                                     )
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Text(
-                                        text = "+ නව තොරතුර (Add)",
+                                        text = "+ Add Contact",
                                         style = MaterialTheme.typography.bodyMedium.copy(
                                             fontWeight = FontWeight.Bold,
                                             fontSize = 13.sp
@@ -420,6 +438,51 @@ fun AdminPanelScreen(
                                 }
                             }
 
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            // Restore Default Directory Button
+                            OutlinedButton(
+                                onClick = { showRestoreConfirmDialog = true },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(42.dp)
+                                    .testTag("admin_restore_default_button"),
+                                shape = RoundedCornerShape(12.dp),
+                                border = BorderStroke(1.dp, Color(0xFF0284C7)),
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    contentColor = Color(0xFF0369A1),
+                                    containerColor = Color(0xFFF0F9FF)
+                                )
+                            ) {
+                                if (isRestoring) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(16.dp),
+                                        strokeWidth = 2.dp,
+                                        color = Color(0xFF0369A1)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = "Restoring Default Contacts...",
+                                        style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold)
+                                    )
+                                } else {
+                                    Icon(
+                                        imageVector = Icons.Default.Shield,
+                                        contentDescription = "Restore Default Contacts",
+                                        tint = Color(0xFF0284C7),
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = "Restore Default Contacts Directory",
+                                        style = MaterialTheme.typography.bodySmall.copy(
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 12.sp
+                                        )
+                                    )
+                                }
+                            }
+
                             Spacer(modifier = Modifier.height(12.dp))
 
                             // Search Field
@@ -429,7 +492,7 @@ fun AdminPanelScreen(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .testTag("admin_search_field"),
-                                placeholder = { Text("ස්ථානය, නිලය, නම හෝ දුරකථන අංකය සොයන්න...", fontSize = 13.sp) },
+                                placeholder = { Text("Search station, rank, officer name or phone...", fontSize = 13.sp) },
                                 leadingIcon = {
                                     Icon(
                                         imageVector = Icons.Default.Search,
@@ -474,16 +537,16 @@ fun AdminPanelScreen(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 val categories = listOf(
-                                    ContactCategory.ALL to "සියල්ල (All)",
-                                    ContactCategory.POLICE to "පොලිස් (Police)",
-                                    ContactCategory.EMERGENCY to "හදිසි (Emergency)",
-                                    ContactCategory.FIRE_STATIONS to "ගිනි නිවීම් (Fire)",
-                                    ContactCategory.HOSPITALS to "රෝහල් (Hospitals)",
-                                    ContactCategory.GOVT_SERVICES to "රජයේ (Govt)",
-                                    ContactCategory.RAILWAY to "දුම්රිය (Railway)",
-                                    ContactCategory.POST_OFFICE to "තැපැල් (Post)",
-                                    ContactCategory.SCHOOLS to "පාසල් (Schools)",
-                                    ContactCategory.TRAVEL to "ප්‍රවාහන (Travel)"
+                                    ContactCategory.ALL to "All",
+                                    ContactCategory.POLICE to "Police",
+                                    ContactCategory.EMERGENCY to "Emergency",
+                                    ContactCategory.FIRE_STATIONS to "Fire",
+                                    ContactCategory.HOSPITALS to "Hospitals",
+                                    ContactCategory.GOVT_SERVICES to "Govt Services",
+                                    ContactCategory.RAILWAY to "Railway",
+                                    ContactCategory.POST_OFFICE to "Post Office",
+                                    ContactCategory.SCHOOLS to "Schools",
+                                    ContactCategory.TRAVEL to "Travel & Transport"
                                 )
                                 items(categories) { (cat, label) ->
                                     val isSelected = selectedCategory == cat
@@ -521,14 +584,14 @@ fun AdminPanelScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "ලැයිස්තුව (${filteredList.size})",
+                            text = "Directory Records (${filteredList.size})",
                             style = MaterialTheme.typography.titleSmall.copy(
                                 fontWeight = FontWeight.Bold,
                                 color = Color(0xFF334155)
                             )
                         )
                         Text(
-                            text = "Edit හෝ Delete තෝරන්න",
+                            text = "Tap Edit or Delete to manage",
                             style = MaterialTheme.typography.labelSmall.copy(
                                 color = Color(0xFF64748B)
                             )
@@ -554,7 +617,7 @@ fun AdminPanelScreen(
                                 )
                                 Spacer(modifier = Modifier.height(12.dp))
                                 Text(
-                                    text = "ගැලපෙන තොරතුරු හමු නොවීය",
+                                    text = "No matching contacts found",
                                     style = MaterialTheme.typography.bodyMedium.copy(
                                         color = Color(0xFF64748B),
                                         fontWeight = FontWeight.SemiBold
@@ -749,6 +812,134 @@ fun AdminPanelScreen(
     }
 
     // =========================================================================
+    // RESTORE CONFIRMATION DIALOG (FOR RESETTING TO DEFAULT FACTORY DATA)
+    // =========================================================================
+    if (showRestoreConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                if (!isRestoring) {
+                    showRestoreConfirmDialog = false
+                }
+            },
+            icon = {
+                Icon(
+                    imageVector = Icons.Default.Shield,
+                    contentDescription = null,
+                    tint = PoliceNavy,
+                    modifier = Modifier.size(36.dp)
+                )
+            },
+            title = {
+                Text(
+                    text = "පෙරනිමි තොරතුරු ප්‍රතිස්ථාපනය කරන්නද?",
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF1E293B)
+                    )
+                )
+            },
+            text = {
+                Column {
+                    Text(
+                        text = "දිවයිනේ සියලුම පොලිස් ස්ථාන, හදිසි අංක, රෝහල්, දුම්රිය, රජයේ සේවා සහ නිලධාරීන්ගේ තොරතුරු නැවත මුල් තත්වයට (Default Directory) ප්‍රතිස්ථාපනය වේ.",
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            color = Color(0xFF475569),
+                            lineHeight = 20.sp
+                        )
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = "මෙය සිදු කිරීමෙන් පසු ඔබගේ සියලුම පෙරනිමි දත්ත නැවත ලබාගත හැක. (Restore all default police contacts)",
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            color = Color(0xFF0369A1),
+                            fontWeight = FontWeight.Medium
+                        )
+                    )
+                    if (isRestoring) {
+                        Spacer(modifier = Modifier.height(14.dp))
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(20.dp),
+                                color = PoliceNavy,
+                                strokeWidth = 2.5.dp
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text(
+                                text = "ප්‍රතිස්ථාපනය වෙමින් පවතී... (Restoring default data)",
+                                style = MaterialTheme.typography.labelMedium.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    color = PoliceNavy
+                                )
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        isRestoring = true
+                        scope.launch {
+                            viewModel.restoreDefaultContacts(
+                                onSuccess = { count ->
+                                    isRestoring = false
+                                    showRestoreConfirmDialog = false
+                                    scope.launch {
+                                        snackbarHostState.showSnackbar("✓ පෙරනිමි සම්බන්ධතා $count ක් සාර්ථකව ප්‍රතිස්ථාපනය විය! (Restored)")
+                                    }
+                                },
+                                onError = { err ->
+                                    isRestoring = false
+                                    scope.launch {
+                                        snackbarHostState.showSnackbar("දෝෂයකි: $err")
+                                    }
+                                }
+                            )
+                        }
+                    },
+                    enabled = !isRestoring,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = PoliceNavy,
+                        contentColor = Color.White
+                    ),
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.testTag("admin_confirm_restore_button")
+                ) {
+                    if (isRestoring) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            color = Color.White,
+                            strokeWidth = 2.dp
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("ප්‍රතිස්ථාපනය වෙමින්...")
+                    } else {
+                        Icon(imageVector = Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp), tint = PoliceGold)
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("ප්‍රතිස්ථාපනය කරන්න (Restore)")
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        showRestoreConfirmDialog = false
+                    },
+                    enabled = !isRestoring
+                ) {
+                    Text("අවලංගු කරන්න (Cancel)", color = Color(0xFF64748B))
+                }
+            },
+            shape = RoundedCornerShape(16.dp),
+            containerColor = Color.White
+        )
+    }
+
+    // =========================================================================
     // BULK IMPORT CSV DIALOG
     // =========================================================================
     if (showBulkImportDialog) {
@@ -789,6 +980,25 @@ fun AdminPanelScreen(
         ContactQrDialog(
             contact = activeAdminQrContact,
             onDismiss = { qrContactToShow = null }
+        )
+    }
+
+    // =========================================================================
+    // AMIS DATABASE SEARCH DIALOG (https://apps.police.lk:35035/amis/search/)
+    // =========================================================================
+    if (showAmisDialog) {
+        AdminAmisSearchDialog(
+            initialQuery = searchQuery,
+            onDismiss = { showAmisDialog = false }
+        )
+    }
+
+    // =========================================================================
+    // POLICE INTRANET IN-APP BROWSER DIALOG (https://intranet.police.lk/dashboard/)
+    // =========================================================================
+    if (showIntranetDialog) {
+        AdminIntranetBrowserDialog(
+            onDismiss = { showIntranetDialog = false }
         )
     }
 }

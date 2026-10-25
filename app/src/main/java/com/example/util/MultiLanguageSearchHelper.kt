@@ -600,16 +600,18 @@ object MultiLanguageSearchHelper {
         val officerLower = clean.officerName.trim().lowercase()
         val rankLower = clean.rank.trim().lowercase()
         val addressLower = clean.locationAddress.trim().lowercase()
-        val phones = "${clean.generalPhone} ${clean.mobilePhone} ${clean.pvtNumber} ${clean.officePhone2}"
+        val attachedOfficersText = clean.attachedOfficers.joinToString(" ") {
+            "${it.name} ${it.rank} ${it.designation} ${it.station} ${it.primaryPhone} ${it.secondaryPhone}"
+        }
+        val phones = (clean.distinctPhones + clean.attachedOfficers.map { it.primaryPhone }).joinToString(" ")
 
         val corpus = (clean.stationOrDesignation + " " +
                 clean.officerName + " " +
                 clean.rank + " " +
                 clean.locationAddress + " " +
-                clean.generalPhone + " " +
-                clean.mobilePhone + " " +
-                clean.pvtNumber + " " +
-                clean.email).lowercase()
+                clean.distinctPhones.joinToString(" ") + " " +
+                attachedOfficersText + " " +
+                clean.cleanEmail).lowercase()
 
         val titleWords = titleLower.split(' ', '-', '/').filter { it.isNotBlank() }
         val sinTitle = translateText(clean.stationOrDesignation, com.example.util.AppLanguage.SINHALA).lowercase()
@@ -1154,7 +1156,11 @@ object MultiLanguageSearchHelper {
         }
 
         if (data.phones.contains(q)) {
-            score += 4_000
+            score += 18_000
+        }
+
+        if (data.corpus.contains(q)) {
+            score += 12_000
         }
 
         // Transliteration / token candidate check

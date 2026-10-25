@@ -54,7 +54,7 @@ fun EmergencyHeader(
     onEmergencyCall: (String) -> Unit,
     modifier: Modifier = Modifier,
     appConfig: AppConfig = AppConfig(),
-    selectedLanguage: com.example.util.AppLanguage = com.example.util.AppLanguage.SINHALA
+    selectedLanguage: com.example.util.AppLanguage = com.example.util.AppLanguage.ENGLISH
 ) {
     val theme = appConfig.theme
     val header = appConfig.header

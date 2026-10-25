@@ -19,8 +19,40 @@ data class PoliceContact(
     val locationCoordinates: String = "",
     val locationAddress: String = "",
     val category: ContactCategory = ContactCategory.POLICE,
-    val isFavorite: Boolean = false
-)
+    val isFavorite: Boolean = false,
+    val attachedOfficers: List<StationOfficer> = emptyList()
+) {
+    /**
+     * Returns strictly deduplicated phone numbers so that no identical number appears twice!
+     */
+    val distinctPhones: List<String>
+        get() = com.example.util.PhoneUtils.getDistinctPhones(
+            generalPhone,
+            mobilePhone,
+            officePhone2,
+            officePhone3,
+            pvtNumber
+        )
+
+    /**
+     * Checks if fax is genuinely different from all voice phone numbers.
+     */
+    val isFaxDistinct: Boolean
+        get() = !com.example.util.PhoneUtils.isFaxDuplicate(
+            fax,
+            generalPhone,
+            mobilePhone,
+            officePhone2,
+            officePhone3,
+            pvtNumber
+        )
+
+    /**
+     * Clean email without dummy placeholders ("0", "null").
+     */
+    val cleanEmail: String
+        get() = com.example.util.PhoneUtils.cleanEmail(email)
+}
 
 fun PoliceContact.sanitized(): PoliceContact {
     var station = this.stationOrDesignation.trim()
@@ -78,8 +110,8 @@ enum class ContactCategory(
     val tamilName: String,
     val iconRes: String
 ) {
-    ALL("All", "සියල්ල", "அனைத்தும்", "all"),
     POLICE("Police Contacts", "පොලිස් ඇමතුම්", "காவல்துறை தொடர்புகள்", "local_police"),
+    ALL("All", "සියල්ල", "அனைத்தும்", "all"),
     EMERGENCY("Emergency", "හදිසි ඇමතුම්", "அவசர அழைப்புகள்", "emergency"),
     DIVISIONS("Divisions", "කොට්ඨාස", "பிரிவுகள்", "domain"),
     RANGES("DIG Ranges", "කලාප", "டிஐஜி வலயங்கள்", "shield"),

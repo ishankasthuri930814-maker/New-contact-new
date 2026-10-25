@@ -679,19 +679,29 @@ object PoliceGpsDirectory {
         map
     }
 
+    private val locationCache = java.util.concurrent.ConcurrentHashMap<String, PoliceGpsLocation?>()
+
     fun findLocation(stationName: String): PoliceGpsLocation? {
         val clean = normalize(stationName)
         if (clean.isBlank()) return null
 
+        locationCache[clean]?.let { return it }
+
         val aliasKey = aliases[clean]
         if (aliasKey != null && locationMap.containsKey(aliasKey)) {
-            return locationMap[aliasKey]
+            val res = locationMap[aliasKey]
+            locationCache[clean] = res
+            return res
         }
 
-        locationMap[clean]?.let { return it }
+        locationMap[clean]?.let { 
+            locationCache[clean] = it
+            return it 
+        }
 
         for ((k, loc) in locationMap) {
             if (k.length >= 4 && (clean.contains(k) || k.contains(clean))) {
+                locationCache[clean] = loc
                 return loc
             }
         }
@@ -699,9 +709,13 @@ object PoliceGpsDirectory {
         for ((aliasK, aliasV) in aliases) {
             if (clean.contains(aliasK)) {
                 val replaced = clean.replace(aliasK, aliasV)
-                locationMap[replaced]?.let { return it }
+                locationMap[replaced]?.let { 
+                    locationCache[clean] = it
+                    return it 
+                }
                 for ((k, loc) in locationMap) {
                     if (k.length >= 4 && (replaced.contains(k) || k.contains(replaced))) {
+                        locationCache[clean] = loc
                         return loc
                     }
                 }

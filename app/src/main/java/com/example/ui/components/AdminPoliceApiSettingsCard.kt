@@ -64,12 +64,14 @@ fun AdminPoliceApiSettingsCard(
     lastSyncTime: String,
     onSyncNow: () -> Unit,
     onShowMessage: (String) -> Unit,
+    onRestoreDefault: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var isExpanded by remember { mutableStateOf(false) }
     var isTestingConnection by remember { mutableStateOf(false) }
+    var isRestoring by remember { mutableStateOf(false) }
     var testResult by remember { mutableStateOf<String?>(null) }
 
     Card(
@@ -343,6 +345,35 @@ fun AdminPoliceApiSettingsCard(
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             Text("Sync Now", fontSize = 11.sp, color = Color.White)
+                        }
+                    }
+
+                    if (onRestoreDefault != null) {
+                        OutlinedButton(
+                            onClick = {
+                                onRestoreDefault()
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("btn_restore_police_default_card"),
+                            shape = RoundedCornerShape(8.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                contentColor = Color(0xFF475569)
+                            )
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.LocalPolice,
+                                contentDescription = null,
+                                tint = PoliceNavy,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                "පෙරනිමි තොරතුරු ප්‍රතිස්ථාපනය (Restore Default)",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
                         }
                     }
                 }

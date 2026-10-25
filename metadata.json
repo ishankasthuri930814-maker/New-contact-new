@@ -1,5 +1,5 @@
 {
-  "name": "SL Police Directory",
+  "name": "Sri Lanka Police Directory",
   "description": "Sri Lanka Police and Emergency Directory with smart in-app Google and Rainbow Pages lookup.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
