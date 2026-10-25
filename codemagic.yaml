@@ -17,9 +17,12 @@ workflows:
           mkdir -p "$STRINGS_DIR"
           cat << 'EOF' > "$STRINGS_DIR/strings.xml"
           <resources>
-              <string name="app_name">Lanka Taxi Meter</string>
+              <string name="app_name">Police Directory</string>
               <string name="admob_app_id">ca-app-pub-3940256099942544~3347511713</string>
               <string name="default_web_client_id">dummy_client_id</string>
+              <string name="facebook_app_id">1234567890</string>
+              <string name="facebook_client_token">dummy_facebook_client_token</string>
+              <string name="fb_login_protocol_scheme">fb1234567890</string>
           </resources>
           EOF
       - name: Generate Dummy Keystore
